@@ -9,6 +9,19 @@
 
 #include "myfunc_F.H"
 
+#ifdef CUDA
+
+#define FORTRAN_LAUNCH(lo,hi,func,...) \
+	dim3 numBlocks, numThreads; \
+	Device::c_threads_and_blocks(lo, hi, numBlocks, numThreads); \
+        func<<<numBlocks, numThreads, 0, Device::stream_from_index(mfi.tileIndex())>>>(__VA_ARGS__)
+
+#else
+
+#define FORTRAN_LAUNCH(lo,hi,func,...) func(__VA_ARGS__)
+
+#endif
+
 using namespace amrex;
 
 void main_main ();
@@ -54,19 +67,11 @@ void advance (MultiFab& old_phi, MultiFab& new_phi,
 
 	    sbx[idir-1] = surroundingNodes(bx, idir-1);
 
-#ifdef CUDA
-	    dim3 numBlocks, numThreads;
-	    Device::c_threads_and_blocks(sbx[idir-1].loVect(), sbx[idir-1].hiVect(), numBlocks, numThreads);
-#endif
-
-	    compute_flux
-#ifdef CUDA
-		<<<numBlocks, numThreads, 0, Device::stream_from_index(mfi.tileIndex())>>>
-#endif
-		(sbx[idir-1].loVect(), sbx[idir-1].hiVect(),
-                         old_phi[mfi].dataPtr(), old_phi[mfi].loVect(), old_phi[mfi].hiVect(),
-			 flux[idir-1][mfi].dataPtr(), flux[idir-1][mfi].loVect(), flux[idir-1][mfi].hiVect(),
-			 dx, idir);
+	    FORTRAN_LAUNCH(sbx[idir-1].loVect(), sbx[idir-1].hiVect(), compute_flux,
+			   sbx[idir-1].loVect(), sbx[idir-1].hiVect(),
+			   old_phi[mfi].dataPtr(), old_phi[mfi].loVect(), old_phi[mfi].hiVect(),
+			   flux[idir-1][mfi].dataPtr(), flux[idir-1][mfi].loVect(), flux[idir-1][mfi].hiVect(),
+			   dx, idir);
 
 	}
 
@@ -81,24 +86,17 @@ void advance (MultiFab& old_phi, MultiFab& new_phi,
     {
         const Box& bx = mfi.validbox();
 
-#ifdef CUDA
-	dim3 numBlocks, numThreads;
-	Device::c_threads_and_blocks(bx.loVect(), bx.hiVect(), numBlocks, numThreads);
-#endif
-
-        update_phi
-#ifdef CUDA
-	    <<<numBlocks, numThreads, 0, Device::stream_from_index(mfi.tileIndex())>>>
-#endif
-	    (bx.loVect(), bx.hiVect(),
-	     old_phi[mfi].dataPtr(), old_phi[mfi].loVect(), old_phi[mfi].hiVect(),
-	     new_phi[mfi].dataPtr(), new_phi[mfi].loVect(), new_phi[mfi].hiVect(),
-	     flux[0][mfi].dataPtr(), flux[0][mfi].loVect(), flux[0][mfi].hiVect(),
-	     flux[1][mfi].dataPtr(), flux[1][mfi].loVect(), flux[1][mfi].hiVect(),
+	FORTRAN_LAUNCH(bx.loVect(), bx.hiVect(), update_phi,
+		       bx.loVect(), bx.hiVect(),
+		       old_phi[mfi].dataPtr(), old_phi[mfi].loVect(), old_phi[mfi].hiVect(),
+		       new_phi[mfi].dataPtr(), new_phi[mfi].loVect(), new_phi[mfi].hiVect(),
+		       flux[0][mfi].dataPtr(), flux[0][mfi].loVect(), flux[0][mfi].hiVect(),
+		       flux[1][mfi].dataPtr(), flux[1][mfi].loVect(), flux[1][mfi].hiVect(),
 #if (BL_SPACEDIM == 3)   
-	     flux[2][mfi].dataPtr(), flux[2][mfi].loVect(), flux[2][mfi].hiVect(),
+		       flux[2][mfi].dataPtr(), flux[2][mfi].loVect(), flux[2][mfi].hiVect(),
 #endif
-	     dx, dt);
+		       dx, dt);
+
     }
 
 #ifdef CUDA
