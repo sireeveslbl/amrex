@@ -11,12 +11,14 @@ extern "C"
     void init_phi(const int* lo, const int* hi,
                   amrex_real* data, const int* dlo, const int* dhi,
                   const amrex_real* dx, const amrex_real* prob_lo, const amrex_real* prob_hi);
-    
+
+    DEVICE_LAUNCH_PROCEDURE_C
     void compute_flux(const int* lo, const int* hi,
                       amrex_real* phi, const int* philo, const int* phihi,
                       amrex_real* flux, const int* flo, const int* fhi,
-                      const amrex_real* dx, const int idir, const int idx);
+                      const amrex_real* dx, const int idir);
 
+    DEVICE_LAUNCH_PROCEDURE_C
     void update_phi(const int* lo, const int* hi,
                     amrex_real* pold, const int* polo, const int* pohi,
                     amrex_real* pnew, const int* pnlo, const int* pnhi,
@@ -25,7 +27,7 @@ extern "C"
 #if (BL_SPACEDIM == 3)   
                     amrex_real* fluxz, const int* fzlo, const int* fzhi,
 #endif
-                    const amrex_real* dx, const amrex_real dt, const int idx);
+                    const amrex_real* dx, const amrex_real dt);
 
 #ifdef __cplusplus
 }
