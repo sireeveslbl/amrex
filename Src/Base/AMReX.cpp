@@ -325,6 +325,7 @@ amrex::Initialize (int& argc, char**& argv, bool build_parm_parse, MPI_Comm mpi_
 #ifdef CUDA
     // Initialize CUDA streams.
     initialize_cuda();
+    Device::initialize_cuda_c();
 #endif
 
     signal(SIGSEGV, BLBackTrace::handler); // catch seg falult

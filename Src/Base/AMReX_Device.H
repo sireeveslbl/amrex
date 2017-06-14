@@ -42,12 +42,23 @@ public:
 
 #ifdef CUDA
     static int cudaDeviceId() { return cuda_device_id; }
+
+    static void c_threads_and_blocks(const int* lo, const int* hi, dim3& numBlocks, dim3& numThreads);
+
+    static cudaStream_t stream_from_index (int idx);
+
+    static void initialize_cuda_c ();
 #endif
 
 private:
 
     static bool in_device_launch_region;
     static int cuda_device_id;
+
+#ifdef CUDA
+    static const int max_cuda_streams = 100;
+    static cudaStream_t cuda_streams[max_cuda_streams];
+#endif
 
 };
 
