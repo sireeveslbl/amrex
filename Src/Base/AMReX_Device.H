@@ -5,6 +5,19 @@
 #include <cstdlib>
 
 #ifdef CUDA
+
+#define FORTRAN_LAUNCH(lo,hi,index,func,...)	\
+	dim3 numBlocks, numThreads; \
+	Device::c_threads_and_blocks(lo, hi, numBlocks, numThreads); \
+        func<<<numBlocks, numThreads, 0, Device::stream_from_index(index)>>>(__VA_ARGS__)
+
+#else
+
+#define FORTRAN_LAUNCH(lo,hi,index,func,...) func(__VA_ARGS__)
+
+#endif
+
+#ifdef CUDA
 extern "C" {
     void initialize_cuda();
     void gpu_malloc(void** p, const std::size_t* sz);

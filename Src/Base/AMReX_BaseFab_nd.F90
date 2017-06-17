@@ -14,7 +14,7 @@ contains
 #ifdef CUDA
   attributes(global) &
 #endif
-  subroutine fort_fab_copy_doit(lo, hi, dst, dlo, dhi, src, slo, shi, sblo, ncomp)
+  subroutine fort_fab_copy(lo, hi, dst, dlo, dhi, src, slo, shi, sblo, ncomp) bind(c, name='fort_fab_copy')
     integer, intent(in) :: lo(3), hi(3), dlo(3), dhi(3), slo(3), shi(3), sblo(3)
     real(amrex_real), intent(in   ) :: src(slo(1):shi(1),slo(2):shi(2),slo(3):shi(3),ncomp)
     real(amrex_real), intent(inout) :: dst(dlo(1):dhi(1),dlo(2):dhi(2),dlo(3):dhi(3),ncomp)
@@ -36,7 +36,7 @@ contains
           end do
        end do
     end do
-  end subroutine fort_fab_copy_doit
+  end subroutine fort_fab_copy
 
 
   ! copy from multi-d array to 1d array
@@ -101,7 +101,7 @@ contains
 #ifdef CUDA
   attributes(global) &
 #endif
-  subroutine fort_fab_setval_doit(lo, hi, dst, dlo, dhi, ncomp, val)
+  subroutine fort_fab_setval(lo, hi, dst, dlo, dhi, ncomp, val) bind(c, name='fort_fab_setval')
     integer, intent(in) :: lo(3), hi(3), dlo(3), dhi(3)
     integer, intent(in), value :: ncomp
     real(amrex_real), intent(in), value :: val
@@ -122,7 +122,7 @@ contains
        end do
     end do
 
-  end subroutine fort_fab_setval_doit
+  end subroutine fort_fab_setval
 
 
   function fort_fab_norm_doit (lo, hi, src, slo, shi, ncomp, p) result(nrm)
@@ -191,7 +191,7 @@ contains
 #ifdef CUDA
   attributes(global) &
 #endif
-  subroutine fort_fab_plus_doit(lo, hi, dst, dlo, dhi, src, slo, shi, sblo, ncomp)
+  subroutine fort_fab_plus(lo, hi, dst, dlo, dhi, src, slo, shi, sblo, ncomp) bind(c, name='fort_fab_plus')
     integer, intent(in) :: lo(3), hi(3), dlo(3), dhi(3), slo(3), shi(3), sblo(3)
     integer, intent(in), value :: ncomp
     real(amrex_real), intent(in   ) :: src(slo(1):shi(1),slo(2):shi(2),slo(3):shi(3),ncomp)
@@ -213,7 +213,7 @@ contains
           end do
        end do
     end do
-  end subroutine fort_fab_plus_doit
+  end subroutine fort_fab_plus
 
 
   subroutine fort_fab_minus_doit(lo, hi, dst, dlo, dhi, src, slo, shi, sblo, ncomp, index)
@@ -349,7 +349,7 @@ contains
 #ifdef CUDA
   attributes(global) &
 #endif
-  subroutine fort_fab_saxpy_doit(lo, hi, dst, dlo, dhi, a, src, slo, shi, sblo, ncomp)
+  subroutine fort_fab_saxpy(lo, hi, dst, dlo, dhi, a, src, slo, shi, sblo, ncomp) bind(c, name='fort_fab_saxpy')
     integer, intent(in) :: lo(3), hi(3), dlo(3), dhi(3), slo(3), shi(3), sblo(3)
     integer, intent(in), value :: ncomp
     real(amrex_real), intent(in   ), value :: a
@@ -372,7 +372,7 @@ contains
           end do
        end do
     end do
-  end subroutine fort_fab_saxpy_doit
+  end subroutine fort_fab_saxpy
 
 
   ! dst = src + a*dst
@@ -475,84 +475,6 @@ contains
 end module basefab_nd_module
 
 
-  subroutine fort_fab_copy(lo, hi, dst, dlo, dhi, src, slo, shi, sblo, ncomp, index) &
-                           bind(c,name='fort_fab_copy')
-
-    use amrex_fort_module, only: amrex_real
-    use basefab_nd_module, only: fort_fab_copy_doit
-#ifdef CUDA
-  use cuda_module, only: stream_from_index, cuda_streams, threads_and_blocks
-  use cudafor, only: cuda_stream_kind, dim3
-#endif
-
-    implicit none
-
-    integer, intent(in) :: lo(3), hi(3), dlo(3), dhi(3), slo(3), shi(3), sblo(3), index
-    real(amrex_real), intent(in   ) :: src(slo(1):shi(1),slo(2):shi(2),slo(3):shi(3),ncomp)
-    real(amrex_real), intent(inout) :: dst(dlo(1):dhi(1),dlo(2):dhi(2),dlo(3):dhi(3),ncomp)
-    integer, intent(in), value :: ncomp
-
-#ifdef CUDA
-    attributes(managed) :: src, dst, lo, hi, dlo, dhi, slo, shi, sblo
-
-    integer :: cuda_result
-    integer(kind=cuda_stream_kind) :: stream
-    type(dim3) :: numThreads, numBlocks
-
-    stream = cuda_streams(stream_from_index(index))
-
-    call threads_and_blocks(lo, hi, numBlocks, numThreads)
-#endif
-
-    call fort_fab_copy_doit &
-#ifdef CUDA
-    <<<numBlocks, numThreads, 0, stream>>> &
-#endif
-    (lo, hi, dst, dlo, dhi, src, slo, shi, sblo, ncomp)
-
-  end subroutine fort_fab_copy
-
-
-
-  subroutine fort_fab_setval(lo, hi, dst, dlo, dhi, ncomp, val, index) &
-                             bind(c,name='fort_fab_setval')
-
-    use amrex_fort_module, only: amrex_real
-    use basefab_nd_module, only: fort_fab_setval_doit
-#ifdef CUDA
-  use cuda_module, only: stream_from_index, cuda_streams, threads_and_blocks
-  use cudafor, only: cuda_stream_kind, dim3
-#endif
-
-    implicit none
-
-    integer, intent(in) :: lo(3), hi(3), dlo(3), dhi(3), index
-    real(amrex_real), intent(in), value :: val
-    real(amrex_real), intent(inout) :: dst(dlo(1):dhi(1),dlo(2):dhi(2),dlo(3):dhi(3),ncomp)
-    integer, intent(in), value :: ncomp
-
-#ifdef CUDA
-    attributes(managed) :: dst, lo, hi, dlo, dhi
-
-    integer :: cuda_result
-    integer(kind=cuda_stream_kind) :: stream
-    type(dim3) :: numThreads, numBlocks
-
-    stream = cuda_streams(stream_from_index(index))
-
-    call threads_and_blocks(lo, hi, numBlocks, numThreads)
-#endif
-
-    call fort_fab_setval_doit &
-#ifdef CUDA
-         <<<numBlocks, numThreads, 0, stream>>> &
-#endif
-         (lo, hi, dst, dlo, dhi, ncomp, val)
-
-  end subroutine fort_fab_setval
-
-
-
 
   function fort_fab_norm (lo, hi, src, slo, shi, ncomp, p) result(nrm) &
        bind(c,name='fort_fab_norm')
@@ -573,83 +495,6 @@ end module basefab_nd_module
     nrm = fort_fab_norm_doit(lo, hi, src, slo, shi, ncomp, p)
 
   end function fort_fab_norm
-
-
-
-  subroutine fort_fab_saxpy(lo, hi, dst, dlo, dhi, a, src, slo, shi, sblo, ncomp, index) bind(c,name='fort_fab_saxpy')
-
-    use amrex_fort_module, only: amrex_real
-    use basefab_nd_module, only: fort_fab_saxpy_doit
-#ifdef CUDA
-  use cuda_module, only: stream_from_index, cuda_streams, threads_and_blocks
-  use cudafor, only: cuda_stream_kind, dim3
-#endif
-
-    implicit none
-    integer, intent(in) :: lo(3), hi(3), dlo(3), dhi(3), slo(3), shi(3), sblo(3), index
-    integer, intent(in), value :: ncomp
-    real(amrex_real), intent(in   ), value :: a
-    real(amrex_real), intent(in   ) :: src(slo(1):shi(1),slo(2):shi(2),slo(3):shi(3),ncomp)
-    real(amrex_real), intent(inout) :: dst(dlo(1):dhi(1),dlo(2):dhi(2),dlo(3):dhi(3),ncomp)
-
-#ifdef CUDA
-    attributes(managed) :: src, dst, lo, hi, dlo, dhi, slo, shi, sblo
-
-    integer :: cuda_result
-    integer(kind=cuda_stream_kind) :: stream
-    type(dim3) :: numThreads, numBlocks
-
-    stream = cuda_streams(stream_from_index(index))
-
-    call threads_and_blocks(lo, hi, numBlocks, numThreads)
-#endif
-
-    call fort_fab_saxpy_doit &
-#ifdef CUDA
-         <<<numBlocks, numThreads, 0, stream>>> &
-#endif
-         (lo, hi, dst, dlo, dhi, a, src, slo, shi, sblo, ncomp)
-
-  end subroutine fort_fab_saxpy
-
-
-
-  subroutine fort_fab_plus(lo, hi, dst, dlo, dhi, src, slo, shi, sblo, ncomp, index) &
-                           bind(c,name='fort_fab_plus')
-
-    use amrex_fort_module, only: amrex_real
-    use basefab_nd_module, only: fort_fab_plus_doit
-#ifdef CUDA
-    use cuda_module, only: stream_from_index, cuda_streams, threads_and_blocks
-    use cudafor, only: cuda_stream_kind, dim3
-#endif
-
-    implicit none
-
-    integer, intent(in) :: lo(3), hi(3), dlo(3), dhi(3), slo(3), shi(3), sblo(3), index
-    integer, intent(in), value :: ncomp
-    real(amrex_real), intent(in   ) :: src(slo(1):shi(1),slo(2):shi(2),slo(3):shi(3),ncomp)
-    real(amrex_real), intent(inout) :: dst(dlo(1):dhi(1),dlo(2):dhi(2),dlo(3):dhi(3),ncomp)
-
-#ifdef CUDA
-    attributes(managed) :: src, dst, lo, hi, dlo, dhi, slo, shi, sblo
-
-    integer :: cuda_result
-    integer(kind=cuda_stream_kind) :: stream
-    type(dim3) :: numThreads, numBlocks
-
-    stream = cuda_streams(stream_from_index(index))
-
-    call threads_and_blocks(lo, hi, numBlocks, numThreads)
-#endif
-
-    call fort_fab_plus_doit &
-#ifdef CUDA
-         <<<numBlocks, numThreads, 0, stream>>> &
-#endif
-         (lo, hi, dst, dlo, dhi, src, slo, shi, sblo, ncomp)
-
-  end subroutine fort_fab_plus
 
 
 

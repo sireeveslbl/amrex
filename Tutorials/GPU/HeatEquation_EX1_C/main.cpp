@@ -9,19 +9,6 @@
 
 #include "myfunc_F.H"
 
-#ifdef CUDA
-
-#define FORTRAN_LAUNCH(lo,hi,func,...) \
-	dim3 numBlocks, numThreads; \
-	Device::c_threads_and_blocks(lo, hi, numBlocks, numThreads); \
-        func<<<numBlocks, numThreads, 0, Device::stream_from_index(mfi.tileIndex())>>>(__VA_ARGS__)
-
-#else
-
-#define FORTRAN_LAUNCH(lo,hi,func,...) func(__VA_ARGS__)
-
-#endif
-
 using namespace amrex;
 
 void main_main ();
@@ -67,7 +54,7 @@ void advance (MultiFab& old_phi, MultiFab& new_phi,
 
 	    sbx[idir-1] = surroundingNodes(bx, idir-1);
 
-	    FORTRAN_LAUNCH(sbx[idir-1].loVect(), sbx[idir-1].hiVect(), compute_flux,
+	    FORTRAN_LAUNCH(sbx[idir-1].loVect(), sbx[idir-1].hiVect(), mfi.tileIndex(), compute_flux,
 			   sbx[idir-1].loVect(), sbx[idir-1].hiVect(),
 			   old_phi[mfi].dataPtr(), old_phi[mfi].loVect(), old_phi[mfi].hiVect(),
 			   flux[idir-1][mfi].dataPtr(), flux[idir-1][mfi].loVect(), flux[idir-1][mfi].hiVect(),
@@ -86,7 +73,7 @@ void advance (MultiFab& old_phi, MultiFab& new_phi,
     {
         const Box& bx = mfi.validbox();
 
-	FORTRAN_LAUNCH(bx.loVect(), bx.hiVect(), update_phi,
+	FORTRAN_LAUNCH(bx.loVect(), bx.hiVect(), mfi.tileIndex(), update_phi,
 		       bx.loVect(), bx.hiVect(),
 		       old_phi[mfi].dataPtr(), old_phi[mfi].loVect(), old_phi[mfi].hiVect(),
 		       new_phi[mfi].dataPtr(), new_phi[mfi].loVect(), new_phi[mfi].hiVect(),

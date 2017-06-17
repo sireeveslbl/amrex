@@ -8,6 +8,7 @@
 extern "C"
 {
 #endif
+    DEVICE_LAUNCH_PROCEDURE_C
     void fort_fab_copy (const int* lo, const int* hi,
 			amrex_real* dst, const int* dlo, const int* dhi,
 			const amrex_real* src, const int* slo, const int* shi, const int* sblo,
@@ -22,6 +23,7 @@ extern "C"
                                const amrex_real* dst, const int* dlo, const int* dhi, const int* ncomp,
                                const amrex_real* src);
 
+    DEVICE_LAUNCH_PROCEDURE_C
     void fort_fab_setval (const int* lo, const int* hi, 
 			  const amrex_real* dst, const int* dlo, const int* dhi, const int ncomp,
 			  const amrex_real val, const int* index);
@@ -33,6 +35,7 @@ extern "C"
     amrex_real fort_fab_sum (const int* lo, const int* hi,
 		       const amrex_real* src, const int* slo, const int* shi, const int* ncomp);
 
+    DEVICE_LAUNCH_PROCEDURE_C
     void fort_fab_plus (const int* lo, const int* hi,
 			amrex_real* dst, const int* dlo, const int* dhi,
 			const amrex_real* src, const int* slo, const int* shi, const int* sblo,
@@ -62,6 +65,7 @@ extern "C"
 			  amrex_real* dst, const int* dlo, const int* dhi, const int* ncomp,
 			  const amrex_real* a);
 
+    DEVICE_LAUNCH_PROCEDURE_C
     void fort_fab_saxpy (const int* lo, const int* hi,
 			 amrex_real* dst, const int* dlo, const int* dhi,
 			 const amrex_real a,
