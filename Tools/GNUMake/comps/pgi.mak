@@ -71,8 +71,8 @@ CFLAGS   += $(GENERIC_PGI_FLAGS)
 ifeq ($(USE_CUDA),TRUE)
   include $(AMREX_HOME)/Tools/GNUMake/comps/gnu.mak
 
-  CXXFLAGS := -Wno-deprecated-gpu-targets -x cu --std=c++11 -ccbin=$(CXX) -Xcompiler="$(CXXFLAGS)"
-  CFLAGS := -Wno-deprecated-gpu-targets -x c -ccbin=$(CC) -Xcompiler="$(CFLAGS)"
+  CXXFLAGS := -Wno-deprecated-gpu-targets -x cu --std=c++11 -ccbin=$(CXX) -Xcompiler='$(CXXFLAGS)'
+  CFLAGS := -Wno-deprecated-gpu-targets -x c -ccbin=$(CC) -Xcompiler='$(CFLAGS)'
 
   CXX := nvcc
   CC := nvcc
