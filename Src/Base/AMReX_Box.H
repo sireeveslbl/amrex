@@ -4,6 +4,7 @@
 
 #include <iosfwd>
 
+#include <AMReX_Device.H>
 #include <AMReX_ccse-mpi.H>
 #include <AMReX_IntVect.H>
 #include <AMReX_IndexType.H>
@@ -257,9 +258,13 @@ public:
     int length (int dir) const { return bigend[dir] - smallend[dir] + 1; }
 
     //! Returns a constant pointer the array of low end coordinates. Useful for calls to FORTRAN.
-    const int* loVect () const& {
+    const int* loVect () const& { return smallend.getVect(); }
+
+    const int* loVectF () const& {
 #ifdef CUDA
-	return lo_d.get();
+	int* hd_ptr;
+	gpu_host_device_ptr((void**) &hd_ptr, lo_d.get());
+	return hd_ptr;
 #else
 	return smallend.getVect();
 #endif
@@ -267,9 +272,13 @@ public:
 
     const int* loVect () && = delete;
     //! Returns a constant pointer the array of high end coordinates. Useful for calls to FORTRAN.
-    const int* hiVect () const& {
+    const int* hiVect () const& { return bigend.getVect(); }
+
+    const int* hiVectF () const& {
 #ifdef CUDA
-	return hi_d.get();
+	int* hd_ptr;
+	gpu_host_device_ptr((void**) &hd_ptr, hi_d.get());
+	return hd_ptr;
 #else
 	return bigend.getVect();
 #endif

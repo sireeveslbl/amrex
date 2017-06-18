@@ -43,52 +43,64 @@ void advance (MultiFab& old_phi, MultiFab& new_phi,
     // and we do not have to use flux MultiFab.
     // 
 
-    Box sbx[BL_SPACEDIM];
-
-    // Compute fluxes one grid at a time
-    for ( MFIter mfi(old_phi); mfi.isValid(); ++mfi )
     {
-        const Box& bx = mfi.validbox();
+	MFIter mfi(old_phi);
 
-	for (int idir = 1; idir <= BL_SPACEDIM; ++idir) {
+	Box bx[mfi.length()][BL_SPACEDIM];
 
-	    sbx[idir-1] = surroundingNodes(bx, idir-1);
+	// Compute fluxes one grid at a time
+	for (; mfi.isValid(); ++mfi )
+	{
 
-	    FORTRAN_LAUNCH(sbx[idir-1].loVect(), sbx[idir-1].hiVect(), mfi.tileIndex(), compute_flux,
-			   sbx[idir-1].loVect(), sbx[idir-1].hiVect(),
-			   old_phi[mfi].dataPtr(), old_phi[mfi].loVect(), old_phi[mfi].hiVect(),
-			   flux[idir-1][mfi].dataPtr(), flux[idir-1][mfi].loVect(), flux[idir-1][mfi].hiVect(),
-			   dx, idir);
+	    for (int idir = 1; idir <= BL_SPACEDIM; ++idir) {
+
+		bx[mfi.tileIndex()][idir-1] = surroundingNodes(mfi.validbox(), idir-1);
+
+		FORTRAN_LAUNCH(bx[mfi.tileIndex()][idir-1].loVect(), bx[mfi.tileIndex()][idir-1].hiVect(), mfi.tileIndex(), compute_flux,
+			       bx[mfi.tileIndex()][idir-1].loVectF(), bx[mfi.tileIndex()][idir-1].hiVectF(),
+			       old_phi[mfi].dataPtr(), old_phi[mfi].loVectF(), old_phi[mfi].hiVectF(),
+			       flux[idir-1][mfi].dataPtr(), flux[idir-1][mfi].loVectF(), flux[idir-1][mfi].hiVectF(),
+			       dx, idir);
+
+	    }
 
 	}
 
-    }
-
 #ifdef CUDA
     gpu_synchronize();
 #endif
 
-    // Advance the solution one grid at a time
-    for ( MFIter mfi(old_phi); mfi.isValid(); ++mfi )
+    }
+
     {
-        const Box& bx = mfi.validbox();
 
-	FORTRAN_LAUNCH(bx.loVect(), bx.hiVect(), mfi.tileIndex(), update_phi,
-		       bx.loVect(), bx.hiVect(),
-		       old_phi[mfi].dataPtr(), old_phi[mfi].loVect(), old_phi[mfi].hiVect(),
-		       new_phi[mfi].dataPtr(), new_phi[mfi].loVect(), new_phi[mfi].hiVect(),
-		       flux[0][mfi].dataPtr(), flux[0][mfi].loVect(), flux[0][mfi].hiVect(),
-		       flux[1][mfi].dataPtr(), flux[1][mfi].loVect(), flux[1][mfi].hiVect(),
+	MFIter mfi(old_phi);
+
+	Box bx[mfi.length()];
+
+	// Advance the solution one grid at a time
+	for ( MFIter mfi(old_phi); mfi.isValid(); ++mfi )
+	{
+	    bx[mfi.tileIndex()] = mfi.validbox();
+
+	    FORTRAN_LAUNCH(bx[mfi.tileIndex()].loVect(), bx[mfi.tileIndex()].hiVect(), mfi.tileIndex(), update_phi,
+			   bx[mfi.tileIndex()].loVectF(), bx[mfi.tileIndex()].hiVectF(),
+			   old_phi[mfi].dataPtr(), old_phi[mfi].loVectF(), old_phi[mfi].hiVectF(),
+			   new_phi[mfi].dataPtr(), new_phi[mfi].loVectF(), new_phi[mfi].hiVectF(),
+			   flux[0][mfi].dataPtr(), flux[0][mfi].loVectF(), flux[0][mfi].hiVectF(),
+			   flux[1][mfi].dataPtr(), flux[1][mfi].loVectF(), flux[1][mfi].hiVectF(),
 #if (BL_SPACEDIM == 3)   
-		       flux[2][mfi].dataPtr(), flux[2][mfi].loVect(), flux[2][mfi].hiVect(),
+			   flux[2][mfi].dataPtr(), flux[2][mfi].loVectF(), flux[2][mfi].hiVectF(),
 #endif
-		       dx, dt);
+			   dx, dt);
 
-    }
+	}
 
 #ifdef CUDA
-    gpu_synchronize();
+	gpu_synchronize();
 #endif
+
+    }
 
 }
 

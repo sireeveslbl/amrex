@@ -26,7 +26,7 @@ Box_init::Box_init ()
 
         the_box_arena = new CArena;
 
-	the_box_arena->SetReadOnly();
+	the_box_arena->SetHostAlloc();
     }
 }
 

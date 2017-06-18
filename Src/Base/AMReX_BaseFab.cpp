@@ -186,9 +186,9 @@ BaseFab<Real>::performCopy (const BaseFab<Real>& src,
     BL_ASSERT(destcomp >= 0 && destcomp+numcomp <= nComp());
 
     FORTRAN_LAUNCH(destbox.loVect(), destbox.hiVect(), index, fort_fab_copy,
-		   ARLIM_3D(destbox.loVect()), ARLIM_3D(destbox.hiVect()),
+		   ARLIM_3D(destbox.loVectF()), ARLIM_3D(destbox.hiVectF()),
 		   BL_TO_FORTRAN_N_3D(*this,destcomp),
-		   BL_TO_FORTRAN_N_3D(src,srccomp), ARLIM_3D(srcbox.loVect()),
+		   BL_TO_FORTRAN_N_3D(src,srccomp), ARLIM_3D(srcbox.loVectF()),
 		   numcomp, &index);
 }
 
@@ -251,7 +251,7 @@ BaseFab<Real>::performSetVal (Real       val,
     BL_ASSERT(comp >= 0 && comp + ncomp <= nvar);
 
     FORTRAN_LAUNCH(bx.loVect(), bx.hiVect(), index, fort_fab_setval,
-		   ARLIM_3D(bx.loVect()), ARLIM_3D(bx.hiVect()),
+		   ARLIM_3D(bx.loVectF()), ARLIM_3D(bx.hiVectF()),
 		   BL_TO_FORTRAN_N_3D(*this,comp), ncomp,
 		   val, &index);
 }
@@ -329,9 +329,9 @@ BaseFab<Real>::plus (const BaseFab<Real>& src,
     BL_ASSERT(destcomp >= 0 && destcomp+numcomp <= nComp());
 
     FORTRAN_LAUNCH(destbox.loVect(), destbox.hiVect(), index, fort_fab_plus,
-		   ARLIM_3D(destbox.loVect()), ARLIM_3D(destbox.hiVect()),
+		   ARLIM_3D(destbox.loVectF()), ARLIM_3D(destbox.hiVectF()),
 		   BL_TO_FORTRAN_N_3D(*this,destcomp),
-		   BL_TO_FORTRAN_N_3D(src,srccomp), ARLIM_3D(srcbox.loVect()),
+		   BL_TO_FORTRAN_N_3D(src,srccomp), ARLIM_3D(srcbox.loVectF()),
 		   &numcomp, &index);
 
     return *this;
@@ -380,10 +380,10 @@ BaseFab<Real>::saxpy (Real a, const BaseFab<Real>& src,
     BL_ASSERT(destcomp >= 0 && destcomp+numcomp <=     nComp());
 
     FORTRAN_LAUNCH(destbox.loVect(), destbox.hiVect(), index, fort_fab_saxpy,
-		   ARLIM_3D(destbox.loVect()), ARLIM_3D(destbox.hiVect()),
+		   ARLIM_3D(destbox.loVectF()), ARLIM_3D(destbox.hiVectF()),
 		   BL_TO_FORTRAN_N_3D(*this,destcomp),
 		   a,
-		   BL_TO_FORTRAN_N_3D(src,srccomp), ARLIM_3D(srcbox.loVect()),
+		   BL_TO_FORTRAN_N_3D(src,srccomp), ARLIM_3D(srcbox.loVectF()),
 		   numcomp, &index);
     return *this;
 }

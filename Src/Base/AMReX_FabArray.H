@@ -2380,13 +2380,17 @@ FabArray<FAB>::setVal (value_type val,
 
     BL_PROFILE("FabArray::setVal(val,comp,ncomp,nghost)");
 
+    MFIter fai(*this, true);
+
+    Box bx[fai.length()];
+
 #ifdef _OPENMP
 #pragma omp parallel
 #endif
-    for (MFIter fai(*this,true); fai.isValid(); ++fai)
+    for (; fai.isValid(); ++fai)
     {
-	const Box& bx = fai.growntilebox(nghost);
-        get(fai).setVal(val, bx, comp, ncomp);
+	bx[fai.tileIndex()] = fai.growntilebox(nghost);
+        get(fai).setVal(val, bx[fai.tileIndex()], comp, ncomp);
     }
 }
 
