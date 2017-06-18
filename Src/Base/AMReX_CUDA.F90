@@ -14,7 +14,7 @@ contains
   subroutine initialize_cuda() bind(c, name='initialize_cuda')
 
     use cudafor, only: cudaStreamCreate
-    
+
     implicit none
 
     integer :: i, cudaResult
@@ -32,6 +32,37 @@ contains
     cuda_device_id = 0
 
   end subroutine initialize_cuda
+
+
+
+  subroutine finalize_cuda() bind(c, name='finalize_cuda')
+
+    use cudafor, only: cudaStreamDestroy, cudaProfilerStop, cudaDeviceReset
+
+    implicit none
+
+    integer :: i, cudaResult
+    character(len=32) :: cudaResultStr
+
+    do i = 1, max_cuda_streams
+       cudaResult = cudaStreamDestroy(cuda_streams(i))
+
+       if (cudaResult /= cudaSuccess) then
+          write(cudaResultStr, "(I32)") cudaResult
+          call bl_warning("CUDA failure in finalize_cuda(), Error " // trim(adjustl(cudaResultStr)) // ", " // cudaGetErrorString(cudaResult))
+       endif
+    end do
+
+    call cudaProfilerStop()
+
+    cudaResult = cudaDeviceReset()
+
+    if (cudaResult /= cudaSuccess) then
+       write(cudaResultStr, "(I32)") cudaResult
+       call bl_warning("CUDA failure in finalize_cuda(), Error " // trim(adjustl(cudaResultStr)) // ", " // cudaGetErrorString(cudaResult))
+    end if
+
+  end subroutine finalize_cuda
 
 
 
@@ -201,7 +232,7 @@ contains
 
     if (cudaResult /= cudaSuccess) then
        write(cudaResultStr, "(I32)") cudaResult
-       call bl_abort("CUDA failure in gpu_free(), Error " // trim(adjustl(cudaResultStr)) // ", " // cudaGetErrorString(cudaResult))
+       call bl_warning("CUDA failure in gpu_free(), Error " // trim(adjustl(cudaResultStr)) // ", " // cudaGetErrorString(cudaResult))
     endif
 
   end subroutine gpu_free
@@ -224,7 +255,7 @@ contains
 
     if (cudaResult /= cudaSuccess) then
        write(cudaResultStr, "(I32)") cudaResult
-       call bl_abort("CUDA failure in gpu_freehost(), Error " // trim(adjustl(cudaResultStr)) // ", " // cudaGetErrorString(cudaResult))
+       call bl_warning("CUDA failure in gpu_freehost(), Error " // trim(adjustl(cudaResultStr)) // ", " // cudaGetErrorString(cudaResult))
     endif
 
   end subroutine gpu_freehost
@@ -432,14 +463,11 @@ contains
     integer(c_int) :: device
 
     integer :: cudaResult
-    character(len=32) :: cudaResultStr
+
+    ! Note: we do not error check in this subroutine because the error
+    ! code seems to be broken in PGI.
 
     cudaResult = cudaMemAdvise(p, sz, cudaMemAdviseSetPreferredLocation, device)
-
-    if (cudaResult /= cudaSuccess) then
-       write(cudaResultStr, "(I32)") cudaResult
-       call bl_abort("CUDA failure in mem_advise_set_preferred(), Error " // trim(adjustl(cudaResultStr)) // ", " // cudaGetErrorString(cudaResult))
-    endif
 
   end subroutine mem_advise_set_preferred
 
@@ -454,15 +482,12 @@ contains
     integer(c_size_t) :: sz
 
     integer :: cudaResult
-    character(len=32) :: cudaResultStr
+
+    ! Note: we do not error check in this subroutine because the error
+    ! code seems to be broken in PGI.
 
     ! Note: the device argument in this call is ignored, so we arbitrarily pick the CPU.
     cudaResult = cudaMemAdvise(p, sz, cudaMemAdviseSetReadMostly, cudaCpuDeviceId)
-
-    if (cudaResult /= cudaSuccess) then
-       write(cudaResultStr, "(I32)") cudaResult
-       call bl_abort("CUDA failure in mem_advise_set_readonly(): Error " // trim(adjustl(cudaResultStr)) // ", " // cudaGetErrorString(cudaResult))
-    endif
 
   end subroutine mem_advise_set_readonly
 
