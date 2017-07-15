@@ -12,7 +12,7 @@ EXEC=$1
 INPUT=inputs_2d
 OUTPUT=run.log
 
-mkdir -p $2 && cp {$INPUT,$EXEC,advance_2d.F90} $2 && cd $2
+mkdir -p $2 && cp {$INPUT,$EXEC,*.f90,*.H,*.cpp} $2 && cd $2
 
 # have changed directory to the benchmark directory 
 $EXEC $INPUT &>$OUTPUT
