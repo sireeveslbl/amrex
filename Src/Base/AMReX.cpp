@@ -319,6 +319,10 @@ amrex::Initialize (int& argc, char**& argv, bool build_parm_parse, MPI_Comm mpi_
     amrex::Print() << "OMP initialized with "
 		   << omp_get_max_threads()
 		   << " OMP threads\n";
+#ifdef DEVICE
+    omp_set_default_device(0);
+    amrex::Print() << "Set default device to: device 0\n";
+#endif
 #endif
 
     signal(SIGSEGV, BLBackTrace::handler); // catch seg falult

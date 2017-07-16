@@ -15,6 +15,12 @@ void advance_phi(const int& lox, const int& loy, const int& hix, const int& hiy,
                 const int& phi_new_lox, const int& phi_new_loy, const int& phi_new_hix, const int& phi_new_hiy,
                 const amrex::Real& dx, const amrex::Real& dy, const amrex::Real& dt)
 {
+#ifdef _OPENMP
+#ifdef DEVICE
+#pragma omp target data map(to:phi_old[0:(phi_old_hix-phi_old_lox+1)*(phi_old_hiy-phi_old_loy+1)]) map(from:phi_new[0:(phi_new_hix-phi_new_lox+1)*(phi_new_hiy-phi_new_loy+1)]) 
+#pragma omp target teams distribute parallel for collapse(2) schedule(static,1)
+#endif
+#endif
     for (int j = loy; j <= hiy; ++j ) {
         for (int i = lox; i <= hix; ++i ) {
             ARRAY_2D(phi_new,phi_new_lox,phi_new_loy,phi_new_hix,phi_new_hiy,i,j) =

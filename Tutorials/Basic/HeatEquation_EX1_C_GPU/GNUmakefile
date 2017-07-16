@@ -2,9 +2,13 @@
 # If you set AMREX_HOME as an environment variable, this line will be ignored
 AMREX_HOME ?= ../../../
 
+TINY_PROFILE = TRUE
+# DEBUG     = TRUE
 DEBUG     = FALSE
 USE_MPI   = FALSE
-USE_OMP   = FALSE
+USE_OMP   = TRUE
+# USE_OMP   = FALSE
+USE_DEVICE = TRUE
 COMP      = gnu
 DIM       = 2
 
