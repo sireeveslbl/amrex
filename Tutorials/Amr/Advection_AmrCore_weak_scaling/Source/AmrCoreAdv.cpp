@@ -55,6 +55,8 @@ AmrCoreAdv::~AmrCoreAdv ()
 void
 AmrCoreAdv::Evolve ()
 {
+    BL_PROFILE("AmrCoreAdv::Evolve()");
+
     Real cur_time = t_new[0];
     int last_plot_file_step = 0;
 
@@ -439,6 +441,8 @@ AmrCoreAdv::GetData (int lev, Real time, Array<MultiFab*>& data, Array<Real>& da
 void
 AmrCoreAdv::timeStep (int lev, Real time, int iteration)
 {
+    BL_PROFILE("AmrCoreAdv::timeStep()");
+
     if (regrid_int > 0)  // We may need to regrid
     {
 
@@ -510,6 +514,8 @@ AmrCoreAdv::timeStep (int lev, Real time, int iteration)
 void
 AmrCoreAdv::Advance (int lev, Real time, Real dt, int iteration, int ncycle)
 {
+    BL_PROFILE("AmrCoreAdv::Advance()");
+
     constexpr int num_grow = 3;
 
     std::swap(phi_old[lev], phi_new[lev]);
@@ -539,6 +545,8 @@ AmrCoreAdv::Advance (int lev, Real time, Real dt, int iteration, int ncycle)
     // State with ghost cells
     MultiFab Sborder(grids[lev], dmap[lev], S_new.nComp(), num_grow);
     FillPatch(lev, time, Sborder, 0, Sborder.nComp());
+
+    BL_PROFILE_VAR("Advance_advect", blprof_aa);
 
 #ifdef _OPENMP
 #pragma omp parallel
@@ -586,6 +594,8 @@ AmrCoreAdv::Advance (int lev, Real time, Real dt, int iteration, int ncycle)
 	    }
 	}
     }
+
+    BL_PROFILE_VAR_STOP(blprof_aa);
 
     // increment or decrement the flux registers by area and time-weighted fluxes
     // Note that the fluxes have already been scaled by dt and area
