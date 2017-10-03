@@ -12,6 +12,10 @@ extern "C"
                                       const int*, const int*, amrex_real, int,
                                       amrex_real*, amrex_real*, int*);
 
+    void amrex_split_box(const amrex_real*, const int*, const int*,
+                         const int*, const int*, int,
+                         amrex_real*, amrex_real*, int*);
+
     void amrex_compute_cost(const amrex_real* pcounts, amrex_real* cost, const int* lo,
                             const int* hi, const amrex_real cell_weight);
 

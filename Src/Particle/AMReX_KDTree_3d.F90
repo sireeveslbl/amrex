@@ -1,6 +1,6 @@
 subroutine amrex_compute_best_partition(cost, clo, chi, &
-                                        lo, hi, total_cost, dir, &
-                                        cost_left, cost_right, split) &
+                           lo, hi, total_cost, dir, &
+                           cost_left, cost_right, split) &
   bind(c,name='amrex_compute_best_partition')
     
   use iso_c_binding
@@ -76,6 +76,86 @@ subroutine amrex_compute_best_partition(cost, clo, chi, &
   end if
   
 end subroutine amrex_compute_best_partition
+
+subroutine amrex_split_box(cost, clo, chi,               &
+                           lo, hi, dir,                  &
+                           cost_left, cost_right, split) &
+  bind(c,name='amrex_split_box')
+    
+  use iso_c_binding
+  use amrex_fort_module, only : amrex_real
+  
+  integer              :: clo(3)
+  integer              :: chi(3)    
+  real(amrex_real)     :: cost(clo(1):chi(1), clo(2):chi(2), clo(3):chi(3))
+  integer              :: lo(3)
+  integer              :: hi(3)
+  integer, value          :: dir
+  real(amrex_real)        :: cost_left
+  real(amrex_real)        :: cost_right
+  integer, intent(out)    :: split
+  
+  integer i,j,k
+  cost_left = 0.d0
+  cost_right = 0.d0
+
+  if (dir .eq. 0) then
+     
+     split = (lo(1) + hi(1)) / 2
+     do i = lo(1), split
+        do j = lo(2), hi(2)
+           do k = lo(3), hi(3)
+              cost_left = cost_left + cost(i, j, k)
+           end do
+        end do
+     end do
+     do i = split+1, hi(1)
+        do j = lo(2), hi(2)
+           do k = lo(3), hi(3)
+              cost_right = cost_right + cost(i, j, k)
+           end do
+        end do
+     end do
+
+  else if (dir .eq. 1) then
+
+     split = (lo(2) + hi(2)) / 2
+     do j = lo(2), split
+        do i = lo(1), hi(1)
+           do k = lo(3), hi(3)
+              cost_left = cost_left + cost(i, j, k)
+           end do
+        end do
+     end do
+     do j = split, hi(2)
+        do i = lo(1), hi(1)
+           do k = lo(3), hi(3)
+              cost_right = cost_right + cost(i, j, k)
+           end do
+        end do
+     end do
+     
+  else if (dir .eq. 2) then
+
+     split = (lo(3) + hi(3)) / 2
+     do k = lo(3), split
+        do j = lo(2), hi(2)
+           do i = lo(1), hi(1)
+              cost_left = cost_left + cost(i, j, k)
+           end do
+        end do
+     end do
+     do k = split, hi(3)
+        do j = lo(2), hi(2)
+           do i = lo(1), hi(1)
+              cost_right = cost_right + cost(i, j, k)
+           end do
+        end do
+     end do
+     
+  end if
+  
+end subroutine amrex_split_box
 
 subroutine amrex_compute_cost(pcounts, cost, lo, hi, cell_weight) &
      bind(c,name='amrex_compute_cost')

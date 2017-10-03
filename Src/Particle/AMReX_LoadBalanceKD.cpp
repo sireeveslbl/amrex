@@ -6,6 +6,7 @@ int KDTree::min_box_size = 4;
 
 KDTree::KDTree(const Box& domain, const FArrayBox& cost, int num_procs) {
     Real total_cost = cost.sum(0);
+    target_cost = total_cost / num_procs;
     root = new KDNode(domain, total_cost, num_procs);
     buildKDTree(root, cost);
 }
@@ -19,7 +20,7 @@ void KDTree::GetBoxes(BoxList& bl, Array<Real>& costs) {
 }
     
 void KDTree::buildKDTree(KDNode* node, const FArrayBox& cost) {
-    if (node->num_procs_left == 1) return;
+    if (node->cost <= target_cost) return;
     
     bool success = partitionNode(node, cost);
     
@@ -63,9 +64,13 @@ bool KDTree::partitionNode(KDNode* node, const FArrayBox& cost) {
     int split;
     Real cost_left, cost_right;
     int dir = getLongestDir(box);
-    amrex_compute_best_partition(cost.dataPtr(), cost.loVect(), cost.hiVect(),
-                                 box.loVect(), box.hiVect(), node->cost, dir,
-                                 &cost_left, &cost_right, &split);
+    // amrex_compute_best_partition(cost.dataPtr(), cost.loVect(), cost.hiVect(),
+    //                              box.loVect(), box.hiVect(), node->cost, dir,
+    //                              &cost_left, &cost_right, &split);
+
+    amrex_split_box(cost.dataPtr(), cost.loVect(), cost.hiVect(),
+                    box.loVect(), box.hiVect(), dir, 
+                    &cost_left, &cost_right, &split);
     
     Box left, right;
     bool success = splitBox(split, dir, box, left, right);

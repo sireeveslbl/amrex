@@ -57,6 +57,9 @@ private:
     KDNode* root;
     
     static int min_box_size;
+
+    amrex::Real target_cost;
+
 };
 
 namespace loadBalanceKD {
