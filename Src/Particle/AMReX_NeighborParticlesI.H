@@ -96,9 +96,9 @@ NeighborParticleContainer<NStructReal, NStructInt, NNeighborReal>
     const DistributionMapping& dmap = this->ParticleDistributionMap(lev);
     const Periodicity& periodicity  = this->Geom(lev).periodicity();
     
-    neighbors.clear();
+    remote_neighbors.clear();
     neighbor_tag_cache.clear();
-
+    
     std::map<int, Vector<char> > neighbors_to_comm;
     
     int num_threads = 1;
@@ -157,13 +157,13 @@ NeighborParticleContainer<NStructReal, NStructInt, NNeighborReal>
                             IntVect shift(AMREX_D_DECL(ii, jj, kk));
                             IntVect neighbor_cell = iv + shift;
 
-                            if ((*mask_ptr)[mfi](iv, 0) < 0) continue;
+                            if ((*mask_ptr)[pti](iv, 0) < 0) continue;
 
                             NeighborTag tag;
                             tag.grid  = grid;
                             tag.tile  = tile;
                             tag.index = i;
-                            tag.who   = dmap[(*mask_ptr)[mfi](iv, 0)];
+                            tag.who   = dmap[(*mask_ptr)[pti](iv, 0)];
 
                             if (tag.who == MyProc) continue;
 
@@ -209,9 +209,9 @@ NeighborParticleContainer<NStructReal, NStructInt, NNeighborReal>
 
                     Vector<char>& buffer = tmp_remote[tag.who][thread_num];
                     size_t old_size = buffer.size();
-                    size_t new_size = buffer.size() + sizeof(ParticleType);
+                    size_t new_size = buffer.size() + pdata_size;
                     buffer.resize(new_size);
-                    std::memcpy(&buffer[old_size], &particle, sizeof(ParticleType));
+                    std::memcpy(&buffer[old_size], &particle, pdata_size);
                 }
                 tags.clear();
             }
@@ -220,7 +220,7 @@ NeighborParticleContainer<NStructReal, NStructInt, NNeighborReal>
 
     // collect the tag cache across all threads
     for (int i = 0; i < num_threads; ++i) {
-        neighbor_tag_cache.insert(neighbors_tag_cache.begin(),
+        neighbor_tag_cache.insert(neighbor_tag_cache.begin(),
                                   tmp_tag_cache[i].begin(), 
                                   tmp_tag_cache[i].end());
         tmp_tag_cache[i].erase(tmp_tag_cache[i].begin(), 
@@ -272,7 +272,7 @@ NeighborParticleContainer<NStructReal, NStructInt, NNeighborReal>
 
     const int MyProc = ParallelDescriptor::MyProc();
  
-    neighbors.clear();
+    remote_neighbors.clear();
     
     std::map<int, Vector<char> > neighbors_to_comm;
 
@@ -288,7 +288,7 @@ NeighborParticleContainer<NStructReal, NStructInt, NNeighborReal>
     for (int i = 0; i < static_cast<int>(neighbor_procs.size()); ++i) {
         const int neighbor_proc = neighbor_procs[i];
         tmp_remote[neighbor_proc].resize(num_threads);
-        neighbors_to_comm[comm_tag];
+        neighbors_to_comm[neighbor_proc];
     }
 
     // First pass - each thread collects the neighbor particles it will send
@@ -296,7 +296,7 @@ NeighborParticleContainer<NStructReal, NStructInt, NNeighborReal>
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
-    for (int i = 0; i < static_cast<int>(neighbor_tag_cache.size()), ++i) {
+    for (int i = 0; i < static_cast<int>(neighbor_tag_cache.size()); ++i) {
 #ifdef _OPENMP
         int thread_num = omp_get_thread_num();
 #else
@@ -311,9 +311,9 @@ NeighborParticleContainer<NStructReal, NStructInt, NNeighborReal>
 
         Vector<char>& buffer = tmp_remote[tag.who][thread_num];
         size_t old_size = buffer.size();
-        size_t new_size = buffer.size() + sizeof(ParticleType);
+        size_t new_size = buffer.size() + pdata_size;
         buffer.resize(new_size);
-        std::memcpy(&buffer[old_size], &particle, sizeof(ParticleType));
+        std::memcpy(&buffer[old_size], &particle, pdata_size);
     }
 
     // collect the neighbors owed from all threads
@@ -361,7 +361,7 @@ NeighborParticleContainer<NStructReal, NStructInt, NNeighborReal>
     BL_PROFILE("NeighborParticleContainer::clearNeighbors");
     BL_ASSERT(lev == 0);
 
-    neighbors.clear();
+    remote_neighbors.clear();
     neighbor_tag_cache.clear();
 }
 
@@ -504,20 +504,20 @@ communicateNeighborsMPI(std::map<int, Vector<char> >& neighbors_to_comm, bool re
     if (nrcvs > 0) {
         BL_MPI_REQUIRE( MPI_Waitall(nrcvs, rreqs.data(), stats.data()) );
 
-        if (recvdata.size() % sizeof(ParticleType) != 0) {
+        if (recvdata.size() % pdata_size != 0) {
             amrex::AllPrint() << "ParticleContainer::communicateNeighborsMPI: sizes = "
-                              << recvdata.size() << ", " << sizeof(ParticleType) << "\n";
+                              << recvdata.size() << ", " << pdata_size << "\n";
             amrex::Abort("ParticleContainer::communicateNeighborsMPI: How did this happen?");
         }
             
         char* pbuf = recvdata.data();
-        int npart = recvdata.size() / sizeof(ParticleType);
+        int npart = recvdata.size() / pdata_size;
         for (int i = 0; i < npart; ++i) {           
             size_t old_size = remote_neighbors.size();
-            size_t new_size = old_size + sizeof(ParticleType);
+            size_t new_size = old_size + pdata_size;
             remote_neighbors.resize(new_size);
-            std::memcpy(&remote_neighbors[old_size], pbuf, sizeof(ParticleType)); 
-            pbuf += sizeof(ParticleType);
+            std::memcpy(&remote_neighbors[old_size], pbuf, pdata_size); 
+            pbuf += pdata_size;
         }
     }
 #endif
@@ -543,7 +543,8 @@ buildNeighborList(int lev, bool sort) {
         list[index].resize(pti.numParticles(), -1);
     }
     
-    FabArray<BaseFab<int> > head(ParticleBoxArray(lev), ParticleDistributionMap(lev), 
+    FabArray<BaseFab<int> > head(this->ParticleBoxArray(lev), 
+                                 this->ParticleDistributionMap(lev), 
                                  1, num_neighbor_cells);
     
 // For each cell on this tile, we build linked lists storing the
@@ -575,10 +576,11 @@ buildNeighborList(int lev, bool sort) {
     for (MyParIter pti(*this, lev, MFItInfo().SetDynamic(true)); pti.isValid(); ++pti) {
         PairIndex index(pti.index(), pti.LocalTileIndex());
         auto& particles = pti.GetArrayOfStructs();
+        auto& nl        = neighbor_list[index];
         int Np = particles.size();
-        
+
         int p_start_index = 0;
-        for (unsigned i = 0; i < N; ++i) {
+        for (unsigned i = 0; i < Np; ++i) {
             const ParticleType& p = particles[i];            
             int num_neighbors = 0;
             nl.push_back(0);           
@@ -586,11 +588,11 @@ buildNeighborList(int lev, bool sort) {
             Box bx(cell, cell);
             bx.grow(num_neighbor_cells);
             for (IntVect iv = bx.smallEnd(); iv <= bx.bigEnd(); bx.next(iv)) {
-                const int grid = (*mask_ptr)[mfi](iv, 0);
+                const int grid = (*mask_ptr)[pti](iv, 0);
                 if (grid < 0) continue;              
-                const int tile = (*mask_ptr)[mfi](iv, 1);
+                const int tile = (*mask_ptr)[pti](iv, 1);
                 const int who = dmap[grid];
-                if (who == myProc) {
+                if (who == MyProc) {
                     int j = head[pti](iv);
                     PairIndex index(grid, tile);                                        
                     while (j >= 0) {
@@ -598,19 +600,19 @@ buildNeighborList(int lev, bool sort) {
                             j = list[index][j];
                             continue;
                         }
-                        if ( check_pair(p, GetParticlesAt(lev, grid, tile)[j]) ) {
+                        if ( check_pair(p, this->GetParticlesAt(lev, grid, tile)[j]) ) {
                             nl.push_back(grid);
-                            bl.push_back(tile);
+                            nl.push_back(tile);
                             nl.push_back(j+1);
                             num_neighbors += 1;
                         }
                         j = list[index][j];
                     }
                 } else {
-                    for (j = 0; j < static_cast<int>(remote_neighbors.size()); ++j) {
+                    for (int j = 0; j < static_cast<int>(remote_neighbors.size()); ++j) {
                         if ( check_pair(p, remote_neighbors[j]) ) {
                             nl.push_back(-1);
-                            bl.push_back(-1);
+                            nl.push_back(-1);
                             nl.push_back(j+1);
                             num_neighbors += 1;
                         }

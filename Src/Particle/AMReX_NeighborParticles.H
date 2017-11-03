@@ -75,44 +75,31 @@ public:
                               const BoxArray            & ba,
                               int                         nneighbor);
 
-    ///
     /// This resets the particle container to use the given BoxArray
     /// and DistributionMapping
-    ///
     void Regrid(const DistributionMapping &dmap, const BoxArray &ba );
 
-    ///
     /// This builds the internal data structure used for looking up neighbors
-    ///
     void BuildLevelMask(int lev, 
                         const Geometry &geom, 
                         const DistributionMapping &dmap, 
                         const BoxArray &ba );
 
-    ///
     /// This fills the neighbor buffers for each tile with the proper data
-    ///
     void fillNeighbors(int lev);
 
-    ///
     /// This updates the neighbors with their current particle data.
-    ///
     void updateNeighbors(int lev);
 
-    ///
     /// Each tile clears its neighbors, freeing the memory
-    ///
     void clearNeighbors(int lev);
 
-    ///
     /// Build a Neighbor List for each tile
-    ///
     void buildNeighborList(int lev, bool sort=false);
 
     Vector<ParticleType>              remote_neighbors;
     std::map<PairIndex, Vector<int> > neighbor_list;
-    const size_t pdata_size = (NNeighborReal+BL_SPACEDIM)*
-        sizeof(typename ParticleType::RealType);
+    const size_t pdata_size = sizeof(ParticleType);
 
 protected:
     
