@@ -525,7 +525,7 @@ void
 NeighborParticleContainer<NStructReal, NStructInt, NNeighborReal>::
 buildNeighborList(int lev, bool sort) {
     
-    BL_PROFILE("NeighborListParticleContainer::buildNeighborList");
+    BL_PROFILE("NeighborParticleContainer::buildNeighborList");
     BL_ASSERT(lev == 0);
 
     const int MyProc = ParallelDescriptor::MyProc();
@@ -539,24 +539,18 @@ buildNeighborList(int lev, bool sort) {
         neighbor_list[index] = Vector<int>();
         list[index].resize(pti.numParticles(), -1);
     }
-    
-    FabArray<BaseFab<int> > head(this->ParticleBoxArray(lev), 
-                                 this->ParticleDistributionMap(lev), 
+
+    // For each cell, we build linked lists storing the indices of the particles belonging to it.
+    FabArray<BaseFab<int> > head(this->ParticleBoxArray(lev), this->ParticleDistributionMap(lev),
                                  1, num_neighbor_cells);
-    
-// For each cell on this tile, we build linked lists storing the
-// indices of the particles belonging to it.
+    head.setVal(-1);
 #ifdef _OPENMP
 #pragma omp parallel
 #endif
     for (MyParIter pti(*this, lev); pti.isValid(); ++pti) {
         PairIndex index(pti.index(), pti.LocalTileIndex());
         auto& particles = pti.GetArrayOfStructs();
-        int Np = particles.size();
-
-        // For each cell on this tile, we build linked lists storing the
-        // indices of the particles belonging to it.
-        head[pti].setVal(-1);
+        int Np = particles.size();        
         for (int i = 0; i < Np; ++i) {
             const ParticleType& p = particles[i];
             const IntVect& cell = this->Index(p, lev);
@@ -565,8 +559,8 @@ buildNeighborList(int lev, bool sort) {
         }
     }
     head.FillBoundary(periodicity);
-
-// using these lists, we build a neighbor list containing both real and ghost particles.
+    
+    // using these lists, we build a neighbor list containing both real and ghost particles.
 #ifdef _OPENMP
 #pragma omp parallel
 #endif
@@ -579,14 +573,15 @@ buildNeighborList(int lev, bool sort) {
         for (unsigned i = 0; i < Np; ++i) {
             const ParticleType& p = particles[i];            
             int num_neighbors = 0;
-            nl.push_back(0);           
+            nl.push_back(0);
             const IntVect& cell = this->Index(p, lev);
             Box bx(cell, cell);
             bx.grow(num_neighbor_cells);
+            bool check_remote = false;
             for (IntVect iv = bx.smallEnd(); iv <= bx.bigEnd(); bx.next(iv)) {
                 const BaseFab<int>& mask = (*mask_ptr)[pti];
                 const int grid = mask(iv, 0);
-                if (grid < 0) continue;              
+                if (grid < 0) continue;
                 const int tile = mask(iv, 1);
                 const int who = dmap[grid];
                 if (who == MyProc) {
@@ -594,7 +589,9 @@ buildNeighborList(int lev, bool sort) {
                     int j = head[pti](iv);
                     PairIndex index(grid, tile);
                     while (j >= 0) {
-                        if (i == j) {
+                        if ((i == j) and 
+                            (grid == pti.index()) and
+                            (tile == pti.LocalTileIndex())) {
                             j = list[index][j];
                             continue;
                         }
@@ -607,13 +604,16 @@ buildNeighborList(int lev, bool sort) {
                         j = list[index][j];
                     }
                 } else {
-                    for (int j = 0; j < static_cast<int>(remote_neighbors.size()); ++j) {
-                        if ( check_pair(p, remote_neighbors[j]) ) {
-                            nl.push_back(-1);
-                            nl.push_back(-1);
-                            nl.push_back(j+1);
-                            num_neighbors += 1;
-                        }
+                    check_remote = true;
+                }
+            }
+            if (check_remote) { 
+                for (int j = 0; j < static_cast<int>(remote_neighbors.size()); ++j) {
+                    if ( check_pair(p, remote_neighbors[j]) ) {
+                        nl.push_back(-1);
+                        nl.push_back(-1);
+                        nl.push_back(j+1);
+                        num_neighbors += 1;
                     }
                 }
             }
