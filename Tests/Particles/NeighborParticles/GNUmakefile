@@ -1,9 +1,9 @@
 AMREX_HOME ?= ../../../
 
 DEBUG	= TRUE
-#DEBUG	= FALSE
+DEBUG	= FALSE
 
-DIM	= 2
+DIM	= 3
 
 COMP    = gcc
 
@@ -13,7 +13,7 @@ USE_PARTICLES = TRUE
 PRECISION = DOUBLE
 
 USE_MPI   = TRUE
-USE_OMP   = FALSE
+USE_OMP   = TRUE
 
 ###################################################
 
