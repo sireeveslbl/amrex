@@ -3,6 +3,7 @@
 #define BL_INTVECT_H
 
 #include <iosfwd>
+#include <array>
 
 #include <AMReX_ccse-mpi.H>
 #include <AMReX_SPACE.H>
@@ -66,31 +67,34 @@ public:
     /**
     * \brief Construct an IntVect whose components are all zero.
     */
-    IntVect () { AMREX_D_EXPR(vect[0] = 0, vect[1] = 0, vect[2] = 0); }
+    IntVect () : vect{AMREX_D_DECL(0,0,0)} { }
 
     /**
     * \brief Construct an IntVect given the specific values for its
     * coordinates.  AMREX_D_DECL is a macro that sets the constructor
     * to take BL_SPACEDIM arguments.
     */
-    IntVect (AMREX_D_DECL(int i, int j, int k)) { AMREX_D_EXPR(vect[0] = i, vect[1] = j, vect[2] = k); }
+    IntVect (AMREX_D_DECL(int i, int j, int k)) : vect{AMREX_D_DECL(i,j,k)} { }
 
 #if (AMREX_SPACEDIM > 1)
-    explicit IntVect (int i) { AMREX_D_EXPR(vect[0] = i, vect[1] = i, vect[2] = i); }
+    explicit IntVect (int i) : vect{AMREX_D_DECL(i,i,i)} { }
 #endif
 
     /**
     * \brief Construct an IntVect setting the coordinates to the
     * corresponding values in the integer array a.
     */
-    explicit IntVect (const int* a);
+    explicit IntVect (const int* a) : vect{AMREX_D_DECL(a[0],a[1],a[2])} {}
 
     /**
     * \brief Construct an IntVect from an Vector<int>.  It is an error if
     * the Vector<int> doesn' t have the same dimension as this
     * IntVect.
     */
-    explicit IntVect (const Vector<int>& a);
+    explicit IntVect (const Vector<int>& a) : vect{AMREX_D_DECL(a[0],a[1],a[2])} {}
+
+    //! Construct an IntVect from an std::array.
+    explicit IntVect (const std::array<int,AMREX_SPACEDIM>& a) : vect(a) {}
 
     //! Returns a reference to the i'th coordinate of the IntVect.
     // dtor, copy-ctor, copy-op=, move-ctor, and move-op= are compiler generated.
@@ -110,8 +114,8 @@ public:
     * \brief Returns a const pointer to an array of coordinates of the
     * IntVect.  Useful for arguments to FORTRAN calls.
     */
-    const int* getVect () const& { return vect; }
-    int*       getVect () &      { return vect; }
+    const int* getVect () const& { return vect.data(); }
+    int*       getVect () &      { return vect.data(); }
     int*       getVect () && = delete;
 
     //! Returns true if all components are equal to the argument val.
@@ -320,9 +324,22 @@ public:
         AMREX_D_EXPR(vect[0] += s, vect[1] += s, vect[2] += s); return *this;
     }
     //! Modify IntVect by component-wise integer projection.
-    IntVect& coarsen (const IntVect& p);
+    IntVect& coarsen (const IntVect& p) {
+        BL_ASSERT(p.allGT(IntVect::TheZeroVector()));
+        if (p != 1) {
+            for (int i = 0; i <BL_SPACEDIM; ++i)
+                {
+                    const int s = p.vect[i];
+                    vect[i] = ((vect[i]<0) ? -abs(vect[i]+1)/s-1 : vect[i]/s);
+                }
+        }
+        return *this;
+    }
     //! Modify IntVect by component-wise integer projection.
-    IntVect& coarsen (int p);
+    IntVect& coarsen (int s) {
+        BL_ASSERT(s > 0);
+        return this->coarsen(IntVect(AMREX_D_DECL(s,s,s)));
+    }
 
     /// for serialization
     static size_t 
@@ -399,7 +416,7 @@ private:
     friend std::ostream& operator<< (std::ostream& os, const IntVect& iv);
     friend std::istream& operator>> (std::istream& is, IntVect& iv);
 
-    int vect[BL_SPACEDIM];
+    std::array<int,AMREX_SPACEDIM> vect;
 };
 
 //
@@ -416,44 +433,74 @@ static int s_dummyForIntVectH = IntVect::InitStatics();
     * eg.  IntVect BASISV(1) == (0,1,0).  Note that the coordinate
     * directions are zero based.
     */
-    IntVect BASISV (int dir);
+    inline IntVect BASISV (int dir) {
+        BL_ASSERT(dir >= 0 && dir < BL_SPACEDIM);
+        IntVect tmp;
+        tmp[dir] = 1;
+        return tmp;
+    }
     /**
     * \brief Returns the IntVect that is the component-wise minimum of two
     * argument IntVects.
     */
-    IntVect min (const IntVect& p1, const IntVect& p2);
+    inline IntVect min (const IntVect& p1, const IntVect& p2) {
+        IntVect p(p1);
+        p.min(p2);
+        return p;
+    }
     /**
     * \brief Returns the IntVect that is the component-wise maximum of two
     * argument IntVects.
     */
-    IntVect max (const IntVect& p1, const IntVect& p2);
+    inline IntVect max (const IntVect& p1, const IntVect& p2) {
+        IntVect p(p1);
+        p.max(p2);
+        return p;
+    }
     /**
     * \brief Returns a IntVect obtained by multiplying each of the
     * components of this IntVect by s.
     */
-    IntVect scale (const IntVect& p, int s);
+    inline IntVect scale (const IntVect& p, int s) {
+        return IntVect(AMREX_D_DECL(s * p[0], s * p[1], s * p[2]));
+    }
     /**
     * \brief Returns an IntVect that is the reflection of input in the
     * plane which passes through ref_ix and normal to the
     * coordinate direction idir.
     */
-    IntVect reflect(const IntVect& a, int ref_ix, int idir);
+    inline IntVect reflect(const IntVect& a, int ref_ix, int idir) {
+        BL_ASSERT(idir >= 0 && idir < BL_SPACEDIM);
+        IntVect b(a);
+        b[idir] = -b[idir] + 2*ref_ix;
+        return b;
+    }
     /**
     * \brief Returns IntVect obtained by adding s to each of the
     * components of this IntVect.
     */
-    IntVect diagShift (const IntVect& p, int s);
+    inline IntVect diagShift (const IntVect& p, int s) {
+        return IntVect(AMREX_D_DECL(p[0] + s, p[1] + s, p[2] + s));
+    }
     /**
     * \brief Returns an IntVect that is the component-wise integer
     * projection of p by s.
     */
-    IntVect coarsen (const IntVect& p, int s);
+    inline IntVect coarsen (const IntVect& p, int s) {
+        BL_ASSERT(s > 0);
+        IntVect v = p;
+        v.coarsen(IntVect(AMREX_D_DECL(s,s,s)));
+        return v;
+    }
     /**
     * \brief Returns an IntVect which is the component-wise integer
     * projection of IntVect p1 by IntVect p2.
     */
-    IntVect coarsen (const IntVect& p1, const IntVect& p2);
-
+    inline IntVect coarsen (const IntVect& p1, const IntVect& p2) {
+        IntVect v = p1;
+        v.coarsen(p2);
+        return v;
+    }
 
 //! Returns p + s.
 inline
