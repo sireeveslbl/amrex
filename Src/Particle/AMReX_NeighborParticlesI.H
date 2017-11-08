@@ -95,6 +95,9 @@ NeighborParticleContainer<NStructReal, NStructInt, NNeighborReal>
     const int MyProc = ParallelDescriptor::MyProc();
     const DistributionMapping& dmap = this->ParticleDistributionMap(lev);
     const Periodicity& periodicity  = this->Geom(lev).periodicity();
+    const Box& domain = this->Geom(lev).Domain();
+    const IntVect& lo = domain.smallEnd();
+    const IntVect& hi = domain.bigEnd();
     
     remote_neighbors.clear();
     neighbor_tag_cache.clear();
@@ -170,12 +173,7 @@ NeighborParticleContainer<NStructReal, NStructInt, NNeighborReal>
                             for (int dim = 0; dim < 3; ++dim)
                                 tag.periodic_shift[dim] = 0;
 
-                            if (periodicity.isAnyPeriodic()) {
-
-                                const Box& domain = this->Geom(lev).Domain();
-                                const IntVect& lo = domain.smallEnd();
-                                const IntVect& hi = domain.bigEnd();
-    
+                            if (periodicity.isAnyPeriodic()) {    
                                 for (int dir = 0; dir < BL_SPACEDIM; ++dir) {
                                     if (not periodicity.isPeriodic(dir)) continue;
                                     if (neighbor_cell[dir] < lo[dir]) {
@@ -531,6 +529,9 @@ buildNeighborList(int lev, bool sort) {
     const int MyProc = ParallelDescriptor::MyProc();
     const DistributionMapping& dmap = this->ParticleDistributionMap(lev);
     const Periodicity& periodicity  = this->Geom(lev).periodicity();
+    const Box& domain = this->Geom(lev).Domain();
+    const IntVect& lo = domain.smallEnd();
+    const IntVect& hi = domain.bigEnd();
 
     neighbor_list.clear();
     std::map<PairIndex, Vector<int> > list;
@@ -539,9 +540,11 @@ buildNeighborList(int lev, bool sort) {
         neighbor_list[index] = Vector<int>();
         list[index].resize(pti.numParticles(), -1);
     }
-
-    // For each cell, we build linked lists storing the indices of the particles belonging to it.
-    FabArray<BaseFab<int> > head(this->ParticleBoxArray(lev), this->ParticleDistributionMap(lev),
+    
+    // For each cell, we build linked lists storing the indices of
+    // the particles belonging to it.
+    FabArray<BaseFab<int> > head(this->ParticleBoxArray(lev),
+                                 this->ParticleDistributionMap(lev),
                                  1, num_neighbor_cells);
     head.setVal(-1);
 #ifdef _OPENMP
@@ -560,7 +563,8 @@ buildNeighborList(int lev, bool sort) {
     }
     head.FillBoundary(periodicity);
     
-    // using these lists, we build a neighbor list containing both real and ghost particles.
+    // using these lists, we build a neighbor list containing both
+    // real and ghost particles.
 #ifdef _OPENMP
 #pragma omp parallel
 #endif
@@ -588,6 +592,22 @@ buildNeighborList(int lev, bool sort) {
                     auto& nbors = this->ParticlesAt(lev, grid, tile).GetArrayOfStructs();
                     int j = head[pti](iv);
                     PairIndex index(grid, tile);
+
+                    NeighborTag tag;
+                    for (int dim = 0; dim < 3; ++dim)
+                        tag.periodic_shift[dim] = 0;
+                    
+                    if (periodicity.isAnyPeriodic()) {    
+                        for (int dir = 0; dir < BL_SPACEDIM; ++dir) {
+                            if (not periodicity.isPeriodic(dir)) continue;
+                            if (iv[dir] < lo[dir]) {
+                                tag.periodic_shift[dir] = -1;
+                            } else if (iv[dir] > hi[dir]) {
+                                tag.periodic_shift[dir] =  1;
+                            }
+                        }
+                    }
+
                     while (j >= 0) {
                         if ((i == j) and 
                             (grid == pti.index()) and
@@ -595,13 +615,26 @@ buildNeighborList(int lev, bool sort) {
                             j = list[index][j];
                             continue;
                         }
-                        if ( check_pair(p, nbors[j]) ) {
-                            nl.push_back(grid);
-                            nl.push_back(tile);
-                            nl.push_back(j+1);
-                            num_neighbors += 1;
+
+                        if (periodicity.isAnyPeriodic()) {
+                            ParticleType particle = p; // yes make a copy
+                            applyPeriodicShift(lev, particle, tag);
+                            if ( check_pair(particle, nbors[j]) ) {
+                                nl.push_back(grid);
+                                nl.push_back(tile);
+                                nl.push_back(j+1);
+                                num_neighbors += 1;
+                            } 
+                            j = list[index][j];
+                        } else {
+                            if ( check_pair(p, nbors[j]) ) {
+                                nl.push_back(grid);
+                                nl.push_back(tile);
+                                nl.push_back(j+1);
+                                num_neighbors += 1;
+                            }
+                            j = list[index][j];
                         }
-                        j = list[index][j];
                     }
                 } else {
                     check_remote = true;
