@@ -1,0 +1,47 @@
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {4.1}{\ignorespaces Source code tree for the {\tt HeatEquation\_EX1\_C} example.\relax }}{13}{figure.caption.8}
+\contentsline {figure}{\numberline {4.2}{\ignorespaces Example of AMR grids. There are three levels in total. There are 1, 2 and 2 {\tt Box}es on levels 0, 1, and 2, respectively.\relax }}{17}{figure.caption.9}
+\contentsline {figure}{\numberline {4.3}{\ignorespaces Some of the different index types in two dimensions: (a) cell-centered, (b) $x$-face-centered (i.e., nodal in $x$-direction only), and (c) corner/nodal, i.e., nodal in all dimensions.\relax }}{19}{figure.caption.10}
+\contentsline {figure}{\numberline {4.4}{\ignorespaces Example of cell-centered valid boxes. There are two valid boxes in this example. Each has $8^2$ cells.\relax }}{33}{figure.caption.11}
+\contentsline {figure}{\numberline {4.5}{\ignorespaces Example of cell-centered tile boxes. Each grid is {\emph {logically}} broken into 4 tiles, and each tile has $4^2$ cells. There are 8 tiles in total.\relax }}{33}{figure.caption.11}
+\contentsline {figure}{\numberline {4.6}{\ignorespaces Example of face valid boxes. There are two valid boxes in this example. Each has $9 \times 8$ points. Note that points in one {\tt Box} may overlap with points in the other {\tt Box}. However, the memory locations for storing floating point data of those points do not overlap, because they belong to separate {\tt FArrayBox}es.\relax }}{34}{figure.caption.12}
+\contentsline {figure}{\numberline {4.7}{\ignorespaces Example of face tile boxes. Each grid is {\emph {logically}} broken into 4 tiles as indicated by the symbols. There are 8 tiles in total. Some tiles have $5 \times 4$ points, whereas others have $4 \times 4$ points. Points from different {\tt Box}es may overlap, but points from different tiles of the same {\tt Box} do not.\relax }}{34}{figure.caption.12}
+\contentsline {figure}{\numberline {4.8}{\ignorespaces Example of cell-centered grown tile boxes. As indicated by symbols, there are 8 tiles and four in each grid in this example. Tiles from the same grid do not overlap. But tiles from different grids may overlap.\relax }}{35}{figure.caption.13}
+\contentsline {figure}{\numberline {4.9}{\ignorespaces Example of face type grown tile boxes. As indicated by symbols, there are 8 tiles and four in each grid in this example. Tiles from the same grid do not overlap even though they have face index type. \relax }}{35}{figure.caption.13}
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {6.1}{\ignorespaces Time sequence ($t=0,0.5,1,1.5,2$\nobreakspace {}s) of advection of a Gaussian profile using the {\tt SingleVortex} tutorial. The red, green, and blue boxes indicate grids at AMR levels $\ell =0,1$, and $2$.\relax }}{48}{figure.caption.14}
+\contentsline {figure}{\numberline {6.2}{\ignorespaces Schematic of subcycling-in-time algorithm.\relax }}{49}{figure.caption.15}
+\contentsline {figure}{\numberline {6.3}{\ignorespaces Source code tree for the {\tt AmrAdvection\_AmrCore} example.\relax }}{53}{figure.caption.17}
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {7.1}{\ignorespaces Source code tree for the {\tt AmrAdvection\_AmrLevel} example.\relax }}{64}{figure.caption.18}
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {8.1}{\ignorespaces An illustration of how the particle data for a single tile is arranged in memory. This particle container has been defined with $\tt {NStructReal} = 1$, $\tt {NStructInt} = 2$, $\tt {NArrayReal} = 2$, and $\tt {NArrayInt} = 2$. In this case, each tile in the particle container has five arrays: one with the particle struct data, two additional real arrays, and two additional integer arrays. In the tile shown, there are only 2 particles. We have labelled the extra real data member of the particle struct to be ``mass'', while the extra integer members of the particle struct are labeled $p$, and $s$, for ``phase'' and ``state''. The variables in the real and integer arrays are labelled ``foo'', ``bar'', ``l'', and ``n'', respectively. We have assumed that the particles are double precision.\relax }}{69}{figure.caption.19}
+\contentsline {figure}{\numberline {8.2}{\ignorespaces An illustration of filling neighbor particles for short-range force calculations. Here, we have a domain consisting of one 32-by-32 grid, broken up into 8-by-8 tiles. The number of ghost cells is taken to be $1$. For the tile in green, particles on other tiles in the entire shaded region will copied and packed into the green tile's neighbor buffer. These particles can then be included in the force calculation. If the domain is periodic, particles in the grown region for the blue tile that lie on the other side of the domain will also be copied, and their positions will modified so that a naive distance calculation between valid particles and neighbors will be correct. \relax }}{75}{figure.caption.20}
+\contentsline {figure}{\numberline {8.3}{\ignorespaces An illustration of the neighbor list data structure used by AMReX. The list for each tile is represented by an array of integers. The first number in the array is the number of real (i.e., not in the neighbor buffers) collision partners for the first particle on this tile, while the second is the number of collision partners from nearby tiles in the neighbor buffer. Based on the number of collision partners, the next several entries are the indices of the collision partners in the real and neighbor particle arrays, respectively. This pattern continues for all the particles on this tile.\relax }}{76}{figure.caption.21}
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {10.1}{\ignorespaces In the embedded boundary approach to discretizing PDEs, the (uniform) rectangular mesh is cut by the irregular shape of the computational domain. The cells in the mesh are label as regular, cut or covered.\relax }}{85}{figure.caption.22}
+\contentsline {figure}{\numberline {10.2}{\ignorespaces (a) A typical two-dimensional uniform cell that is cut by the embedded boundary. The grey area represents the region excluded from the calculation. The portion of the cell faces (labelled with A) through which fluxes flow are the ``uncovered'' regions of the full cell faces. The volume (labelled V) is the uncovered region of the interior. (b) Fluxes in a cut cell.\relax }}{87}{figure.caption.23}
+\contentsline {figure}{\numberline {10.3}{\ignorespaces Redistribution illustration. Excess mass due to using a hybrid divergence $D^H$ instead of the conservative divergence $D^C$ is distributed to neighbor cells.\relax }}{88}{figure.caption.24}
+\contentsline {figure}{\numberline {10.4}{\ignorespaces Zero surface of an implicit function made using a surface of revolution.\relax }}{93}{figure.caption.25}
+\contentsline {figure}{\numberline {10.5}{\ignorespaces Zero surface of an implicit function made the above code.\relax }}{94}{figure.caption.26}
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {11.1}{\ignorespaces 2D and 3D images generated with Amrvis\relax }}{103}{figure.caption.27}
+\contentsline {figure}{\numberline {11.2}{\ignorespaces (Left) 2D image generated with VisIt. (Right) 3D image generated with VisIt.\relax }}{103}{figure.caption.28}
+\contentsline {figure}{\numberline {11.3}{\ignorespaces Plotfile image generated with {\sf ParaView}\relax }}{105}{figure.caption.29}
+\contentsline {figure}{\numberline {11.4}{\ignorespaces Particle image generated with {\sf ParaView}\relax }}{106}{figure.caption.30}
+\contentsline {figure}{\numberline {11.5}{\ignorespaces Slice plot of $128^3$ Nyx simulation using {\sf yt}.\relax }}{107}{figure.caption.31}
+\contentsline {figure}{\numberline {11.6}{\ignorespaces Volume rendering of $128^3$ Nyx simulation using {\sf yt}. This corresponds to the same plot file used to generate the slice plot in Figure\nobreakspace {}\ref {fig:yt_Nyx_slice_plot}.\relax }}{109}{figure.caption.32}
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {12.1}{\ignorespaces Sample performance summary generated by IPM \relax }}{120}{figure.caption.33}
+\contentsline {figure}{\numberline {12.2}{\ignorespaces Sample performance graphs generated by IPM \relax }}{121}{figure.caption.34}
+\contentsline {subfigure}{\numberline {(a)}{\ignorespaces {Timings}}}{121}{subfigure.2.1}
+\contentsline {subfigure}{\numberline {(b)}{\ignorespaces {PAPI Counters}}}{121}{subfigure.2.2}
+\contentsline {subfigure}{\numberline {(c)}{\ignorespaces {MPI Time by Function}}}{121}{subfigure.2.3}
+\contentsline {subfigure}{\numberline {(d)}{\ignorespaces {MPI Time by Message Size}}}{121}{subfigure.2.4}
+\contentsline {subfigure}{\numberline {(e)}{\ignorespaces {Point-to-Point Communication Volume}}}{121}{subfigure.2.5}
+\addvspace {10\p@ }

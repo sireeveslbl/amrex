@@ -1,0 +1,127 @@
+\BOOKMARK [0][-]{chapter*.3}{list of figures}{}% 1
+\BOOKMARK [0][-]{chapter*.4}{list of tables}{}% 2
+\BOOKMARK [0][-]{chapter*.5}{Preface}{}% 3
+\BOOKMARK [0][-]{chapter.1}{Introduction}{}% 4
+\BOOKMARK [0][-]{chapter.2}{Getting Started}{}% 5
+\BOOKMARK [1][-]{section.2.1}{Downloading the Code}{chapter.2}% 6
+\BOOKMARK [1][-]{section.2.2}{Example: Hello World}{chapter.2}% 7
+\BOOKMARK [2][-]{subsection.2.2.1}{Building the Code}{section.2.2}% 8
+\BOOKMARK [2][-]{subsection.2.2.2}{Running the Code}{section.2.2}% 9
+\BOOKMARK [2][-]{subsection.2.2.3}{Parallelization}{section.2.2}% 10
+\BOOKMARK [1][-]{section.2.3}{Example: Heat Equation Solver}{chapter.2}% 11
+\BOOKMARK [2][-]{subsection.2.3.1}{Building and Running the Code}{section.2.3}% 12
+\BOOKMARK [1][-]{section.2.4}{Visualization}{chapter.2}% 13
+\BOOKMARK [0][-]{chapter.3}{Building AMReX}{}% 14
+\BOOKMARK [1][-]{section.3.1}{Building with GNU Make}{chapter.3}% 15
+\BOOKMARK [2][-]{subsection.3.1.1}{Dissecting a Simple Make File}{section.3.1}% 16
+\BOOKMARK [2][-]{subsection.3.1.2}{Tweaking Make System}{section.3.1}% 17
+\BOOKMARK [1][-]{section.3.2}{Building libamrex}{chapter.3}% 18
+\BOOKMARK [1][-]{section.3.3}{Building with CMake}{chapter.3}% 19
+\BOOKMARK [2][-]{subsection.3.3.1}{Customization options}{section.3.3}% 20
+\BOOKMARK [2][-]{subsection.3.3.2}{Importing AMReX configuration into a CMake project}{section.3.3}% 21
+\BOOKMARK [0][-]{chapter.4}{Base Source Code}{}% 22
+\BOOKMARK [1][-]{section.4.1}{HeatEquation\137EX1\137C Example}{chapter.4}% 23
+\BOOKMARK [1][-]{section.4.2}{Dimensionality}{chapter.4}% 24
+\BOOKMARK [1][-]{section.4.3}{Vector}{chapter.4}% 25
+\BOOKMARK [1][-]{section.4.4}{Real}{chapter.4}% 26
+\BOOKMARK [1][-]{section.4.5}{ParallelDescriptor}{chapter.4}% 27
+\BOOKMARK [1][-]{section.4.6}{Print}{chapter.4}% 28
+\BOOKMARK [1][-]{section.4.7}{ParmParse}{chapter.4}% 29
+\BOOKMARK [1][-]{section.4.8}{Example of AMR Grids}{chapter.4}% 30
+\BOOKMARK [1][-]{section.4.9}{Box, IntVect and IndexType}{chapter.4}% 31
+\BOOKMARK [2][-]{subsection.4.9.1}{IntVect}{section.4.9}% 32
+\BOOKMARK [2][-]{subsection.4.9.2}{IndexType}{section.4.9}% 33
+\BOOKMARK [2][-]{subsection.4.9.3}{Box}{section.4.9}% 34
+\BOOKMARK [1][-]{section.4.10}{RealBox and Geometry}{chapter.4}% 35
+\BOOKMARK [1][-]{section.4.11}{BoxArray}{chapter.4}% 36
+\BOOKMARK [1][-]{section.4.12}{DistributionMapping}{chapter.4}% 37
+\BOOKMARK [1][-]{section.4.13}{BaseFab, FArrayBox and IArrayBox}{chapter.4}% 38
+\BOOKMARK [1][-]{section.4.14}{FabArray, MultiFab and iMultiFab}{chapter.4}% 39
+\BOOKMARK [1][-]{section.4.15}{MFIter and Tiling}{chapter.4}% 40
+\BOOKMARK [2][-]{subsection.4.15.1}{MFIter without Tiling}{section.4.15}% 41
+\BOOKMARK [2][-]{subsection.4.15.2}{MFIter with Tiling}{section.4.15}% 42
+\BOOKMARK [1][-]{section.4.16}{Calling Fortran or C}{chapter.4}% 43
+\BOOKMARK [1][-]{section.4.17}{Ghost Cells}{chapter.4}% 44
+\BOOKMARK [1][-]{section.4.18}{I/O}{chapter.4}% 45
+\BOOKMARK [2][-]{subsection.4.18.1}{Plotfile}{section.4.18}% 46
+\BOOKMARK [2][-]{subsection.4.18.2}{Checkpoint File}{section.4.18}% 47
+\BOOKMARK [1][-]{section.4.19}{Memory Allocation}{chapter.4}% 48
+\BOOKMARK [1][-]{section.4.20}{Abort and Assertion}{chapter.4}% 49
+\BOOKMARK [0][-]{chapter.5}{Boundary Conditions}{}% 50
+\BOOKMARK [0][-]{chapter.6}{AmrCore Source Code}{}% 51
+\BOOKMARK [1][-]{section.6.1}{The Advection Equation}{chapter.6}% 52
+\BOOKMARK [1][-]{section.6.2}{AmrCore Source Code }{chapter.6}% 53
+\BOOKMARK [2][-]{subsection.6.2.1}{AmrMesh and AmrCore}{section.6.2}% 54
+\BOOKMARK [2][-]{subsection.6.2.2}{TagBox, and Cluster}{section.6.2}% 55
+\BOOKMARK [2][-]{subsection.6.2.3}{FillPatchUtil and Interpolater}{section.6.2}% 56
+\BOOKMARK [2][-]{subsection.6.2.4}{Using FluxRegisters}{section.6.2}% 57
+\BOOKMARK [2][-]{subsection.6.2.5}{AmrParticles and AmrParGDB}{section.6.2}% 58
+\BOOKMARK [1][-]{section.6.3}{Advection\137AmrCore Example}{chapter.6}% 59
+\BOOKMARK [2][-]{subsection.6.3.1}{Code Structure}{section.6.3}% 60
+\BOOKMARK [2][-]{subsection.6.3.2}{The AmrCoreAdv Class}{section.6.3}% 61
+\BOOKMARK [2][-]{subsection.6.3.3}{FluxRegisters}{section.6.3}% 62
+\BOOKMARK [2][-]{subsection.6.3.4}{Regridding }{section.6.3}% 63
+\BOOKMARK [2][-]{subsection.6.3.5}{Grid Creation }{section.6.3}% 64
+\BOOKMARK [2][-]{subsection.6.3.6}{FillPatch}{section.6.3}% 65
+\BOOKMARK [0][-]{chapter.7}{Amr Source Code}{}% 66
+\BOOKMARK [1][-]{section.7.1}{Amr Class}{chapter.7}% 67
+\BOOKMARK [1][-]{section.7.2}{AmrLevel Class}{chapter.7}% 68
+\BOOKMARK [2][-]{subsection.7.2.1}{StateData}{section.7.2}% 69
+\BOOKMARK [1][-]{section.7.3}{LevelBld Class}{chapter.7}% 70
+\BOOKMARK [1][-]{section.7.4}{Advection\137AmrLevel Example}{chapter.7}% 71
+\BOOKMARK [1][-]{section.7.5}{Particles}{chapter.7}% 72
+\BOOKMARK [0][-]{chapter.8}{Particles}{}% 73
+\BOOKMARK [1][-]{section.8.1}{The Particle}{chapter.8}% 74
+\BOOKMARK [2][-]{subsection.8.1.1}{Setting Particle data}{section.8.1}% 75
+\BOOKMARK [1][-]{section.8.2}{The ParticleContainer}{chapter.8}% 76
+\BOOKMARK [2][-]{subsection.8.2.1}{Arrays-of-Structs and Structs-of-Arrays}{section.8.2}% 77
+\BOOKMARK [2][-]{subsection.8.2.2}{Constructing ParticleContainers}{section.8.2}% 78
+\BOOKMARK [1][-]{section.8.3}{Initializing Particle Data}{chapter.8}% 79
+\BOOKMARK [1][-]{section.8.4}{Iterating over Particles}{chapter.8}% 80
+\BOOKMARK [1][-]{section.8.5}{Passing particle data into Fortran routines}{chapter.8}% 81
+\BOOKMARK [1][-]{section.8.6}{Interacting with Mesh Data}{chapter.8}% 82
+\BOOKMARK [1][-]{section.8.7}{Short Range Forces}{chapter.8}% 83
+\BOOKMARK [1][-]{section.8.8}{Particle IO}{chapter.8}% 84
+\BOOKMARK [0][-]{chapter.9}{Fortran Interface}{}% 85
+\BOOKMARK [1][-]{section.9.1}{Getting Started}{chapter.9}% 86
+\BOOKMARK [1][-]{section.9.2}{The Basics}{chapter.9}% 87
+\BOOKMARK [1][-]{section.9.3}{Amr Core Infrastructure}{chapter.9}% 88
+\BOOKMARK [1][-]{section.9.4}{Octree}{chapter.9}% 89
+\BOOKMARK [0][-]{chapter.10}{Embedded Boundaries}{}% 90
+\BOOKMARK [1][-]{section.10.1}{Overview of Embedded Boundary Description}{chapter.10}% 91
+\BOOKMARK [2][-]{subsection.10.1.1}{Finite Volume Discretizations}{section.10.1}% 92
+\BOOKMARK [2][-]{subsection.10.1.2}{Small Cells And Stability}{section.10.1}% 93
+\BOOKMARK [1][-]{section.10.2}{Initializing EBIndexSpace, the Geometric Database}{chapter.10}% 94
+\BOOKMARK [2][-]{subsection.10.2.1}{Example: Spherical EB}{section.10.2}% 95
+\BOOKMARK [2][-]{subsection.10.2.2}{Implicit Function Transformation Tools}{section.10.2}% 96
+\BOOKMARK [2][-]{subsection.10.2.3}{Multi-sphere example}{section.10.2}% 97
+\BOOKMARK [2][-]{subsection.10.2.4}{Geometric example 2 \205 Surface of revolution}{section.10.2}% 98
+\BOOKMARK [2][-]{subsection.10.2.5}{Geometric example 3 \205 A Sphere Inside a Parabola}{section.10.2}% 99
+\BOOKMARK [1][-]{section.10.3}{EBFarrayBox}{chapter.10}% 100
+\BOOKMARK [2][-]{subsection.10.3.1}{EBFarrayBox Usage Example}{section.10.3}% 101
+\BOOKMARK [2][-]{subsection.10.3.2}{Fortran code Snippets}{section.10.3}% 102
+\BOOKMARK [0][-]{chapter.11}{Visualization}{}% 103
+\BOOKMARK [1][-]{section.11.1}{Amrvis}{chapter.11}% 104
+\BOOKMARK [1][-]{section.11.2}{VisIt}{chapter.11}% 105
+\BOOKMARK [1][-]{section.11.3}{ParaView}{chapter.11}% 106
+\BOOKMARK [1][-]{section.11.4}{yt}{chapter.11}% 107
+\BOOKMARK [2][-]{subsection.11.4.1}{Using yt on a local workstation}{section.11.4}% 108
+\BOOKMARK [2][-]{subsection.11.4.2}{Using yt at NERSC \(under development\)}{section.11.4}% 109
+\BOOKMARK [0][-]{chapter.12}{Profiling}{}% 110
+\BOOKMARK [1][-]{section.12.1}{Instrumenting the Code}{chapter.12}% 111
+\BOOKMARK [2][-]{subsection.12.1.1}{C++}{section.12.1}% 112
+\BOOKMARK [2][-]{subsection.12.1.2}{Fortran90}{section.12.1}% 113
+\BOOKMARK [1][-]{section.12.2}{Types of Profiling}{chapter.12}% 114
+\BOOKMARK [1][-]{section.12.3}{Sample Output}{chapter.12}% 115
+\BOOKMARK [1][-]{section.12.4}{AMRProfParser}{chapter.12}% 116
+\BOOKMARK [1][-]{section.12.5}{CrayPat}{chapter.12}% 117
+\BOOKMARK [2][-]{subsection.12.5.1}{High-level application profiling}{section.12.5}% 118
+\BOOKMARK [1][-]{section.12.6}{IPM - Cross-Platform Integrated Performance Monitoring}{chapter.12}% 119
+\BOOKMARK [2][-]{subsection.12.6.1}{Building with IPM on cori}{section.12.6}% 120
+\BOOKMARK [2][-]{subsection.12.6.2}{Running with IPM on cori}{section.12.6}% 121
+\BOOKMARK [2][-]{subsection.12.6.3}{Summary MPI Profile}{section.12.6}% 122
+\BOOKMARK [2][-]{subsection.12.6.4}{PAPI Performance Counters}{section.12.6}% 123
+\BOOKMARK [2][-]{subsection.12.6.5}{Example HTML Performance Summary}{section.12.6}% 124
+\BOOKMARK [0][-]{chapter.13}{CVODE}{}% 125
+\BOOKMARK [1][-]{section.13.1}{Compiling cvode}{chapter.13}% 126
+\BOOKMARK [1][-]{section.13.2}{The cvode Tutorials}{chapter.13}% 127
