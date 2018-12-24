@@ -25,6 +25,7 @@ CellConservativeLinear    lincc_interp;
 CellConservativeLinear    cell_cons_interp(0);
 CellConservativeProtected protected_interp;
 CellConservativeQuartic   quartic_interp;
+CellGaussianProcess       gp_interp; 
 
 Interpolater::~Interpolater () {}
 
