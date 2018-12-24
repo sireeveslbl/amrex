@@ -10,15 +10,21 @@
 
 namespace amrex {
 
+class MLMG;
+
 class MLCGSolver
 {
 public:
 
-    MLCGSolver (MLLinOp& _lp);
+    enum struct Type { BiCGStab, CG };
+
+    MLCGSolver (MLMG* a_mlmg, MLLinOp& _lp, Type _typ = Type::BiCGStab);
     ~MLCGSolver ();
 
     MLCGSolver (const MLCGSolver& rhs) = delete;
     MLCGSolver& operator= (const MLCGSolver& rhs) = delete;
+
+    void setSolver (Type _typ) { solver_type = _typ; }
 
     //
     // solve the system, Lp(solnL)=rhsL to relative err, tolerance
@@ -40,7 +46,9 @@ public:
 
 private:
 
+    MLMG* mlmg;
     MLLinOp& Lp;
+    Type solver_type;
     const int amrlev;
     const int mglev;
     int    verbose   = 0;
@@ -48,6 +56,14 @@ private:
 
     Real dotxy (const MultiFab& r, const MultiFab& z, bool local = false);
     Real norm_inf (const MultiFab& res, bool local = false);
+    int solve_bicgstab (MultiFab&       solnL,
+                        const MultiFab& rhsL,
+                        Real            eps_rel,
+                        Real            eps_abs);
+    int solve_cg (MultiFab&       solnL,
+                  const MultiFab& rhsL,
+                  Real            eps_rel,
+                  Real            eps_abs);
 };
 
 }

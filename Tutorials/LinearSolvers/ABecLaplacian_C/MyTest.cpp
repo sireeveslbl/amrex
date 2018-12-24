@@ -60,8 +60,18 @@ MyTest::solvePoisson ()
         mlmg.setMaxIter(max_iter);
         mlmg.setMaxFmgIter(max_fmg_iter);
         mlmg.setVerbose(verbose);
-        mlmg.setCGVerbose(cg_verbose);
-        if (use_hypre) mlmg.setBottomSolver(MLMG::BottomSolver::hypre);
+        mlmg.setBottomVerbose(bottom_verbose);
+#ifdef AMREX_USE_HYPRE
+        if (use_hypre) {
+            mlmg.setBottomSolver(MLMG::BottomSolver::hypre);
+            mlmg.setHypreInterface(hypre_interface);
+        }
+#endif
+#ifdef AMREX_USE_PETSC
+        if (use_petsc) {
+            mlmg.setBottomSolver(MLMG::BottomSolver::petsc);
+        }
+#endif
 
         mlmg.solve(GetVecOfPtrs(solution), GetVecOfConstPtrs(rhs), tol_rel, tol_abs);
     }
@@ -91,8 +101,18 @@ MyTest::solvePoisson ()
             mlmg.setMaxIter(max_iter);
             mlmg.setMaxFmgIter(max_fmg_iter);
             mlmg.setVerbose(verbose);
-            mlmg.setCGVerbose(cg_verbose);
-            if (use_hypre) mlmg.setBottomSolver(MLMG::BottomSolver::hypre);
+            mlmg.setBottomVerbose(bottom_verbose);
+#ifdef AMREX_USE_HYPRE
+            if (use_hypre) {
+                mlmg.setBottomSolver(MLMG::BottomSolver::hypre);
+                mlmg.setHypreInterface(hypre_interface);
+            }
+#endif
+#ifdef AMREX_USE_PETSC
+            if (use_petsc) {
+                mlmg.setBottomSolver(MLMG::BottomSolver::petsc);
+            }
+#endif
             
             mlmg.solve({&solution[ilev]}, {&rhs[ilev]}, tol_rel, tol_abs);            
         }
@@ -139,17 +159,15 @@ MyTest::solveABecLaplacian ()
         {
             mlabec.setACoeffs(ilev, acoef[ilev]);
             
-            std::array<MultiFab,AMREX_SPACEDIM> face_bcoef;
+            Array<MultiFab,AMREX_SPACEDIM> face_bcoef;
             for (int idim = 0; idim < AMREX_SPACEDIM; ++idim)
             {
                 const BoxArray& ba = amrex::convert(bcoef[ilev].boxArray(),
                                                     IntVect::TheDimensionVector(idim));
                 face_bcoef[idim].define(ba, bcoef[ilev].DistributionMap(), 1, 0);
             }
-            amrex::average_cellcenter_to_face({AMREX_D_DECL(&face_bcoef[0],
-                                                            &face_bcoef[1],
-                                                            &face_bcoef[2])},
-                                               bcoef[ilev], geom[ilev]);
+            amrex::average_cellcenter_to_face(GetArrOfPtrs(face_bcoef),
+                                              bcoef[ilev], geom[ilev]);
             mlabec.setBCoeffs(ilev, amrex::GetArrOfConstPtrs(face_bcoef));
         }
 
@@ -157,8 +175,18 @@ MyTest::solveABecLaplacian ()
         mlmg.setMaxIter(max_iter);
         mlmg.setMaxFmgIter(max_fmg_iter);
         mlmg.setVerbose(verbose);
-        mlmg.setCGVerbose(cg_verbose);
-        if (use_hypre) mlmg.setBottomSolver(MLMG::BottomSolver::hypre);
+        mlmg.setBottomVerbose(bottom_verbose);
+#ifdef AMREX_USE_HYPRE
+        if (use_hypre) {
+            mlmg.setBottomSolver(MLMG::BottomSolver::hypre);
+            mlmg.setHypreInterface(hypre_interface);
+        }
+#endif
+#ifdef AMREX_USE_PETSC
+        if (use_petsc) {
+            mlmg.setBottomSolver(MLMG::BottomSolver::petsc);
+        }
+#endif
 
         mlmg.solve(GetVecOfPtrs(solution), GetVecOfConstPtrs(rhs), tol_rel, tol_abs);
     }
@@ -189,25 +217,33 @@ MyTest::solveABecLaplacian ()
 
             mlabec.setACoeffs(0, acoef[ilev]);
             
-            std::array<MultiFab,AMREX_SPACEDIM> face_bcoef;
+            Array<MultiFab,AMREX_SPACEDIM> face_bcoef;
             for (int idim = 0; idim < AMREX_SPACEDIM; ++idim)
             {
                 const BoxArray& ba = amrex::convert(bcoef[ilev].boxArray(),
                                                     IntVect::TheDimensionVector(idim));
                 face_bcoef[idim].define(ba, bcoef[ilev].DistributionMap(), 1, 0);
             }
-            amrex::average_cellcenter_to_face({AMREX_D_DECL(&face_bcoef[0],
-                                                            &face_bcoef[1],
-                                                            &face_bcoef[2])},
-                                               bcoef[ilev], geom[ilev]);
+            amrex::average_cellcenter_to_face(GetArrOfPtrs(face_bcoef),
+                                              bcoef[ilev], geom[ilev]);
             mlabec.setBCoeffs(0, amrex::GetArrOfConstPtrs(face_bcoef));
 
             MLMG mlmg(mlabec);
             mlmg.setMaxIter(max_iter);
             mlmg.setMaxFmgIter(max_fmg_iter);
             mlmg.setVerbose(verbose);
-            mlmg.setCGVerbose(cg_verbose);
-            if (use_hypre) mlmg.setBottomSolver(MLMG::BottomSolver::hypre);
+            mlmg.setBottomVerbose(bottom_verbose);
+#ifdef AMREX_USE_HYPRE
+            if (use_hypre) {
+                mlmg.setBottomSolver(MLMG::BottomSolver::hypre);
+                mlmg.setHypreInterface(hypre_interface);
+            }
+#endif
+#ifdef AMREX_USE_PETSC
+            if (use_petsc) {
+                mlmg.setBottomSolver(MLMG::BottomSolver::petsc);
+            }
+#endif
 
             mlmg.solve({&solution[ilev]}, {&rhs[ilev]}, tol_rel, tol_abs);            
         }
@@ -239,16 +275,30 @@ MyTest::readParameters ()
     pp.query("prob_type", prob_type);
 
     pp.query("verbose", verbose);
-    pp.query("cg_verbose", cg_verbose);
+    pp.query("bottom_verbose", bottom_verbose);
     pp.query("max_iter", max_iter);
     pp.query("max_fmg_iter", max_fmg_iter);
     pp.query("linop_maxorder", linop_maxorder);
     pp.query("agglomeration", agglomeration);
     pp.query("consolidation", consolidation);
     pp.query("max_coarsening_level", max_coarsening_level);
+
 #ifdef AMREX_USE_HYPRE
     pp.query("use_hypre", use_hypre);
+    pp.query("hypre_interface", hypre_interface_i);
+    if (hypre_interface_i == 1) {
+        hypre_interface = Hypre::Interface::structed;
+    } else if (hypre_interface_i == 2) {
+        hypre_interface = Hypre::Interface::semi_structed;
+    } else {
+        hypre_interface = Hypre::Interface::ij;
+    }
 #endif
+#ifdef AMREX_USE_PETSC
+    pp.query("use_petsc", use_petsc);
+#endif
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!(use_hypre && use_petsc),
+                                     "use_hypre & use_petsc cannot be both true");
 }
 
 void
@@ -269,7 +319,7 @@ MyTest::initData ()
     }
 
     RealBox rb({AMREX_D_DECL(0.,0.,0.)}, {AMREX_D_DECL(1.,1.,1.)});
-    std::array<int,AMREX_SPACEDIM> is_periodic{AMREX_D_DECL(0,0,0)};
+    Array<int,AMREX_SPACEDIM> is_periodic{AMREX_D_DECL(0,0,0)};
     Geometry::Setup(&rb, 0, is_periodic.data());
     Box domain0(IntVect{AMREX_D_DECL(0,0,0)}, IntVect{AMREX_D_DECL(n_cell-1,n_cell-1,n_cell-1)});
     Box domain = domain0;

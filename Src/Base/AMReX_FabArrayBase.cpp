@@ -5,6 +5,9 @@
 #include <AMReX_Geometry.H>
 #include <AMReX_FArrayBox.H>
 
+#include <AMReX_BArena.H>
+#include <AMReX_CArena.H>
+
 #ifdef BL_MEM_PROFILING
 #include <AMReX_MemProfiler.H>
 #endif
@@ -20,6 +23,20 @@ namespace amrex {
 //
 bool    FabArrayBase::do_async_sends;
 int     FabArrayBase::MaxComp;
+int     FabArrayBase::use_cuda_aware_mpi;
+
+#if defined(AMREX_USE_GPU) && defined(AMREX_USE_GPU_PRAGMA)
+
+#if AMREX_SPACEDIM == 1
+IntVect FabArrayBase::mfiter_tile_size(1024000);
+#elif AMREX_SPACEDIM == 2
+IntVect FabArrayBase::mfiter_tile_size(1024000,1024000);
+#else
+IntVect FabArrayBase::mfiter_tile_size(1024000,1024000,1024000);
+#endif
+
+#else
+
 #if AMREX_SPACEDIM == 1
 IntVect FabArrayBase::mfiter_tile_size(1024000);
 #elif AMREX_SPACEDIM == 2
@@ -27,8 +44,16 @@ IntVect FabArrayBase::mfiter_tile_size(1024000,1024000);
 #else
 IntVect FabArrayBase::mfiter_tile_size(1024000,8,8);
 #endif
+
+#endif
+
+#ifdef AMREX_USE_GPU
+IntVect FabArrayBase::comm_tile_size(AMREX_D_DECL(1024000, 1024000, 1024000));
+IntVect FabArrayBase::mfghostiter_tile_size(AMREX_D_DECL(1024000, 1024000, 1024000));
+#else
 IntVect FabArrayBase::comm_tile_size(AMREX_D_DECL(1024000, 8, 8));
 IntVect FabArrayBase::mfghostiter_tile_size(AMREX_D_DECL(1024000, 8, 8));
+#endif
 
 FabArrayBase::TACache              FabArrayBase::m_TheTileArrayCache;
 FabArrayBase::FBCache              FabArrayBase::m_TheFBCache;
@@ -48,20 +73,8 @@ FabArrayBase::FabArrayStats        FabArrayBase::m_FA_stats;
 
 namespace
 {
+    Arena* the_fa_arena = nullptr;
     bool initialized = false;
-}
-
-
-bool
-FabArrayBase::IsInitialized () const
-{
-  return initialized;
-}
-
-void
-FabArrayBase::SetInitialized (bool binit)
-{
-  initialized = binit;
 }
 
 void
@@ -101,6 +114,18 @@ FabArrayBase::Initialize ()
     if (MaxComp < 1)
         MaxComp = 1;
 
+#ifdef AMREX_USE_CUDA
+    FabArrayBase::use_cuda_aware_mpi = 1;
+    pp.query("use_cuda_aware_mpi", FabArrayBase::use_cuda_aware_mpi);
+#else
+    FabArrayBase::use_cuda_aware_mpi = 0;
+#endif
+    if (FabArrayBase::use_cuda_aware_mpi) {
+        the_fa_arena = The_Device_Arena();
+    } else {
+        the_fa_arena = new BArena;
+    }
+
     amrex::ExecOnFinalize(FabArrayBase::Finalize);
 
 #ifdef BL_MEM_PROFILING
@@ -125,6 +150,12 @@ FabArrayBase::Initialize ()
 			 return {m_CFinfo_stats.bytes, m_CFinfo_stats.bytes_hwm};
 		     }));
 #endif
+}
+
+Arena*
+The_FA_Arena ()
+{
+    return the_fa_arena;
 }
 
 FabArrayBase::FabArrayBase ()
@@ -159,16 +190,9 @@ FabArrayBase::define (const BoxArray&            bxs,
     
     BL_ASSERT(dm.ProcessorMap().size() == bxs.size());
     distributionMap = dm;
-    
-    int myProc = ParallelDescriptor::MyProc();
-    
-    for(int i = 0, N = boxarray.size(); i < N; ++i) {
-	if (ParallelDescriptor::sameTeam(distributionMap[i])) {
-            // If Team is not used (i.e., team size == 1), distributionMap[i] == myProc
-            indexArray.push_back(i);
-            ownership.push_back(myProc == distributionMap[i]);
-	}
-    }
+
+    indexArray = distributionMap.getIndexArray();
+    ownership = distributionMap.getOwnerShip();    
 }
 
 void
@@ -362,11 +386,14 @@ FabArrayBase::CPC::define (const BoxArray& ba_dst, const DistributionMapping& dm
 
 	BaseFab<int> localtouch, remotetouch;
 	bool check_local = false, check_remote = false;
-#ifdef _OPENMP
+#if defined(_OPENMP)
 	if (omp_get_max_threads() > 1) {
 	    check_local = true;
 	    check_remote = true;
 	}
+#elif defined(AMREX_USE_GPU)
+        check_local = true;
+        check_remote = true;
 #endif    
 	
 	if (ParallelDescriptor::TeamSize() > 1) {
@@ -461,6 +488,59 @@ FabArrayBase::CPC::define (const BoxArray& ba_dst, const DistributionMapping& dm
 		Tags[key].swap(cctv_tags);
 	    }
 	}    
+    }
+}
+
+FabArrayBase::CPC::CPC (const BoxArray& ba, const IntVect& ng,
+                        const DistributionMapping& dstdm, const DistributionMapping& srcdm)
+    : m_srcbdk(), 
+      m_dstbdk(), 
+      m_srcng(ng), 
+      m_dstng(ng), 
+      m_period(),
+      m_srcba(ba), 
+      m_dstba(ba),
+      m_threadsafe_loc(true), m_threadsafe_rcv(true),
+      m_LocTags(0), m_SndTags(0), m_RcvTags(0), m_SndVols(0), m_RcvVols(0), m_nuse(0)
+{
+    BL_ASSERT(ba.size() > 0);
+
+    m_LocTags = new CopyComTag::CopyComTagsContainer;
+    m_SndTags = new CopyComTag::MapOfCopyComTagContainers;
+    m_RcvTags = new CopyComTag::MapOfCopyComTagContainers;
+    m_SndVols = new CopyComTag::MapOfCopyComTagContainers;
+    m_RcvVols = new CopyComTag::MapOfCopyComTagContainers;
+
+    const int myproc = ParallelDescriptor::MyProc();
+
+    for (int i = 0, N = ba.size(); i < N; ++i)
+    {
+        const int src_owner = srcdm[i];
+        const int dst_owner = dstdm[i];
+        if (src_owner == myproc || dst_owner == myproc)
+        {
+            const Box& bx = amrex::grow(ba[i], ng);
+            const BoxList tilelist(bx, FabArrayBase::comm_tile_size);
+            if (src_owner == myproc && dst_owner == myproc)
+            {
+                for (const Box& tbx : tilelist)
+                {
+                    m_LocTags->push_back(CopyComTag(tbx, tbx, i, i));
+                }
+            }
+            else
+            {
+                auto& Vols = (src_owner == myproc) ? (*m_SndVols)[dst_owner] : (*m_RcvVols)[src_owner];
+                auto& Tags = (src_owner == myproc) ? (*m_SndTags)[dst_owner] : (*m_RcvTags)[src_owner];
+
+                Vols.push_back(CopyComTag(bx, bx, i, i));
+
+                for (const Box& tbx :tilelist)
+                {
+                    Tags.push_back(CopyComTag(tbx, tbx, i, i));
+                }
+            }
+        }
     }
 }
 
@@ -652,11 +732,14 @@ FabArrayBase::FB::define_fb(const FabArrayBase& fa)
 
     BaseFab<int> localtouch, remotetouch;
     bool check_local = false, check_remote = false;
-#ifdef _OPENMP
+#if defined(_OPENMP)
     if (omp_get_max_threads() > 1) {
 	check_local = true;
 	check_remote = true;
     }
+#elif defined(AMREX_USE_GPU)
+    check_local = true;
+    check_remote = true;
 #endif
 
     if (ParallelDescriptor::TeamSize() > 1) {
@@ -874,11 +957,14 @@ FabArrayBase::FB::define_epo (const FabArrayBase& fa)
 
     BaseFab<int> localtouch, remotetouch;
     bool check_local = false, check_remote = false;
-#ifdef _OPENMP
+#if defined(_OPENMP)
     if (omp_get_max_threads() > 1) {
 	check_local = true;
 	check_remote = true;
     }
+#elif defined(AMREX_USE_GPU)
+    check_local = true;
+    check_remote = true;
 #endif
 
     if (ParallelDescriptor::TeamSize() > 1) {
@@ -1126,10 +1212,10 @@ FabArrayBase::FPinfo::FPinfo (const FabArrayBase& srcfa,
 	ba_crse_patch.define(bl);
 	dm_crse_patch.define(std::move(iprocs));
 #ifdef AMREX_USE_EB
-        fact_crse_patch.reset(new EBFArrayBoxFactory(Geometry(cdomain),
-                                                     ba_crse_patch,
-                                                     dm_crse_patch,
-                                                     {0,0,0}, EBSupport::basic));
+        fact_crse_patch = makeEBFabFactory(Geometry(cdomain),
+                                           ba_crse_patch,
+                                           dm_crse_patch,
+                                           {0,0,0}, EBSupport::basic);
 #else
         fact_crse_patch.reset(new FArrayBoxFactory());
 #endif
@@ -1292,6 +1378,7 @@ Box
 FabArrayBase::CFinfo::Domain (const Geometry& geom, const IntVect& ng,
                               bool include_periodic, bool include_physbndry)
 {
+#if !defined(BL_NO_FORT)
     Box bx = geom.Domain();
     for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
         if (Geometry::isPeriodic(idim)) {
@@ -1305,6 +1392,9 @@ FabArrayBase::CFinfo::Domain (const Geometry& geom, const IntVect& ng,
         }
     }
     return bx;
+#else
+    return Box();
+#endif
 }
 
 long
@@ -1381,7 +1471,7 @@ FabArrayBase::Finalize ()
     FabArrayBase::flushCPCache();
     FabArrayBase::flushTileArrayCache();
 
-    if (ParallelDescriptor::IOProcessor() && amrex::system::verbose) {
+    if (ParallelDescriptor::IOProcessor() && amrex::system::verbose > 1) {
 	m_FA_stats.print();
 	m_TAC_stats.print();
 	m_FBC_stats.print();
@@ -1399,6 +1489,11 @@ FabArrayBase::Finalize ()
     m_BD_count.clear();
     
     m_FA_stats = FabArrayStats();
+
+    if (!FabArrayBase::use_cuda_aware_mpi) {
+        delete the_fa_arena;
+    }
+    the_fa_arena = nullptr;
 
     initialized = false;
 }
@@ -1589,27 +1684,24 @@ FabArrayBase::flushTileArrayCache ()
 void
 FabArrayBase::clearThisBD (bool no_assertion)
 {
-    if ( ! boxarray.empty() ) 
-    {
-	BL_ASSERT(no_assertion || getBDKey() == m_bdkey);
+    BL_ASSERT(boxarray.empty() || no_assertion || getBDKey() == m_bdkey);
 
-	std::map<BDKey, int>::iterator cnt_it = m_BD_count.find(m_bdkey);
-	if (cnt_it != m_BD_count.end()) 
-	{
-	    --(cnt_it->second);
-	    if (cnt_it->second == 0) 
-	    {
-		m_BD_count.erase(cnt_it);
-		
-		// Since this is the last one built with these BoxArray 
-		// and DistributionMapping, erase it from caches.
-		flushTileArray(IntVect::TheZeroVector(), no_assertion);
-		flushFPinfo(no_assertion);
-		flushCFinfo(no_assertion);
-		flushFB(no_assertion);
-		flushCPC(no_assertion);
-	    }
-	}
+    std::map<BDKey, int>::iterator cnt_it = m_BD_count.find(m_bdkey);
+    if (cnt_it != m_BD_count.end()) 
+    {
+        --(cnt_it->second);
+        if (cnt_it->second == 0) 
+        {
+            m_BD_count.erase(cnt_it);
+            
+            // Since this is the last one built with these BoxArray 
+            // and DistributionMapping, erase it from caches.
+            flushTileArray(IntVect::TheZeroVector(), no_assertion);
+            flushFPinfo(no_assertion);
+            flushCFinfo(no_assertion);
+            flushFB(no_assertion);
+            flushCPC(no_assertion);
+        }
     }
 }
 
@@ -1649,40 +1741,10 @@ FabArrayBase::WaitForAsyncSends (int                 N_snds,
     BL_ASSERT(send_reqs.size() == N_snds);
     BL_ASSERT(send_data.size() == N_snds);
 
-    Vector<int> indx;
-
     ParallelDescriptor::Waitall(send_reqs, stats);
-
-    for (int i = 0; i < N_snds; i++) {
-        if (send_data[i]) {
-            amrex::The_Arena()->free(send_data[i]);
-        }
-    }
 #endif /*BL_USE_MPI*/
 }
 
-#ifdef BL_USE_UPCXX
-void
-FabArrayBase::WaitForAsyncSends_PGAS (int                 N_snds,
-                                      Vector<char*>&       send_data,
-                                      upcxx::event*       send_event,
-                                      volatile int*       send_counter)
-{
-    BL_ASSERT(N_snds > 0);
-    BL_ASSERT(send_data.size() == N_snds);
-    int N_null = std::count(send_data.begin(), send_data.begin()+N_snds, nullptr);
-    // Need to make sure all sends have been started
-    while ((*send_counter) < N_snds-N_null) {
-        upcxx::advance();
-    }
-    send_event->wait(); // wait for the sends
-    for (int i = 0; i < N_snds; i++) {
-        if (send_data[i]) {
-            BLPgas::free(send_data[i]);
-        }
-    }
-}
-#endif
 
 #ifdef BL_USE_MPI
 bool
@@ -1699,13 +1761,15 @@ FabArrayBase::CheckRcvStats(Vector<MPI_Status>& recv_stats,
 
 	    if (count != recv_size[i]) {
 		r = false;
-		amrex::AllPrint() << "ERROR: Proc. " << ParallelContext::MyProcSub()
-				  << " received " << count << " counts of data from Proc. "
-				  << recv_stats[i].MPI_SOURCE
-				  << " with tag " << recv_stats[i].MPI_TAG
-				  << " error " << recv_stats[i].MPI_ERROR
-				  << ", but the expected counts is " << recv_size[i]
-                                  << " with tag " << tag << "\n";
+                if (amrex::Verbose()) {
+                    amrex::AllPrint() << "ERROR: Proc. " << ParallelContext::MyProcSub()
+                                      << " received " << count << " counts of data from Proc. "
+                                      << recv_stats[i].MPI_SOURCE
+                                      << " with tag " << recv_stats[i].MPI_TAG
+                                      << " error " << recv_stats[i].MPI_ERROR
+                                      << ", but the expected counts is " << recv_size[i]
+                                      << " with tag " << tag << "\n";
+                }
 	    }
 	}
     }

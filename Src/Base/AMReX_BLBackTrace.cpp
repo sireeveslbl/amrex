@@ -6,6 +6,7 @@
 
 #include <AMReX_BLBackTrace.H>
 #include <AMReX_ParallelDescriptor.H>
+#include <AMReX_Print.H>
 #include <AMReX.H>
 
 namespace amrex {
@@ -21,20 +22,23 @@ BLBackTrace::handler(int s)
 
     switch (s) {
     case SIGSEGV:
-	amrex::write_to_stderr_without_buffering("Segfault");
+	amrex::ErrorStream() << "Segfault\n";
 	break;
     case SIGFPE:
-	amrex::write_to_stderr_without_buffering("Erroneous arithmetic operation");
+	amrex::ErrorStream() << "Erroneous arithmetic operation\n";
+	break;
+    case SIGTERM:
+	amrex::ErrorStream() << "SIGTERM\n";
 	break;
     case SIGINT:
-	amrex::write_to_stderr_without_buffering("SIGINT");
+	amrex::ErrorStream() << "SIGINT\n";
 	break;
     case SIGABRT:
-	amrex::write_to_stderr_without_buffering("SIGABRT");
+	amrex::ErrorStream() << "SIGABRT\n";
 	break;
     }
 
-#ifdef __linux__
+#if defined(__linux__) && !defined(__NEC__)
 
     std::string errfilename;
     {
@@ -51,7 +55,7 @@ BLBackTrace::handler(int s)
 	fclose(p);
     }
     
-    std::cerr << "See " << errfilename << " file for details" << std::endl;
+    amrex::ErrorStream() << "See " << errfilename << " file for details" << std::endl;
 
 #ifdef BL_BACKTRACING
     if (!bt_stack.empty()) {
@@ -77,7 +81,7 @@ BLBackTrace::handler(int s)
     ParallelDescriptor::Abort(s, false);
 }
 
-#ifdef __linux__
+#if defined(__linux__) && !defined(__NEC__)
 void
 BLBackTrace::print_backtrace_info (const std::string& filename)
 {
@@ -88,9 +92,9 @@ BLBackTrace::print_backtrace_info (const std::string& filename)
     }
     else
     {
-      std::cout << "Warning @ BLBackTrace::print_backtrace_info: " 
-                << filename << " is not a valid output file."
-                << std::endl;
+        amrex::Print() << "Warning @ BLBackTrace::print_backtrace_info: " 
+                       << filename << " is not a valid output file."
+                       << std::endl;
     }
 }
 
@@ -122,6 +126,7 @@ BLBackTrace::print_backtrace_info (FILE* f)
 	for (int i = 0; i < nptrs; ++i) {
 	    std::string line = strings[i];
 	    line += "\n";
+#if !defined(_OPENMP) || !defined(__INTEL_COMPILER)
 	    if (amrex::system::call_addr2line && have_addr2line && !amrex::system::exename.empty()) {
 		std::size_t found1 = line.rfind('[');
 		std::size_t found2 = line.rfind(']');
@@ -138,6 +143,7 @@ BLBackTrace::print_backtrace_info (FILE* f)
 		    }
 		}
 	    }
+#endif
 	    fprintf(f, "%2d: %s\n", i, line.c_str());
 	}
     }

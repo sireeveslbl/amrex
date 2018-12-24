@@ -15,6 +15,11 @@
 
 #include <AMReX_AmrCore.H>
 
+#ifdef USE_PERILLA
+#include <RegionGraph.H>
+#include <Perilla.H>
+#endif
+
 namespace amrex {
 
 class AmrLevel;
@@ -23,6 +28,9 @@ class BoxDomain;
 template <class T>
 class MFGraph;
 class AmrTask;
+#if defined(BL_USE_SENSEI_INSITU)
+class AmrInSituBridge;
+#endif
 
 /**
 * \brief Manage hierarchy of levels for time-dependent AMR computations.
@@ -81,6 +89,7 @@ public:
 
     //! How are we subcycling?
     const std::string& subcyclingMode() const { return subcycling_mode; }
+
     /**  
     * \brief What is "level" in Amr::timeStep?  This is only relevant if we are still in Amr::timeStep;
     *      it is set back to -1 on leaving Amr::timeStep.
@@ -232,6 +241,7 @@ public:
                                           Real* dt_max, 
                                           Real* est_work, 
                                           int*  cycle_max);
+
     //! Write the plot file to be used for visualization.
     virtual void writePlotFile ();
     int stepOfLastPlotFile () const {return last_plotfile;}
@@ -387,6 +397,10 @@ protected:
     void initSubcycle();
     void initPltAndChk();
 
+    int initInSitu();
+    int updateInSitu();
+    static int finalizeInSitu();
+
     //
     // The data ...
     //
@@ -441,6 +455,7 @@ protected:
     Real             loadbalance_max_fac;
 
     bool             bUserStopRequest;
+
     //
     // The static data ...
     //
@@ -454,7 +469,15 @@ protected:
     //! Array of BoxArrays read in to externally define grid hierarchy at each regrid
     static Vector<BoxArray> regrid_ba;
 
+#if defined(BL_USE_SENSEI_INSITU)
+    static AmrInSituBridge *insitu_bridge;
+#endif
+
 public:
+#ifdef USE_PERILLA
+    std::vector<std::vector<RegionGraph*> > graphArray;
+    std::vector<RegionGraph*> &get_graphArray(int level){return graphArray[level];}
+#endif
 
     BoundaryPointList intersect_lox;
     BoundaryPointList intersect_loy;

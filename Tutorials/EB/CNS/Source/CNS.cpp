@@ -111,63 +111,6 @@ CNS::initData ()
 
     MultiFab& C_new = get_new_data(Cost_Type);
     C_new.setVal(1.0);
-
-#if 0
-    testEBStuff();
-#endif
-
-}
-
-void 
-CNS::
-testEBStuff() const
-{
-  //test for geometry info outside domain
-  Box domain = geom.Domain();
-  const MultiFab& S_new = get_new_data(State_Type);
-  for(int idir = 0; idir < SpaceDim; idir++)
-  {
-    for (MFIter mfi(S_new); mfi.isValid(); ++mfi)
-    {
-      
-      Box validbox = mfi.validbox();
-      Box grownbox = grow(validbox, 1);
-      const EBFArrayBox& sfab = dynamic_cast<EBFArrayBox const&>(S_new[mfi]);
-      const EBCellFlagFab& flagfab = sfab.getEBCellFlagFab();
-      for(BoxIterator bit(grownbox); bit.ok(); ++bit)
-      {
-        if(!domain.contains(bit()))
-        {
-          const EBCellFlag& flag = flagfab(bit(), 0); 
-          printPointStuff(flag, bit(), mfi);
-        }
-      }
-    }
-  }
-}
-
-void
-CNS::printPointStuff(const EBCellFlag& a_flag, 
-                     const IntVect&    a_iv,
-                     const MFIter &    a_mfi) const
-{
-  amrex::Print() << a_iv << ":" ;
-  if(a_flag.isRegular())
-  {
-    amrex::Print() <<  "regular, " ;
-  }
-  else if(a_flag.isCovered())
-  {
-    amrex::Print() <<  "covered, " ;
-  }
-  else
-  {
-    amrex::Print() <<  "irregular, " ;
-  }
-  Real kappa = (*volfrac)[a_mfi](a_iv, 0);
-  amrex::Print() << "kappa= " << kappa;
-  amrex::Print() << endl;
-  
 }
 
 void
@@ -290,7 +233,6 @@ CNS::computeNewDt (int                    finest_level,
 void
 CNS::post_regrid (int lbase, int new_finest)
 {
-    fixUpGeometry();
 }
 
 void
@@ -345,8 +287,6 @@ CNS::printTotal () const
 void
 CNS::post_init (Real)
 {
-    fixUpGeometry();
-
     if (level > 0) return;
     for (int k = parent->finestLevel()-1; k >= 0; --k) {
         getLevel(k).avgDown();
@@ -360,7 +300,6 @@ CNS::post_init (Real)
 void
 CNS::post_restart ()
 {
-    fixUpGeometry();
 }
 
 void
@@ -409,6 +348,9 @@ CNS::errorEst (TagBoxArray& tags, int, int, Real time, int, int)
         const char   tagval = TagBox::SET;
         const char clearval = TagBox::CLEAR;
 
+        auto const& fact = dynamic_cast<EBFArrayBoxFactory const&>(S_new.Factory());
+        auto const& flags = fact.getMultiEBCellFlagFab();
+
 #ifdef _OPENMP
 #pragma omp parallel
 #endif
@@ -416,8 +358,8 @@ CNS::errorEst (TagBoxArray& tags, int, int, Real time, int, int)
         {
             const Box& bx = mfi.tilebox();
 
-            const auto& sfab = dynamic_cast<EBFArrayBox const&>(S_new[mfi]);
-            const auto& flag = sfab.getEBCellFlagFab();
+            const auto& sfab = S_new[mfi];
+            const auto& flag = flags[mfi];
 
             const FabType typ = flag.getType(bx);
             if (typ != FabType::covered)
@@ -530,6 +472,9 @@ CNS::estTimeStep ()
     const Real* dx = geom.CellSize();
     const MultiFab& S = get_new_data(State_Type);
 
+    auto const& fact = dynamic_cast<EBFArrayBoxFactory const&>(S.Factory());
+    auto const& flags = fact.getMultiEBCellFlagFab();
+
 #ifdef _OPENMP
 #pragma omp parallel reduction(min:estdt)
 #endif
@@ -539,8 +484,8 @@ CNS::estTimeStep ()
         {
             const Box& box = mfi.tilebox();
 
-            const auto& sfab = dynamic_cast<EBFArrayBox const&>(S[mfi]);
-            const auto& flag = sfab.getEBCellFlagFab();
+            const auto& sfab = S[mfi];
+            const auto& flag = flags[mfi];
 
             if (flag.getType(box) != FabType::covered) {
                 cns_estdt(BL_TO_FORTRAN_BOX(box),
@@ -567,6 +512,9 @@ CNS::computeTemp (MultiFab& State, int ng)
 {
     BL_PROFILE("CNS::computeTemp()");
 
+    auto const& fact = dynamic_cast<EBFArrayBoxFactory const&>(State.Factory());
+    auto const& flags = fact.getMultiEBCellFlagFab();
+
     // This will reset Eint and compute Temperature 
 #ifdef _OPENMP
 #pragma omp parallel
@@ -575,43 +523,13 @@ CNS::computeTemp (MultiFab& State, int ng)
     {
         const Box& bx = mfi.growntilebox(ng);
 
-        const auto& sfab = dynamic_cast<EBFArrayBox const&>(State[mfi]);
-        const auto& flag = sfab.getEBCellFlagFab();
+        const auto& sfab = State[mfi];
+        const auto& flag = flags[mfi];
 
         if (flag.getType(bx) != FabType::covered) {
             cns_compute_temperature(BL_TO_FORTRAN_BOX(bx),
                                     BL_TO_FORTRAN_ANYD(State[mfi]));
         }
     }
-}
-
-void
-CNS::fixUpGeometry ()
-{
-    BL_PROFILE("CNS::fixUpGeometry()");
-
-    const auto& S = get_new_data(State_Type);
-
-    const int ng = 4;
-
-    const auto& domain = geom.Domain();
-
-#ifdef _OPENMP
-#pragma omp parallel
-#endif
-    for (MFIter mfi(S, true); mfi.isValid(); ++mfi)
-    {
-        EBCellFlagFab& flag = const_cast<EBCellFlagFab&>(static_cast<EBFArrayBox const&>
-                                                         (S[mfi]).getEBCellFlagFab());
-        const Box& bx = mfi.growntilebox(ng);
-        if (flag.getType(bx) == FabType::singlevalued)
-        {
-            cns_eb_fixup_geom(BL_TO_FORTRAN_BOX(bx),
-                              BL_TO_FORTRAN_ANYD(flag),
-                              BL_TO_FORTRAN_ANYD((*volfrac)[mfi]),
-                              BL_TO_FORTRAN_BOX(domain));
-        }
-    }
-
 }
 

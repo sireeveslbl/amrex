@@ -7,9 +7,11 @@ module amrex_parmparse_module
 
   implicit none
 
+  character(len=:), allocatable, public :: amrex_namelist
+
   private
 
-  public :: amrex_parmparse_build, amrex_parmparse_destroy
+  public :: amrex_parmparse_build, amrex_parmparse_destroy, amrex_init_namelist, amrex_finalize_namelist
 
   type, public :: amrex_parmparse
      logical     :: owner = .false.
@@ -49,7 +51,7 @@ module amrex_parmparse_module
      procedure, private :: add_intarr
      procedure, private :: add_realarr
      procedure, private :: add_stringarr
-#if !defined(__GFORTRAN__) || (__GNUC__ > 4)
+#if (!defined(__GFORTRAN__) || (__GNUC__ > 4)) && (!defined(__ibmxl__))
      final :: amrex_parmparse_destroy
 #endif
   end type amrex_parmparse
@@ -70,9 +72,10 @@ module amrex_parmparse_module
        type(c_ptr), value :: pp
      end subroutine amrex_delete_parmparse
 
-     integer(c_int) function amrex_parmparse_get_counts (pp, name) bind(c)
+     function amrex_parmparse_get_counts (pp, name) bind(c)
        import
        implicit none
+       integer(c_int) :: amrex_parmparse_get_counts
        type(c_ptr), value :: pp
        character(kind=c_char), intent(in) :: name(*)       
      end function amrex_parmparse_get_counts
@@ -528,5 +531,37 @@ contains
     end do
     call amrex_parmparse_add_stringarr(this%p, amrex_string_f_to_c(name), cs, n)
   end subroutine add_stringarr
+
+  subroutine amrex_init_namelist (cstr) bind(c,name='amrex_init_namelist')
+    character(kind=c_char), intent(in) :: cstr(*)
+    integer :: i, n, oldn
+    character(len=:), allocatable :: tmp
+    n = 0
+    do while (cstr(n+1) .ne. c_null_char)
+       n = n+1
+    end do
+    if (n > 0) then
+       if (allocated(amrex_namelist)) then
+          oldn = len(amrex_namelist)
+          allocate(character(len=oldn)::tmp)
+          tmp = amrex_namelist
+          deallocate(amrex_namelist)
+          allocate(character(len=oldn+n)::amrex_namelist)
+          amrex_namelist(1:oldn) = tmp(1:oldn)
+          do i = 1, n
+             amrex_namelist(i+oldn:i+oldn) = cstr(i)
+          end do
+       else
+          allocate(character(len=n)::amrex_namelist)
+          do i = 1, n
+             amrex_namelist(i:i) = cstr(i)
+          end do
+       end if
+    end if
+  end subroutine amrex_init_namelist
+
+  subroutine amrex_finalize_namelist () bind(c,name='amrex_finalize_namelist')
+    if (allocated(amrex_namelist)) deallocate(amrex_namelist)
+  end subroutine amrex_finalize_namelist
 
 end module amrex_parmparse_module

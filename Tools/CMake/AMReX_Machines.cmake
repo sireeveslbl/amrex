@@ -1,5 +1,5 @@
 #
-# This file provides the following variables
+# This file defines the following variables
 # 
 #   CCSE_MACHINES
 #   NERSC_MACHINES
@@ -10,8 +10,7 @@
 #   FLASH_MACHINES
 #   SITE
 #   MACHINE
-
-
+   
 #
 #  CCSE machines
 #
@@ -42,7 +41,7 @@ list ( APPEND LLNL_MACHINES ray rzmanta )
 # ALCF machines
 #
 set ( ACLF_MACHINES )
-list ( APPEND ACLF_MACHINES mmira theta )
+list ( APPEND ACLF_MACHINES mira theta )
 
 #
 # NREL machines

@@ -5,6 +5,8 @@
 #include <fstream>
 #include <iomanip>
 
+#include <AMReX.H>
+#include <AMReX_ParallelContext.H>
 #include <AMReX_ParallelDescriptor.H>
 
 namespace amrex
@@ -20,9 +22,9 @@ namespace amrex
     * \brief Print on I/O Processor of the default communicator
     * Example: Print() << " x = " << x << std::endl;  
     */
-	Print (std::ostream& os_ = std::cout) 
-	    : rank(ParallelDescriptor::IOProcessorNumber())
-	    , comm(ParallelDescriptor::Communicator())
+	Print (std::ostream& os_ = amrex::OutStream()) 
+	    : rank(ParallelContext::IOProcessorNumberSub())
+	    , comm(ParallelContext::CommunicatorSub())
 	    , os(os_)
 	    { ss.precision(os.precision()); }
 
@@ -30,9 +32,9 @@ namespace amrex
     * \brief Print on all processors of the default communicator
     * Example: Print(Print::AllProcs) << " x = " << x << std::endl;
     */
-	Print (int rank_, std::ostream& os_ = std::cout) 
+	Print (int rank_, std::ostream& os_ = amrex::OutStream())
 	    : rank(rank_)
-	    , comm(ParallelDescriptor::Communicator())
+	    , comm(ParallelContext::CommunicatorSub())
 	    , os(os_)
 	    { ss.precision(os.precision()); }
 
@@ -40,17 +42,23 @@ namespace amrex
     * \brief Print on process rank_ of communicator comm_
     * Example: Print(rank_, comm_) << " x = " << x << std::endl;
     */
-	Print (int rank_, MPI_Comm comm_, std::ostream& os_ = std::cout)
+	Print (int rank_, MPI_Comm comm_, std::ostream& os_ = amrex::OutStream())
 	    : rank(rank_)
 	    , comm(comm_)
 	    , os(os_)
 	    { ss.precision(os.precision()); }
 
 	~Print () {
-	    if (rank == AllProcs || rank == ParallelDescriptor::MyProc(comm)) {
-		os.flush();
-		os << ss.str();
-		os.flush();
+	    if (rank == AllProcs || rank == ParallelContext::MyProcSub()) {
+                std::ostream * my_os = ParallelContext::OFSPtrSub();
+                if (my_os) {
+                    my_os->flush();
+                    (*my_os) << ss.str();
+                    my_os->flush();
+                }
+                os.flush();
+                os << ss.str();
+                os.flush();
 	    }
 	}
 
@@ -85,7 +93,7 @@ namespace amrex
     {
     public:
         //! Example: AllPrint() << " x = " << x << std::endl;
-	AllPrint (std::ostream& os_ = std::cout)
+	AllPrint (std::ostream& os_ = amrex::OutStream())
 	    : Print(Print::AllProcs, os_) 
 	    {}
 

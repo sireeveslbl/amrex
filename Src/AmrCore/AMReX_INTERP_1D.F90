@@ -4,6 +4,7 @@ module amrex_interp_module
   use amrex_fort_module
   use amrex_constants_module
   use amrex_bc_types_module
+  use amrex_error_module
 
   implicit none
 
@@ -159,7 +160,7 @@ contains
             do lx = 0, lratio-1
               do ic = cb_l1, cb_h1-1
                 i = ic*lratio + lx
-                x = denom*(two*lratio + one)
+                x = denom*(two*lx + one)
                 strip(i) = crse(ic,n) + x*sl(ic,SLX) 
 	      enddo
 	    enddo
@@ -862,7 +863,7 @@ contains
                         alpha(ic,n) = min(alpha(ic,n),corr_fact)
                      endif
 
-#ifndef NDEBUG
+#ifdef AMREX_DEBUG
                      if (alpha(ic,n) .lt. 0.d0) then
                         print *,'OOPS - ALPHA SHOULD BE POSITIVE IN CCINTERP '
                         print *,'ALPHA = ',alpha(ic,n)
@@ -972,12 +973,9 @@ contains
              enddo
           enddo
        else if (lratiox .eq. 4) then
-!      todo
-          write(6,*) 'AMREX_QUARTINTERP: refinement ratio = 4 TODO'
-          stop
+          call amrex_error('AMREX_QUARTINTERP: refinement ratio = 4 TODO')
        else
-          write(6,*) 'AMREX_QUARTINTERP: unsupported refinement ratio'
-          stop
+          call amrex_error('AMREX_QUARTINTERP: unsupported refinement ratio')
        endif
 
      end subroutine AMREX_QUARTINTERP

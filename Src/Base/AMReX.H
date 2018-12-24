@@ -2,8 +2,11 @@
 #ifndef BL_AMREX_H
 #define BL_AMREX_H
 
+#include <AMReX_GpuQualifiers.H>
 #include <AMReX_ccse-mpi.H>
+#include <AMReX_Exception.H>
 
+#include <iostream>
 #include <functional>
 #include <string>
 #include <cstdio>
@@ -20,15 +23,49 @@
 
 namespace amrex
 {
+
     typedef void (*PTR_TO_VOID_FUNC)(void);
+    typedef void (*ErrorHandler) (const char* msg);
+
+    namespace system
+    {
+#ifndef AMREX_DEBUG
+	constexpr bool NDebug = true;
+        constexpr bool  Debug = false;
+#else
+	constexpr bool NDebug = false;
+        constexpr bool  Debug = true;
+#endif
+
+	extern std::string exename;
+	
+	extern int verbose;
+
+        extern int signal_handling;
+        extern int call_addr2line;
+        extern int throw_exception;
+
+        extern int regtest_reduction;
+
+        extern std::ostream* osout;
+        extern std::ostream* oserr;
+        
+        extern ErrorHandler error_handler;
+    }
 
     std::string Version ();
 
-    void Initialize (MPI_Comm mpi_comm);
+    void Initialize (MPI_Comm mpi_comm,
+                     std::ostream& a_osout = std::cout,
+                     std::ostream& a_oserr = std::cerr,
+                     ErrorHandler a_errhandler = nullptr);
 
     void Initialize (int& argc, char**& argv, bool build_parm_parse=true,
                      MPI_Comm mpi_comm = MPI_COMM_WORLD,
-                     const std::function<void()>& func_parm_parse = {});
+                     const std::function<void()>& func_parm_parse = {},
+                     std::ostream& a_osout = std::cout,
+                     std::ostream& a_oserr = std::cerr,
+                     ErrorHandler a_errorhandler = nullptr);
 
     void Finalize(bool finalize_parallel = true);
     /**
@@ -41,14 +78,17 @@ namespace amrex
     void ExecOnInitialize (PTR_TO_VOID_FUNC);
 
     //! Print out message to cerr and exit via amrex::Abort().
+    AMREX_GPU_HOST_DEVICE
     void Error (const char * msg = 0);
     void Error (const std::string& msg);
 
     //! Print out warning message to cerr.
+    AMREX_GPU_HOST_DEVICE
     void Warning (const char * msg);
     void Warning (const std::string& msg);
 
     //! Print out message to cerr and exit via abort().
+    AMREX_GPU_HOST_DEVICE
     void Abort (const char * msg = 0);
     void Abort (const std::string& msg);
 
@@ -57,13 +97,14 @@ namespace amrex
     * via abort().  Intended for use by the BL_ASSERT() macro
     * in <AMReX_BLassert.H>.
     */
+    AMREX_GPU_HOST_DEVICE
     void Assert (const char* EX,
                  const char* file,
                  int         line,
                  const char* msg = nullptr);
     /**
     * \brief Prints out an out-of-memory message and aborts.  It is
-    *         called by various BoxLib routines when a call to new fails.
+    *         called by various routines when a call to new fails.
     *
     *        Called as amrex::OutOfMemory(__FILE__, __LINE__);
     */
@@ -77,29 +118,26 @@ namespace amrex
     */
     void write_to_stderr_without_buffering (const char* str);
 
-    namespace system
-    {
-#ifdef NDEBUG
-	constexpr bool NDebug = true;
-#else
-	constexpr bool NDebug = false;
-#endif
+    void SetErrorHandler (ErrorHandler errhandler);
 
-	extern std::string exename;
-	
-	extern int verbose;
+    std::ostream& OutStream ();
+    std::ostream& ErrorStream ();
 
-        extern int signal_handling;
-        extern int call_addr2line;
-    }
+    int Verbose ();
+    void SetVerbose (int v);
 
     inline void GccPlacater ()
     {
-        std::allocator<char> a1;
-        std::allocator<int> a2;
-        std::allocator<float> a3;
-        std::allocator<double> a4;
-        std::allocator<std::string> a5;
+        std::allocator<bool> a_b;
+        std::allocator<char> a_c;
+        std::allocator<int> a_i;
+        std::allocator<long> a_l;
+        std::allocator<unsigned char> a_uc;
+        std::allocator<unsigned int> a_ui;
+        std::allocator<unsigned long> a_ul;
+        std::allocator<float> a_f;
+        std::allocator<double> a_d;
+        std::allocator<std::string> a_s;
     }
 }
 

@@ -1,9 +1,17 @@
 
+#include <cmath>
+#include <algorithm>
 #include <AMReX_MLLinOp.H>
 #include <AMReX_ParmParse.H>
 
 #ifdef AMREX_USE_EB
-#include <AMReX_EBTower.H>
+#include <AMReX_EB2.H>
+#include <AMReX_EBFabFactory.H>
+#endif
+
+#ifdef AMREX_USE_PETSC
+#include <petscksp.h>
+#include <AMReX_PETSc.H>
 #endif
 
 namespace amrex {
@@ -39,6 +47,15 @@ MLLinOp::define (const Vector<Geometry>& a_geom,
     }
 
     info = a_info;
+#if AMREX_USE_EB
+    if (!a_factory.empty()){
+        auto f = dynamic_cast<EBFArrayBoxFactory const*>(a_factory[0]);
+        if (f) {
+            info.max_coarsening_level = std::min(info.max_coarsening_level,
+                                                 f->maxCoarseningLevel());
+        }
+    }
+#endif
     defineGrids(a_geom, a_grids, a_dmap, a_factory);
     defineAuxData();
     defineBC();
@@ -79,7 +96,7 @@ MLLinOp::defineGrids (const Vector<Geometry>& a_geom,
 
         int rr = mg_coarsen_ratio;
         const Box& dom = a_geom[amrlev].Domain();
-        for (int i = 0; i < info.max_coarsening_level; ++i)
+        for (int i = 0; i < 2; ++i)
         {
             if (!dom.coarsenable(rr)) amrex::Abort("MLLinOp: Uncoarsenable domain");
 
@@ -172,9 +189,46 @@ MLLinOp::defineGrids (const Vector<Geometry>& a_geom,
         int nmaxlev = std::min(static_cast<int>(domainboxes.size()),
                                info.max_coarsening_level + 1);
         int rr = mg_coarsen_ratio;
-        for (int lev = 1; lev < nmaxlev; ++lev)
+
+        // We may have to agglomerate earlier because the original
+        // BoxArray has to be coarsenable to the first agglomerated
+        // level or the bottom level and in amrex::average_down the
+        // fine BoxArray needs to be coarsenable (unless we make
+        // average_down more general).
+        int last_coarsenableto_lev = 0;
+        for (int lev = std::min(nmaxlev,first_agglev); lev >= 1; --lev) {
+            int ratio = static_cast<int>(std::pow(rr,lev));
+            if (a_grids[0].coarsenable(ratio, mg_box_min_width)) {
+                last_coarsenableto_lev = lev;
+                break;
+            }
+        }
+
+        // We now know we could coarsen the original BoxArray to at
+        // least last_coarsenableto_lev.  last_coarsenableto_lev == 0
+        // means the original BoxArray is not coarsenable even once.
+
+        if (last_coarsenableto_lev > 0)
         {
-            if (lev >= first_agglev or !a_grids[0].coarsenable(rr,mg_box_min_width))
+            // last_coarsenableto_lev will be the first agglomeration level, except
+            if (last_coarsenableto_lev == nmaxlev-1 && first_agglev > nmaxlev-1) {
+                // then there is no reason to agglomerate
+                last_coarsenableto_lev = nmaxlev;
+            }
+
+            for (int lev = 1; lev < last_coarsenableto_lev; ++lev)
+            {
+                m_geom[0].emplace_back(amrex::coarsen(a_geom[0].Domain(),rr));
+                
+                m_grids[0].push_back(a_grids[0]);
+                m_grids[0].back().coarsen(rr);
+            
+                m_dmap[0].push_back(a_dmap[0]);
+                
+                rr *= mg_coarsen_ratio;
+            }
+
+            for (int lev = last_coarsenableto_lev; lev < nmaxlev; ++lev)
             {
                 m_geom[0].emplace_back(domainboxes[lev]);
             
@@ -184,18 +238,8 @@ MLLinOp::defineGrids (const Vector<Geometry>& a_geom,
                 m_dmap[0].push_back(DistributionMapping());
                 agged = true;
             }
-            else
-            {
-                m_geom[0].emplace_back(amrex::coarsen(a_geom[0].Domain(),rr));
-                
-                m_grids[0].push_back(a_grids[0]);
-                m_grids[0].back().coarsen(rr);
-            
-                m_dmap[0].push_back(a_dmap[0]);
-            }
 
-            ++(m_num_mg_levels[0]);
-            rr *= mg_coarsen_ratio;
+            m_num_mg_levels[0] = m_grids[0].size();
         }
     }
     else
@@ -264,8 +308,14 @@ MLLinOp::defineGrids (const Vector<Geometry>& a_geom,
     {
         for (int mglev = 1; mglev < m_num_mg_levels[amrlev]; ++mglev)
         {
-            m_factory[amrlev].emplace_back(new FArrayBoxFactory());
+            m_factory[amrlev].emplace_back(makeFactory(amrlev,mglev));
         }
+    }
+
+    for (int amrlev = 1; amrlev < m_num_amr_levels; ++amrlev)
+    {
+        AMREX_ASSERT_WITH_MESSAGE(m_grids[amrlev][0].coarsenable(m_amr_ref_ratio[amrlev-1]),
+                                  "MLLinOp: grids not coarsenable between AMR levels");
     }
 }
 
@@ -291,14 +341,14 @@ MLLinOp::make (Vector<Vector<MultiFab> >& mf, int nc, int ng) const
         for (int mlev = 0; mlev < m_num_mg_levels[alev]; ++mlev)
         {
             const auto& ba = amrex::convert(m_grids[alev][mlev], m_ixtype);
-            mf[alev][mlev].define(ba, m_dmap[alev][mlev], nc, ng);
+            mf[alev][mlev].define(ba, m_dmap[alev][mlev], nc, ng, MFInfo(), *m_factory[alev][mlev]);
         }
     }
 }
 
 void
-MLLinOp::setDomainBC (const std::array<BCType,AMREX_SPACEDIM>& a_lobc,
-                      const std::array<BCType,AMREX_SPACEDIM>& a_hibc)
+MLLinOp::setDomainBC (const Array<BCType,AMREX_SPACEDIM>& a_lobc,
+                      const Array<BCType,AMREX_SPACEDIM>& a_hibc)
 {
     m_lobc = a_lobc;
     m_hibc = a_hibc;
@@ -439,5 +489,14 @@ MLLinOp::makeConsolidatedDMap (const Vector<BoxArray>& ba, Vector<DistributionMa
         }
     }
 }
+
+#ifdef AMREX_USE_PETSC
+std::unique_ptr<PETScABecLap>
+MLLinOp::makePETSc () const
+{
+    amrex::Abort("MLLinOp::makePETSc: How did we get here?");
+    return {nullptr};
+}
+#endif
 
 }

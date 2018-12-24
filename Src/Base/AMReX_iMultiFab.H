@@ -5,6 +5,7 @@
 #include <AMReX_BLassert.H>
 #include <AMReX_IArrayBox.H>
 #include <AMReX_FabArray.H>
+#include <AMReX_FabArrayUtility.H>
 #include <AMReX_Geometry.H>
 
 namespace amrex {
@@ -50,6 +51,18 @@ public:
                const FabFactory<IArrayBox>& factory = DefaultFabFactory<IArrayBox>());
 #endif
 
+    iMultiFab (const BoxArray&            bs,
+	       const DistributionMapping& dm,
+	       int                        ncomp,
+	       const IntVect&             ngrow,
+#ifdef AMREX_STRICT_MODE
+               const MFInfo&              info,
+               const FabFactory<IArrayBox>& factory);
+#else
+               const MFInfo&              info = MFInfo(),
+               const FabFactory<IArrayBox>& factory = DefaultFabFactory<IArrayBox>());
+#endif
+
     /**
      * \brief Make an alias iMultiFab. maketype must be
      * amrex::make_alias.  scomp is the starting component of the
@@ -61,7 +74,7 @@ public:
     virtual ~iMultiFab () override = default;
     
     iMultiFab (iMultiFab&& rhs) noexcept = default;
-    iMultiFab& operator= (iMultiFab&& rhs) noexcept = delete;
+    iMultiFab& operator= (iMultiFab&& rhs) noexcept = default;
 
     iMultiFab (const iMultiFab& rhs) = delete;
     iMultiFab& operator= (const iMultiFab& rhs) = delete;
@@ -102,28 +115,9 @@ public:
              int        nghost = 0,
 	     bool       local = false) const;
     //
-    // Returns the maximum *absolute* value contained in 
-    // component comp of the iMultiFab.
+    // Returns the sum in component comp
     //
-    int norm0 (int comp = 0, int nghost = 0, bool local = false) const;
-    //
-    // Returns the maximum *absolute* value contained in 
-    // component comp of the iMultiFab in the intersection of the BoxArray
-    // and the valid regions of the iMultiFab.
-    //
-    int norm0 (int comp, const BoxArray& ba, int nghost = 0, bool local = false) const;
-
-    //
-    // Returns the L1 norm of component "comp" over the iMultiFab.
-    // ngrow ghost cells are used.
-    //
-    int norm1 (int comp = 0, int ngrow = 0, bool local = false) const;
-    
-    //
-    // Returns the L2 norm of component "comp" over the iMultiFab.
-    // No ghost cells are used.
-    //
-    int norm2 (int comp = 0) const;
+    long sum (int comp, int nghost = 0, bool local = false) const;
     //
     // Adds the scalar value val to the value of each cell in the
     // specified subregion of the iMultiFab.  The subregion consists
@@ -337,6 +331,18 @@ public:
 			int             dstcomp,
 			int             numcomp,
 			int             nghost);
+
+    virtual void define (const BoxArray&            bxs,
+			 const DistributionMapping& dm,
+			 int                        nvar,
+			 const IntVect&             ngrow,
+#ifdef AMREX_STRICT_MODE
+			 const MFInfo&              info,
+                         const FabFactory<IArrayBox>& factory) override;
+#else
+			 const MFInfo&              info = MFInfo(),
+                         const FabFactory<IArrayBox>& factory = DefaultFabFactory<IArrayBox>()) override;
+#endif
 
     virtual void define (const BoxArray&            bxs,
 			 const DistributionMapping& dm,

@@ -17,49 +17,79 @@ class ForkJoin
     };
     enum class Intent { in, out, inout };
 
-    ForkJoin (Vector<int> trn);
+    // if strategy == split, use this to specify how to split components across tasks
+    struct ComponentSet {
+        // for now, just support contiguous range of components
+        // only requires a single MultiFab::Copy() per task this way
+        // in the future, consider changing this to a true set for arbitrary components
+        ComponentSet() {}
+        ComponentSet(int lo_, int hi_) : lo(lo_), hi(hi_) {}
+        int lo; // inclusive bound
+        int hi; // exclusive bound
+    };
 
-    ForkJoin (const Vector<double> &task_rank_pct);
+    ForkJoin (const Vector<int> &task_rank_n, const std::string &a_task_output_dir = "");
 
-    ForkJoin (int ntasks) : ForkJoin( Vector<double>(ntasks, 1.0 / ntasks) ) { }
+    ForkJoin (const Vector<double> &task_rank_pct, const std::string &a_task_output_dir = "");
+
+    ForkJoin (int ntasks, const std::string& a_task_output_dir = "")
+        : ForkJoin( Vector<double>(ntasks, 1.0 / ntasks), a_task_output_dir ) { }
+
+    int NTasks () const { return split_bounds.size() - 1; }
+
+    int MyTask () const { return task_me; }
+
+    bool Verbose () const { return flag_verbose; }
+
+    void SetVerbose (bool verbose_in) { flag_verbose = verbose_in; }
+
+    ComponentSet ComponentBounds(const std::string& name, int idx=0) const;
+
+    int NProcsTask (int task) const {
+        AMREX_ASSERT(task + 1 < split_bounds.size());
+        return split_bounds[task + 1] - split_bounds[task];
+    }
 
     void reg_mf (MultiFab &mf, const std::string &name, int idx,
-                 Strategy strategy, Intent intent, int owner = -1);
+                 Strategy strategy, Intent intent, const IntVect ng = {AMREX_D_DECL(0,0,0)}, int owner = -1);
 
     void reg_mf (MultiFab &mf, const std::string &name,
-                 Strategy strategy, Intent intent, int owner = -1) {
-        reg_mf(mf, name, 0, strategy, intent, owner);
+                 Strategy strategy, Intent intent, const IntVect ng = {AMREX_D_DECL(0,0,0)}, int owner = -1) {
+        reg_mf(mf, name, 0, strategy, intent, ng, owner);
     }
 
     // these overloads are for in case the MultiFab argument is const
     // intent must be in
     void reg_mf (const MultiFab &mf, const std::string &name, int idx,
-                 Strategy strategy, Intent intent, int owner = -1) {
+                 Strategy strategy, Intent intent, const IntVect ng = {AMREX_D_DECL(0,0,0)}, int owner = -1) {
         AMREX_ASSERT_WITH_MESSAGE(intent == Intent::in,
                                   "const MultiFab must be registered read-only");
-        reg_mf(const_cast<MultiFab&>(mf), name, idx, strategy, intent, owner);
+        reg_mf(const_cast<MultiFab&>(mf), name, idx, strategy, intent, ng, owner);
     }
     void reg_mf (const MultiFab &mf, const std::string &name,
-                 Strategy strategy, Intent intent, int owner = -1) {
-        reg_mf(mf, name, 0, strategy, intent, owner);
+                 Strategy strategy, Intent intent, const IntVect ng = {AMREX_D_DECL(0,0,0)}, int owner = -1) {
+        reg_mf(mf, name, 0, strategy, intent, ng, owner);
     }
 
     void reg_mf_vec (const Vector<MultiFab *> &mfs, const std::string &name,
-                     Strategy strategy, Intent intent, int owner = -1) {
+                     Strategy strategy, Intent intent, const IntVect ng = {AMREX_D_DECL(0,0,0)}, int owner = -1) {
         data[name].reserve(mfs.size());
         for (int i = 0; i < mfs.size(); ++i) {
-            reg_mf(*mfs[i], name, i, strategy, intent, owner);
+            reg_mf(*mfs[i], name, i, strategy, intent, ng, owner);
         }
     }
 
     // overload in case of vector of pointer to const MultiFab
     void reg_mf_vec (const Vector<MultiFab const *> &mfs, const std::string &name,
-                     Strategy strategy, Intent intent, int owner = -1) {
+                     Strategy strategy, Intent intent, const IntVect ng = {AMREX_D_DECL(0,0,0)}, int owner = -1) {
         data[name].reserve(mfs.size());
         for (int i = 0; i < mfs.size(); ++i) {
-            reg_mf(*mfs[i], name, i, strategy, intent, owner);
+            reg_mf(*mfs[i], name, i, strategy, intent, ng, owner);
         }
     }
+
+    // modify how the multifab is split along components across the tasks
+    void modify_split (const std::string &name, int idx, Vector<ComponentSet> comp_split);
 
     // TODO: may want to de-register MFs if they change across invocations
 
@@ -79,12 +109,19 @@ class ForkJoin
         return result;
     }
 
+    static void set_task_output_file (const std::string & filename)
+    {
+        ParallelContext::set_last_frame_ofs(filename);
+    }
+
     template <class F>
     void fork_join (const F &fn)
     {
+        const int io_rank = 0; // team's sub-rank 0 does IO
         MPI_Comm task_comm = split_tasks();
-        copy_data_to_tasks(task_comm); // move data to local tasks
-        ParallelContext::push(task_comm);
+        copy_data_to_tasks(); // move data to local tasks
+        ParallelContext::push(task_comm, task_me, io_rank);
+        set_task_output_file(get_fresh_io_filename());
         fn(*this);
         ParallelContext::pop();
 #ifdef BL_USE_MPI
@@ -97,9 +134,11 @@ class ForkJoin
 
     struct MFFork
     {
-        MultiFab *orig;
+        MultiFab *orig = nullptr;
         Strategy strategy;
+        Vector<ComponentSet> comp_split; // if strategy == split, how to split components to tasks
         Intent intent;
+        IntVect nGrow;
         int owner_task; // only used if strategy == single or duplicate
         Vector<MultiFab> forked; // holds new multifab for each task in fork
 
@@ -109,16 +148,20 @@ class ForkJoin
         MFFork (MFFork&&) = default;
         MFFork& operator= (MFFork&&) = default;
         MFFork (MultiFab *omf, Strategy s = Strategy::duplicate,
-                Intent i = Intent::inout, int own = -1)
-            : orig(omf), strategy(s), intent(i), owner_task(own) {}
+                Intent i = Intent::inout, const IntVect ng = {AMREX_D_DECL(0,0,0)}, int own = -1)
+            : orig(omf), strategy(s), intent(i), nGrow(ng), owner_task(own) {}
+
+        bool empty() const { return orig == nullptr; }
     };
 
-    Vector<int> task_rank_n; // number of ranks in each forked task
     Vector<int> split_bounds; // task i has ranks over the interval [result[i], result[i+1])
-    int task_me = -1; // task the current rank belongs to
+    int task_me = -1; // which forked task the rank belongs to
     std::map<BoxArray::RefID, Vector<std::unique_ptr<DistributionMapping>>> dms; // DM cache
     std::unordered_map<std::string, Vector<MFFork>> data;
-    const static bool flag_verbose = false; // for debugging
+    bool flag_verbose = false; // for debugging
+    std::string task_output_dir;
+
+    void init(const Vector<int> &task_rank_n, const std::string &task_output_dir);
 
     // multiple MultiFabs may share the same box array
     // only compute the DM once per unique (box array, task) pair and cache it
@@ -128,21 +171,17 @@ class ForkJoin
 
     // this is called before ParallelContext::split
     // the parent task is the top frame in ParallelContext's stack
-    void copy_data_to_tasks (MPI_Comm task_comm);
+    void copy_data_to_tasks ();
 
     // this is called after ParallelContext::unsplit
     // the parent task is the top frame in ParallelContext's stack
     void copy_data_from_tasks ();
 
-    int NTasks () const { return task_rank_n.size(); }
-
-    int MyTask () const { return task_me; }
-
-    // split ranks in current frame into contiguous chunks
-    // task i has ranks over the interval [result[i], result[i+1])
-    void compute_split_bounds ();
     // split top frame of stack
     MPI_Comm split_tasks ();
+
+    // unique output file for this sub-task
+    std::string get_fresh_io_filename ();
 };
 
 }

@@ -23,3 +23,19 @@ TAGS
 .DS_Store
 Docs/AMReXUsersGuide/Visualization/*.pdf
 Docs/sphinx/build
+
+.nfs*
+
+# vi
+*.sw[a-z]
+
+# catalyst/libsim
+Tutorials/Amr/Advection_AmrLevel/Exec/SingleVortex/*.png
+Tutorials/Amr/Advection_AmrCore/Exec/SingleVortex/*.png
+Tutorials/EB/LevelSet/Exec/ImpFunc*
+Tutorials/EB/LevelSet/Exec/LevelSet*
+*.vth
+*.vti
+*.pvd
+*.visit
+*.pvsm

@@ -1,4 +1,4 @@
-AMREX_HOME ?= ../../../..
+AMREX_HOME ?= ../../../../..
 USE_EB = FALSE
 PRECISION  = DOUBLE
 PROFILE    = FALSE
@@ -15,6 +15,8 @@ USE_PARTICLES = TRUE
 
 USE_MPI    = TRUE
 USE_OMP    = FALSE
+
+USE_SENSEI_INSITU = FALSE
 
 Bpack   := ./Make.package 
 Blocs   := . 

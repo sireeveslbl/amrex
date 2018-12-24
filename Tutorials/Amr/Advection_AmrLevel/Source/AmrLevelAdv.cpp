@@ -719,14 +719,14 @@ AmrLevelAdv::reflux ()
 {
     BL_ASSERT(level<parent->finestLevel());
 
-    const Real strt = ParallelDescriptor::second();
+    const Real strt = amrex::second();
 
     getFluxReg(level+1).Reflux(get_new_data(Phi_Type),1.0,0,0,NUM_STATE,geom);
     
     if (verbose)
     {
         const int IOProc = ParallelDescriptor::IOProcessorNumber();
-        Real      end    = ParallelDescriptor::second() - strt;
+        Real      end    = amrex::second() - strt;
 	
         ParallelDescriptor::ReduceRealMax(end,IOProc);
 	
@@ -771,7 +771,7 @@ AmrLevelAdv::init_particles ()
       const BoxArray& ba = TracerPC->ParticleBoxArray(0);
       const DistributionMapping& dm = TracerPC->ParticleDistributionMap(0);
 
-      AmrTracerParticleContainer::ParticleInitData pdata = {1.0};
+      AmrTracerParticleContainer::ParticleInitData pdata = {AMREX_D_DECL(0.0, 0.0, 0.0)};
 
       TracerPC->SetVerbose(0);
       TracerPC->InitOnePerCell(0.5, 0.5, 0.5, pdata);

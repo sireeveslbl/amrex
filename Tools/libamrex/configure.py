@@ -27,9 +27,17 @@ def configure(argv):
                         help="Use OpenMP [default=no]",
                         choices=["yes","no"],
                         default="no")
+    parser.add_argument("--with-cuda",
+                        help="Use CUDA [default=no]",
+                        choices=["yes","no"],
+                        default="no")
+    parser.add_argument("--with-acc",
+                        help="Use OpenACC [default=no]",
+                        choices=["yes","no"],
+                        default="no")
     parser.add_argument("--comp",
                         help="Compiler [default=gnu]",
-                        choices=["gnu","intel","cray","pgi","llvm","nag"],
+                        choices=["gnu","intel","cray","pgi","llvm","nag","nec","ibm"],
                         default="gnu")
     parser.add_argument("--debug",
                         help="Debug build [default=no]",
@@ -47,12 +55,24 @@ def configure(argv):
                         help="Enable AMReX linear solvers [default=yes]",
                         choices=["yes","no"],
                         default="yes")
+    parser.add_argument("--enable-hypre",
+                        help="Enable Hypre as an option for bottom solver of AMReX linear solvers [default=no]",
+                        choices=["yes","no"],
+                        default="no")
+    parser.add_argument("--enable-eb",
+                        help="Enable AMReX embedded boundary capability [default=no]",
+                        choices=["yes","no"],
+                        default="no")
     parser.add_argument("--enable-xsdk-defaults",
                         help="Enable XSDK mode [default=no]",
                         choices=["yes","no"],
                         default="no")
     parser.add_argument("--allow-different-compiler",
                         help="Allow an application to use a different compiler than the one used to build libamrex [default=no]",
+                        choices=["yes","no"],
+                        default="no")
+    parser.add_argument("--with-sensei-insitu",
+                        help="Use SENSEI in situ [default=no]",
                         choices=["yes","no"],
                         default="no")
     args = parser.parse_args()
@@ -66,6 +86,14 @@ def configure(argv):
         f.write("USE_MPI = TRUE\n")
     if args.with_omp == "no":
         f.write("USE_OMP = FALSE\n")
+    else:
+        f.write("USE_OMP = TRUE\n")
+    if args.with_cuda == "no":
+        f.write("USE_CUDA = FALSE\n")
+    else:
+        f.write("USE_CUDA = TRUE\n")
+    if args.with_acc == "no":
+        f.write("USE_ACC = FALSE\n")
     else:
         f.write("USE_OMP = TRUE\n")
     f.write("COMP = " + args.comp.strip() + "\n")
@@ -85,6 +113,14 @@ def configure(argv):
         f.write("USE_LINEAR_SOLVERS = FALSE\n")
     else:
         f.write("USE_LINEAR_SOLVERS = TRUE\n")
+    if args.enable_hypre == "yes":
+        f.write("USE_HYPRE = TRUE\n")
+    else:
+        f.write("USE_HYPRE = FALSE\n")
+    if args.enable_eb == "yes":
+        f.write("USE_EB = TRUE\n")
+    else:
+        f.write("USE_EB = FALSE\n")
     if args.enable_xsdk_defaults == "yes":
         f.write("AMREX_XSDK = TRUE\n")
     else:
@@ -93,7 +129,10 @@ def configure(argv):
         f.write("ALLOW_DIFFERENT_COMP = FALSE\n")
     else:
         f.write("ALLOW_DIFFERENT_COMP = TRUE\n")
-
+    if args.with_sensei_insitu == "no":
+        f.write("USE_SENSEI_INSITU = FALSE\n")
+    else:
+        f.write("USE_SENSEI_INSITU = TRUE\n")
     f.write("\n")
 
     fin = open("GNUmakefile.in","r")

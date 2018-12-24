@@ -21,7 +21,7 @@ TracerParticleContainer::AdvectWithUmac (MultiFab* umac, int lev, Real dt)
            BL_ASSERT(!umac[1].contains_nan());,
            BL_ASSERT(!umac[2].contains_nan()););
 
-    const Real      strttime = ParallelDescriptor::second();
+    const Real      strttime = amrex::second();
     const Geometry& geom     = m_gdb->Geom(lev);
     const Real*     dx       = geom.CellSize();
     const Real*     plo      = geom.ProbLo();
@@ -122,17 +122,14 @@ TracerParticleContainer::AdvectWithUmac (MultiFab* umac, int lev, Real dt)
     }
     if (m_verbose > 1)
     {
-        Real stoptime = ParallelDescriptor::second() - strttime;
+        Real stoptime = amrex::second() - strttime;
 
 #ifdef BL_LAZY
 	Lazy::QueueReduction( [=] () mutable {
 #endif
         ParallelDescriptor::ReduceRealMax(stoptime,ParallelDescriptor::IOProcessorNumber());
 
-        if (ParallelDescriptor::IOProcessor())
-        {
-            std::cout << "TracerParticleContainer::AdvectWithUmac() time: " << stoptime << '\n';
-        }
+        amrex::Print() << "TracerParticleContainer::AdvectWithUmac() time: " << stoptime << '\n';
 #ifdef BL_LAZY
 	});
 #endif
@@ -151,7 +148,7 @@ TracerParticleContainer::AdvectWithUcc (const MultiFab& Ucc, int lev, Real dt)
 
     BL_ASSERT(!Ucc.contains_nan());
 
-    const Real      strttime = ParallelDescriptor::second();
+    const Real      strttime = amrex::second();
     const Geometry& geom     = m_gdb->Geom(lev);
 
     BL_ASSERT(OnSameGrids(lev, Ucc));
@@ -205,17 +202,14 @@ TracerParticleContainer::AdvectWithUcc (const MultiFab& Ucc, int lev, Real dt)
     }
     if (m_verbose > 1)
     {
-        Real stoptime = ParallelDescriptor::second() - strttime;
+        Real stoptime = amrex::second() - strttime;
 
 #ifdef BL_LAZY
 	Lazy::QueueReduction( [=] () mutable {
 #endif
         ParallelDescriptor::ReduceRealMax(stoptime,ParallelDescriptor::IOProcessorNumber());
 
-        if (ParallelDescriptor::IOProcessor())
-        {
-            std::cout << "TracerParticleContainer::AdvectWithUcc() time: " << stoptime << '\n';
-        }
+        amrex::Print() << "TracerParticleContainer::AdvectWithUcc() time: " << stoptime << '\n';
 #ifdef BL_LAZY
 	});
 #endif
@@ -242,7 +236,7 @@ TracerParticleContainer::Timestamp (const std::string&      basename,
     BL_ASSERT(!basename.empty());
     BL_ASSERT(lev <= m_gdb->finestLevel());
 
-    const Real strttime = ParallelDescriptor::second();
+    const Real strttime = amrex::second();
 
     const int   MyProc    = ParallelDescriptor::MyProc();
     const int   NProcs    = ParallelDescriptor::NProcs();
@@ -269,7 +263,9 @@ TracerParticleContainer::Timestamp (const std::string&      basename,
             const auto& pmap = GetParticles(lev);
 	    for (auto& kv : pmap) {
               const auto& pbox = kv.second.GetArrayOfStructs();
-	      for (const auto& p : pbox) {
+	      for (int k = 0; k < pbox.size(); ++k) 
+	      {
+		const ParticleType& p = pbox[k];
 		if (p.m_idata.id > 0) {
 		  gotwork = true;
 		  break;
@@ -281,11 +277,11 @@ TracerParticleContainer::Timestamp (const std::string&      basename,
             if (gotwork)
 	      {
                 std::string FileName = amrex::Concatenate(basename + '_', MyProc % nOutFiles, 2);
-		
+
+                VisMF::IO_Buffer io_buffer(VisMF::IO_Buffer_Size);
+                
                 std::ofstream TimeStampFile;
 		
-                VisMF::IO_Buffer io_buffer(VisMF::IO_Buffer_Size);
-
                 TimeStampFile.rdbuf()->pubsetbuf(io_buffer.dataPtr(), io_buffer.size());
 
                 TimeStampFile.open(FileName.c_str(), std::ios::out|std::ios::app|std::ios::binary);
@@ -310,8 +306,10 @@ TracerParticleContainer::Timestamp (const std::string&      basename,
 		  const Box&       bx   = ba[grid];
 		  const FArrayBox& fab  = mf[grid];
 
-		  for (const auto& p : pbox)
-                    {
+		  for (int k = 0; k < pbox.size(); ++k)
+		    {
+		      const ParticleType& p = pbox[k];
+
 		      if (p.m_idata.id <= 0) continue;
 		      
 		      const IntVect& iv = Index(p,lev);
@@ -372,16 +370,13 @@ TracerParticleContainer::Timestamp (const std::string&      basename,
 
     if (m_verbose > 1)
     {
-        Real stoptime = ParallelDescriptor::second() - strttime;
+        Real stoptime = amrex::second() - strttime;
 
 #ifdef BL_LAZY
         Lazy::QueueReduction( [=] () mutable {
 #endif
         ParallelDescriptor::ReduceRealMax(stoptime,ParallelDescriptor::IOProcessorNumber());
-        if (ParallelDescriptor::IOProcessor())
-        {
-            std::cout << "TracerParticleContainer::Timestamp: lev: " << lev << " time: " << stoptime << '\n';
-        }
+        amrex::Print() << "TracerParticleContainer::Timestamp: lev: " << lev << " time: " << stoptime << '\n';
 #ifdef BL_LAZY
         });
 #endif

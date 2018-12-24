@@ -36,7 +36,7 @@ public:
                             bool               dump_old = true) override;
 
     virtual std::string thePlotFileType () const override {
-        return {"CartGrid-V2.0"};
+        return {"HyperCLaw-V1.1"};
     }
 
     // Write a plotfile to specified directory.
@@ -123,18 +123,10 @@ protected:
     // Compute initial time step.
     amrex::Real initialTimeStep ();
 
-  void printPointStuff(const EBCellFlag& flag, 
-                       const IntVect&    a_iv,
-                       const MFIter &    a_mfi) const;
-
-  void testEBStuff() const;
-
     void computeTemp (amrex::MultiFab& State, int ng);
 
     void compute_dSdt (const amrex::MultiFab& S, amrex::MultiFab& dSdt, amrex::Real dt,
                        amrex::EBFluxRegister* fr_as_crse, amrex::EBFluxRegister* fr_as_fine);
-
-    void fixUpGeometry ();
 
     void printTotal () const;
 

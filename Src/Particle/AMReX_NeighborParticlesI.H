@@ -21,6 +21,19 @@ NeighborParticleContainer<NStructReal, NStructInt>
 }
 
 template <int NStructReal, int NStructInt>
+NeighborParticleContainer<NStructReal, NStructInt>
+::NeighborParticleContainer(const Vector<Geometry>            & geom,
+                            const Vector<DistributionMapping> & dmap,
+                            const Vector<BoxArray>            & ba,
+                            const Vector<int>                 & rr,
+                            int                               ncells)
+    : ParticleContainer<NStructReal, NStructInt, 0, 0> (geom, dmap, ba, rr),
+      num_neighbor_cells(ncells)
+{
+    initializeCommComps();
+}
+
+template <int NStructReal, int NStructInt>
 void
 NeighborParticleContainer<NStructReal, NStructInt>
 ::initializeCommComps() {
@@ -70,8 +83,33 @@ void
 NeighborParticleContainer<NStructReal, NStructInt>
 ::Regrid(const DistributionMapping &dmap, const BoxArray &ba ) {
     const int lev = 0;
+    AMREX_ASSERT(this->finestLevel() == 0);
     this->SetParticleBoxArray(lev, ba);
     this->SetParticleDistributionMap(lev, dmap);
+    this->Redistribute();
+}
+
+template <int NStructReal, int NStructInt>
+void
+NeighborParticleContainer<NStructReal, NStructInt>
+::Regrid(const DistributionMapping &dmap, const BoxArray &ba, const int lev) {
+    AMREX_ASSERT(lev <= this->finestLevel());
+    this->SetParticleBoxArray(lev, ba);
+    this->SetParticleDistributionMap(lev, dmap);
+    this->Redistribute();
+}
+
+template <int NStructReal, int NStructInt>
+void
+NeighborParticleContainer<NStructReal, NStructInt>
+::Regrid(const Vector<DistributionMapping>& dmap, const Vector<BoxArray>& ba) {
+    int num_levels = ba.size();
+    AMREX_ASSERT(num_levels == this->finestLevel()+1);
+    for (int lev = 0; lev < num_levels; ++lev)
+    {
+        this->SetParticleBoxArray(lev, ba[lev]);
+        this->SetParticleDistributionMap(lev, dmap[lev]);
+    }
     this->Redistribute();
 }
 
@@ -81,46 +119,49 @@ NeighborParticleContainer<NStructReal, NStructInt>
 ::BuildLevelMask(int lev) {
     
     BL_PROFILE("NeighborParticleContainer::BuildLevelMask");
-    BL_ASSERT(lev == 0);
 
-    if (mask_ptr == nullptr ||
-        ! BoxArray::SameRefs(mask_ptr->boxArray(), this->ParticleBoxArray(lev)) ||
-        ! DistributionMapping::SameRefs(mask_ptr->DistributionMap(), this->ParticleDistributionMap(lev)))
+    resizeContainers(lev);
+    
+    if (mask_ptr[lev] == nullptr ||
+        ! BoxArray::SameRefs(mask_ptr[lev]->boxArray(), this->ParticleBoxArray(lev)) ||
+        ! DistributionMapping::SameRefs(mask_ptr[lev]->DistributionMap(), this->ParticleDistributionMap(lev)))
         {
             const Geometry& geom = this->Geom(lev);
             const BoxArray& ba = this->ParticleBoxArray(lev);
             const DistributionMapping& dmap = this->ParticleDistributionMap(lev);
             
-            mask_ptr.reset(new iMultiFab(ba, dmap, 2, num_neighbor_cells));
-            mask_ptr->setVal(-1, num_neighbor_cells);
+            mask_ptr[lev].reset(new iMultiFab(ba, dmap, num_mask_comps, num_neighbor_cells));
+            mask_ptr[lev]->setVal(-1, num_neighbor_cells);
             
 #ifdef _OPENMP
 #pragma omp parallel
 #endif
-            for (MFIter mfi(*mask_ptr, this->do_tiling ? this->tile_size : IntVect::TheZeroVector());
+            for (MFIter mfi(*mask_ptr[lev], this->do_tiling ? this->tile_size : IntVect::TheZeroVector());
                  mfi.isValid(); ++mfi) {
                 const Box& box = mfi.tilebox();
                 const int grid_id = mfi.index();
                 const int tile_id = mfi.LocalTileIndex();
-                mask_ptr->setVal(grid_id, box, 0, 1);
-                mask_ptr->setVal(tile_id, box, 1, 1);
+                mask_ptr[lev]->setVal(grid_id, box, MaskComps::grid,  1);
+                mask_ptr[lev]->setVal(tile_id, box, MaskComps::tile,  1);
+                mask_ptr[lev]->setVal(lev    , box, MaskComps::level, 1);
             }
             
-            mask_ptr->FillBoundary(geom.periodicity());
+            mask_ptr[lev]->FillBoundary(geom.periodicity());
             
             local_neighbors.clear();
             neighbor_procs.clear();
-            for (MFIter mfi(*mask_ptr, this->do_tiling ? this->tile_size : IntVect::TheZeroVector());
+            for (MFIter mfi(*mask_ptr[lev], this->do_tiling ? this->tile_size : IntVect::TheZeroVector());
                  mfi.isValid(); ++mfi) {
                 const Box& box = mfi.growntilebox();
                 for (IntVect iv = box.smallEnd(); iv <= box.bigEnd(); box.next(iv)) {
-                    const int grid = (*mask_ptr)[mfi](iv, 0);
+                    const int grid = (*mask_ptr[lev])[mfi](iv, MaskComps::grid);
                     if (grid >= 0) {
-                        const int tile = (*mask_ptr)[mfi](iv, 1);
-                        const int proc = this->ParticleDistributionMap(lev)[grid];
-                        NeighborCommTag comm_tag(proc, grid, tile);
+                        const int tile = (*mask_ptr[lev])[mfi](iv, MaskComps::tile);
+                        const int level = (*mask_ptr[lev])[mfi](iv, MaskComps::level);
+                        const int proc = this->ParticleDistributionMap(level)[grid];
+                        NeighborCommTag comm_tag(proc, level, grid, tile);
                         local_neighbors.push_back(comm_tag);
-                        if (proc != ParallelDescriptor::MyProc())  
+                        if (proc != ParallelDescriptor::MyProc())
                             neighbor_procs.push_back(proc);
                     }
                 }
@@ -138,9 +179,10 @@ NeighborParticleContainer<NStructReal, NStructInt>
     
     BL_PROFILE("NeighborParticleContainer::cacheNeighborInfo");
 
-    BL_ASSERT(lev == 0);
-    BL_ASSERT(this->OK());
+    AMREX_ASSERT(this->OK());
 
+    resizeContainers(lev);
+    
     clearNeighbors(lev);
     
     const int MyProc = ParallelDescriptor::MyProc();
@@ -193,7 +235,7 @@ NeighborParticleContainer<NStructReal, NStructInt>
             const int& grid = pti.index();
             const int& tile = pti.LocalTileIndex(); 
             PairIndex src_index(grid, tile);
-            const BaseFab<int>& mask = (*mask_ptr)[grid];
+            const BaseFab<int>& mask = (*mask_ptr[lev])[grid];
 
             auto& cache = buffer_tag_cache[src_index][thread_num];
 
@@ -219,8 +261,9 @@ NeighborParticleContainer<NStructReal, NStructInt>
                             IntVect neighbor_cell = iv + shift;
 
                             NeighborCopyTag tag;
-                            tag.grid = mask(neighbor_cell, 0);
-                            tag.tile = mask(neighbor_cell, 1);
+                            tag.grid = mask(neighbor_cell, MaskComps::grid);
+                            tag.tile = mask(neighbor_cell, MaskComps::tile);
+                            tag.level = mask(neighbor_cell, MaskComps::level);
                             for (int dim = 0; dim < 3; ++dim)
                                 tag.periodic_shift[dim] = 0;
                             if (periodicity.isAnyPeriodic()) {
@@ -233,7 +276,8 @@ NeighborParticleContainer<NStructReal, NStructInt>
                                 }
                             }
 
-                            if ((grid == tag.grid)           and
+                            if ((lev  == tag.level)          and
+                                (grid == tag.grid)           and
                                 (tile == tag.tile)           and
                                 (tag.periodic_shift[0] == 0) and
                                 (tag.periodic_shift[1] == 0) and
@@ -259,15 +303,15 @@ NeighborParticleContainer<NStructReal, NStructInt>
                     cache.push_back(tag);
                     
                     const int who = dmap[tag.grid];
-                    NeighborIndexMap nim(dst_index.first, dst_index.second, -1,
-                                         src_index.first, src_index.second, 
+                    NeighborIndexMap nim(tag.level, dst_index.first, dst_index.second, -1,
+                                         lev, src_index.first, src_index.second, 
                                          cache_index, thread_num);
                     if (who == MyProc) {
                         auto& tmp = tmp_local_map[dst_index];
                         Vector<NeighborIndexMap>& buffer = tmp[thread_num];
                         buffer.push_back(nim);
                     } else {
-                        NeighborCommTag comm_tag(who, tag.grid, tag.tile);
+                        NeighborCommTag comm_tag(who, tag.level, tag.grid, tag.tile);
                         Vector<NeighborIndexMap>& buffer = tmp_remote_map[comm_tag][thread_num];
                         buffer.push_back(nim);
                     }
@@ -321,8 +365,8 @@ NeighborParticleContainer<NStructReal, NStructInt>
         PairIndex dst_index(grid, tile);
         const Vector<NeighborIndexMap>& map = local_map[dst_index];
         const int num_ghosts = map.size();
-        neighbors[dst_index].resize(num_ghosts * pdata_size);
-        local_neighbor_sizes[dst_index] = neighbors[dst_index].size();  // store this for later
+        neighbors[lev][dst_index].resize(num_ghosts);
+        local_neighbor_sizes[dst_index] = neighbors[lev][dst_index].size();  // store this for later
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
@@ -330,9 +374,9 @@ NeighborParticleContainer<NStructReal, NStructInt>
             const NeighborIndexMap& nim = map[i];
             PairIndex src_index(nim.src_grid, nim.src_tile);
             Vector<NeighborCopyTag>& tags = buffer_tag_cache[src_index][nim.thread_num];
-            BL_ASSERT(nim.src_index < tags.size());
-            tags[nim.src_index].dst_offset = i * pdata_size;
-            BL_ASSERT(tags[nim.src_index].dst_offset < neighbors[dst_index].size());
+            AMREX_ASSERT(nim.src_index < tags.size());
+            tags[nim.src_index].dst_offset = i;
+            AMREX_ASSERT(tags[nim.src_index].dst_offset < neighbors[lev][dst_index].size());
         }
     }
 
@@ -390,7 +434,6 @@ NeighborParticleContainer<NStructReal, NStructInt>
 ::updateNeighbors(int lev, bool reuse_rcv_counts) {
     
     BL_PROFILE_VAR("NeighborParticleContainer::updateNeighbors", update);
-    BL_ASSERT(lev == 0);
 
     const int MyProc = ParallelDescriptor::MyProc();
     const Periodicity& periodicity = this->Geom(lev).periodicity();
@@ -428,8 +471,8 @@ NeighborParticleContainer<NStructReal, NStructInt>
                 }
                 if (who == MyProc) {
                     PairIndex dst_index(tag.grid, tag.tile);
-                    Vector<char>& buffer = neighbors[dst_index];
-                    BL_ASSERT(tag.dst_offset < buffer.size());
+                    ParticleVector& buffer = neighbors[lev][dst_index];
+                    AMREX_ASSERT(tag.dst_offset < buffer.size());
                     std::memcpy(&buffer[tag.dst_offset], &p, pdata_size);
                 } else {
                     char* dst = &send_data[who][tag.dst_offset];
@@ -460,7 +503,7 @@ NeighborParticleContainer<NStructReal, NStructInt>
         const int grid = mfi.index();
         const int tile = mfi.LocalTileIndex();
         PairIndex dst_index(grid, tile);
-        neighbors[dst_index].resize(local_neighbor_sizes[dst_index]);
+        neighbors[lev][dst_index].resize(local_neighbor_sizes[dst_index]);
     }
     
     BL_PROFILE_VAR_STOP(update);
@@ -475,9 +518,10 @@ NeighborParticleContainer<NStructReal, NStructInt>
 {
 
     BL_PROFILE("NeighborParticleContainer::clearNeighbors");
-    BL_ASSERT(lev == 0);
 
-    neighbors.clear();
+    resizeContainers(lev);
+    
+    neighbors[lev].clear();
     buffer_tag_cache.clear();
     send_data.clear();
 }
@@ -492,7 +536,7 @@ getRcvCountsMPI() {
 #ifdef BL_USE_MPI
     const int NProcs = ParallelDescriptor::NProcs();
 
-    BL_ASSERT(send_data.size() == neighbor_procs.size());
+    AMREX_ASSERT(send_data.size() == neighbor_procs.size());
 
     // each proc figures out how many bytes it will send, and how
     // many it will receive
@@ -520,7 +564,7 @@ getRcvCountsMPI() {
         const int Who = neighbor_procs[i];
         const long Cnt = 1;
 
-        BL_ASSERT(Who >= 0 && Who < NProcs);
+        AMREX_ASSERT(Who >= 0 && Who < NProcs);
 
         rreqs[i] = ParallelDescriptor::Arecv(&rcvs[Who], Cnt, Who, SeqNum).req();
     }
@@ -530,14 +574,12 @@ getRcvCountsMPI() {
         const int Who = neighbor_procs[i];
         const long Cnt = 1;
 
-        BL_ASSERT(Who >= 0 && Who < NProcs);
+        AMREX_ASSERT(Who >= 0 && Who < NProcs);
 
         ParallelDescriptor::Send(&snds[Who], Cnt, Who, SeqNum);        
     }
 
-    if (num_rcvs > 0) {
-        ParallelDescriptor::Waitall(rreqs, stats);
-    }
+    if (num_rcvs > 0) ParallelDescriptor::Waitall(rreqs, stats);
 
 #endif // BL_USE_MPI
 }
@@ -583,9 +625,9 @@ fillNeighborsMPI(bool reuse_rcv_counts) {
         const auto offset = rOffset[i];
         const auto Cnt    = rcvs[Who];
         
-        BL_ASSERT(Cnt > 0);
-        BL_ASSERT(Cnt < std::numeric_limits<int>::max());
-        BL_ASSERT(Who >= 0 && Who < NProcs);
+        AMREX_ASSERT(Cnt > 0);
+        AMREX_ASSERT(Cnt < std::numeric_limits<int>::max());
+        AMREX_ASSERT(Who >= 0 && Who < NProcs);
         
         rreqs[i] = ParallelDescriptor::Arecv(&recvdata[offset], Cnt, Who, SeqNum).req();
     }
@@ -595,12 +637,14 @@ fillNeighborsMPI(bool reuse_rcv_counts) {
         const auto Who = kv.first;
         const auto Cnt = kv.second.size();
         
-        BL_ASSERT(Cnt > 0);
-        BL_ASSERT(Who >= 0 && Who < NProcs);
-        BL_ASSERT(Cnt < std::numeric_limits<int>::max());
+        AMREX_ASSERT(Cnt > 0);
+        AMREX_ASSERT(Who >= 0 && Who < NProcs);
+        AMREX_ASSERT(Cnt < std::numeric_limits<int>::max());
         
         ParallelDescriptor::Send(kv.second.data(), Cnt, Who, SeqNum);
     }
+
+    const int lev = 0;
     
     // unpack the received data and put them into the proper neighbor buffers
     if (nrcvs > 0) {
@@ -620,11 +664,11 @@ fillNeighborsMPI(bool reuse_rcv_counts) {
                 np = size / cdata_size;
                 
                 PairIndex dst_index(gid, tid);
-                size_t old_size = neighbors[dst_index].size();
-                size_t new_size = neighbors[dst_index].size() + np*pdata_size;
-                neighbors[dst_index].resize(new_size);
+                size_t old_size = neighbors[lev][dst_index].size();
+                size_t new_size = neighbors[lev][dst_index].size() + np;
+                neighbors[lev][dst_index].resize(new_size);
                 
-                char* dst = &neighbors[dst_index][old_size];
+                char* dst = (char*) &neighbors[lev][dst_index][old_size];
                 char* src = buffer;
 
                 for (int n = 0; n < np; ++n) {
@@ -651,19 +695,19 @@ fillNeighborsMPI(bool reuse_rcv_counts) {
 }
 
 template <int NStructReal, int NStructInt>
+template <class CheckPair>
 void
 NeighborParticleContainer<NStructReal, NStructInt>::
-buildNeighborList(int lev, bool sort) {
+buildNeighborList(int lev, CheckPair check_pair, bool sort) {
     
     BL_PROFILE("NeighborParticleContainer::buildNeighborList");
-    BL_ASSERT(lev == 0);
-    BL_ASSERT(this->OK());
+    AMREX_ASSERT(this->OK());
 
-    neighbor_list.clear();
+    neighbor_list[lev].clear();
     
     for (MyParIter pti(*this, lev); pti.isValid(); ++pti) {
         PairIndex index(pti.index(), pti.LocalTileIndex());
-        neighbor_list[index] = Vector<int>();
+        neighbor_list[lev][index];
     }
 
 #ifdef _OPENMP
@@ -679,18 +723,22 @@ buildNeighborList(int lev, bool sort) {
     for (MyParIter pti(*this, lev, MFItInfo().SetDynamic(true)); pti.isValid(); ++pti) {
 
         PairIndex index(pti.index(), pti.LocalTileIndex());
-        Vector<int>& nl = neighbor_list[index];
+#ifdef AMREX_USE_CUDA
+        Cuda::HostVector<int> nl;
+#else
+        IntVector& nl = neighbor_list[lev][index];
+#endif
         AoS& particles = pti.GetArrayOfStructs();
 
         int Np = particles.size();
-        int Nn = neighbors[index].size() / pdata_size;
+        int Nn = neighbors[lev][index].size();
         int N = Np + Nn;
 
         cells.resize(N);
         tmp_particles.resize(N);
         std::memcpy(&tmp_particles[0], particles.data(), Np*sizeof(ParticleType));
         if (Nn > 0)
-           std::memcpy(&tmp_particles[Np], neighbors[index].dataPtr(), Nn*pdata_size); 
+           std::memcpy(&tmp_particles[Np], neighbors[lev][index].dataPtr(), Nn*pdata_size); 
 
         // For each cell on this tile, we build linked lists storing the
         // indices of the particles belonging to it.
@@ -742,10 +790,19 @@ buildNeighborList(int lev, bool sort) {
 
         if (sort) {
             for (unsigned i = 0; i < nl.size(); i += nl[i] +1) {
+#ifdef AMREX_USE_CUDA
+                thrust::sort(nl.begin() + i + 1,
+                             nl.begin() + nl[i] + i + 1);
+#else
                 std::sort(nl.begin() + i + 1,
                           nl.begin() + nl[i] + i + 1);
+#endif
             }
         }
+#ifdef AMREX_USE_CUDA
+        neighbor_list[lev][index].resize(nl.size());
+        thrust::copy(nl.begin(), nl.end(), neighbor_list[lev][index].begin());
+#endif
     }
     }
 }
@@ -753,55 +810,14 @@ buildNeighborList(int lev, bool sort) {
 template <int NStructReal, int NStructInt>
 void
 NeighborParticleContainer<NStructReal, NStructInt>::
-buildNeighborListFort(int lev, bool sort) {
-    
-    BL_PROFILE("NeighborParticleContainer::buildNeighborListFort");
-    BL_ASSERT(lev == 0);
-
-    neighbor_list.clear();
-
-    const Geometry& gm  = this->Geom(lev);
-    const Real*     plo = gm.ProbLo();
-    const Real*     dx  = gm.CellSize();
-
-    for (MyParIter pti(*this, lev); pti.isValid(); ++pti) {
-        
-        PairIndex index(pti.index(), pti.LocalTileIndex());
-        Vector<int>& nl = neighbor_list[index];
-        AoS& particles = pti.GetArrayOfStructs();
-
-        int Np = particles.size();
-        int Nn = neighbors[index].size() / pdata_size;
-        int Ns = particles.dataShape().first;
-        int N = Np + Nn;
-
-        Vector<ParticleType> tmp_particles(N);
-        std::memcpy(&tmp_particles[0], particles.data(), Np*sizeof(ParticleType));
-
-        for (int i = 0; i < Nn; ++i) {
-            std::memcpy(&tmp_particles[i + Np],
-                        neighbors[index].dataPtr() + i*pdata_size,
-                        pdata_size);
-        }
-
-        int size_nl = 0;
-        nl.resize(100000);
-
-        Box box = pti.tilebox();
-        box.grow(num_neighbor_cells);        
-        const int* lo = box.loVect();
-        const int* hi = box.hiVect();
-
-        amrex_build_nl(tmp_particles.data(), Ns, N, nl.data(), &size_nl, 
-                       lo, hi, plo, dx);
-
-        nl.resize(size_nl);
-
-        if (sort) {
-            for (unsigned i = 0; i < nl.size(); i += nl[i] +1) {
-                std::sort(nl.begin() + i + 1,
-                          nl.begin() + nl[i] + i + 1);
-            }
-        }
+resizeContainers(const int lev)
+{
+    if ( static_cast<int>(neighbors.size()) <= lev )
+    {
+        neighbors.resize(lev+1);
+        neighbor_list.resize(lev+1);
+        mask_ptr.resize(lev+1);
     }
+    AMREX_ASSERT((neighbors.size() == neighbor_list.size()) and
+                 (neighbors.size() == mask_ptr.size()     )    );
 }

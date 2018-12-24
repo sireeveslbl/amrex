@@ -8,6 +8,7 @@
 #include <AMReX_BLassert.H>
 #include <AMReX_FArrayBox.H>
 #include <AMReX_FabArray.H>
+#include <AMReX_FabArrayUtility.H>
 #include <AMReX_Periodicity.H>
 
 namespace amrex
@@ -16,12 +17,12 @@ namespace amrex
 class iMultiFab;
 
 /**
- * \brief 
- * A collection (stored as an array) of FArrayBox objects. 
+ * \brief
+ * A collection (stored as an array) of FArrayBox objects.
  * This class is useful for storing floating point data on a domain defined by
- * a union of rectangular regions embedded in a uniform index space.  
+ * a union of rectangular regions embedded in a uniform index space.
  * MultiFab class extends the function of the underlying FabArray class just
- * as the FArrayBox class extends the funtion of BaseFab<Real>.  
+ * as the FArrayBox class extends the funtion of BaseFab<Real>.
  *Additional member functions are defined for I/O and simple arithmetic operations on these aggregate objects.
  * This class does NOT provide a copy constructor or assignment operator.
  */
@@ -39,7 +40,7 @@ public:
     MultiFab ();
     /**
     * \brief
-    * Constructs a MultiFab 
+    * Constructs a MultiFab
     * \param bs a valid region
     * \param dm a DistribuionMapping
     * \param ncomp number of components
@@ -165,7 +166,7 @@ public:
               int        nghost = 0,
 	      bool       local = false) const;
     /**
-    * \brief Returns the maximum *absolute* value contained in 
+    * \brief Returns the maximum *absolute* value contained in
     * component comp of the MultiFab.
     */
     Real norm0 (int comp = 0, int nghost = 0, bool local = false) const;
@@ -173,14 +174,7 @@ public:
     Real norm0 (const iMultiFab& mask, int comp = 0, int nghost = 0, bool local = false) const;
 
     /**
-    * \brief Returns the maximum *absolute* value contained in 
-    * component comp of the MultiFab in the intersection of the BoxArray
-    * and the valid regions of the MultiFab.
-    */
-    Real norm0 (int comp, const BoxArray& ba, int nghost = 0, bool local = false) const;
-
-    /**
-    * \brief Returns the maximum *absolute* values contained in 
+    * \brief Returns the maximum *absolute* values contained in
     * each component of "comps" of the MultiFab.  No ghost cells are used.
     */
 
@@ -225,7 +219,7 @@ public:
     * of the num_comp components starting at component comp.
     * The value of nghost specifies the number of cells in the
     * boundary region of each FArrayBox in the subregion that should
-    * be modified.  
+    * be modified.
     */
     void plus (Real val,
                int  comp,
@@ -265,7 +259,7 @@ public:
     * consists of the num_comp components starting at component comp.
     * The value of nghost specifies the number of cells in the
     * boundary region of each FArrayBox in the subregion that should
-    * be modified.  
+    * be modified.
     */
     void mult (Real val,
                int  comp,
@@ -348,7 +342,7 @@ public:
     * the MultiFab.  The subregion consists of the num_comp
     * components starting at component comp.  The value of nghost
     * specifies the number of cells in the boundary region of each
-    * FArrayBox in the subregion that should be modified.  
+    * FArrayBox in the subregion that should be modified.
     */
     void negate (int comp,
                  int num_comp,
@@ -365,14 +359,14 @@ public:
     /**
     * \brief Negates the value of each cell in the valid region of
     * the MultiFab.  The value of nghost specifies the number of
-    * cells in the boundary region that should be modified.  
+    * cells in the boundary region that should be modified.
     */
     void negate (int nghost = 0);
     /**
     * \brief Negates the value of each cell in the valid region of
     * the MultiFab that also intersects the Box region.  The value
     * of nghost specifies the number of cells in the boundary region
-    * that should be modified.  
+    * that should be modified.
     */
     void negate (const Box& region,
                  int        nghost = 0);
@@ -415,7 +409,7 @@ public:
     * done only to num_comp components, starting with component number
     * strt_comp.  The parameter nghost specifies the number of boundary
     * cells that will be modified.  If nghost == 0, only the valid region of
-    * each FArrayBox will be modified.  Note, nothing is done to protect 
+    * each FArrayBox will be modified.  Note, nothing is done to protect
     * against divide by zero.
     */
     void divide (const MultiFab& mf,
@@ -443,7 +437,7 @@ public:
 		     int             dstcomp,
 		     int             numcomp,
 		     int             nghost);
- 
+
     static void Add (MultiFab&       dst,
                      const MultiFab& src,
                      int             srccomp,
@@ -468,6 +462,17 @@ public:
                       int             dstcomp,
                       int             numcomp,
                       const IntVect&  nghost);
+
+#ifdef USE_PERILLA
+    static void Copy (MultiFab&       dst,
+                const MultiFab& src,
+                int             f,
+                int             srccomp,
+                int             dstcomp,
+                int             numcomp,
+                const Box&      bx);
+#endif
+
     /**
     * \brief Subtract src from dst including nghost ghost cells.
     * The two MultiFabs MUST have the same underlying BoxArray.
@@ -523,7 +528,7 @@ public:
     * \brief dst += a*src
     */
     static void Saxpy (MultiFab&       dst,
-		       Real            a, 
+		       Real            a,
 		       const MultiFab& src,
 		       int             srccomp,
 		       int             dstcomp,
@@ -533,7 +538,7 @@ public:
     * \brief dst = src + a*dst
     */
     static void Xpay (MultiFab&       dst,
-		      Real            a, 
+		      Real            a,
 		      const MultiFab& src,
 		      int             srccomp,
 		      int             dstcomp,
@@ -552,7 +557,7 @@ public:
 			 int             dstcomp,
 			 int             numcomp,
 			 int             nghost);
-    /** 
+    /**
     * \brief dst += src1*src2
     */
     static void AddProduct (MultiFab&       dst,
@@ -586,6 +591,10 @@ public:
     * \brief This tests on whether the MultiFab is fully nodal.
     */
     bool is_nodal () const;
+    /**
+    * \brief This tests on whether the MultiFab is nodal in direction dir.
+    */
+    bool is_nodal (int dir) const;
     /**
     * \brief This tests on whether the MultiFab is cell-centered.
     */

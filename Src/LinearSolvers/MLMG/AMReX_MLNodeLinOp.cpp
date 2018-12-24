@@ -127,7 +127,8 @@ MLNodeLinOp::solutionResidual (int amrlev, MultiFab& resid, MultiFab& x, const M
                                const MultiFab* crse_bcdata)
 {
     const int mglev = 0;
-    apply(amrlev, mglev, resid, x, BCMode::Inhomogeneous);
+    const int ncomp = b.nComp();
+    apply(amrlev, mglev, resid, x, BCMode::Inhomogeneous, StateMode::Solution);
 
     const iMultiFab& dmsk = *m_dirichlet_mask[amrlev][0];
 #ifdef _OPENMP
@@ -135,11 +136,12 @@ MLNodeLinOp::solutionResidual (int amrlev, MultiFab& resid, MultiFab& x, const M
 #endif
     for (MFIter mfi(resid, true); mfi.isValid(); ++mfi)
     {
-        const Box& bx = mfi.tilebox();
-        amrex_mlndlap_solution_residual(BL_TO_FORTRAN_BOX(bx),
-                                        BL_TO_FORTRAN_ANYD(resid[mfi]),
-                                        BL_TO_FORTRAN_ANYD(b[mfi]),
-                                        BL_TO_FORTRAN_ANYD(dmsk[mfi]));
+	    const Box& bx = mfi.tilebox();
+	    amrex_mlndlap_solution_residual(BL_TO_FORTRAN_BOX(bx),
+					    BL_TO_FORTRAN_ANYD(resid[mfi]),
+					    BL_TO_FORTRAN_ANYD(b[mfi]),
+					    BL_TO_FORTRAN_ANYD(dmsk[mfi]),
+					    &ncomp);
     }
 }
 
@@ -147,15 +149,16 @@ void
 MLNodeLinOp::correctionResidual (int amrlev, int mglev, MultiFab& resid, MultiFab& x, const MultiFab& b,
                                  BCMode bc_mode, const MultiFab* crse_bcdata)
 {
-    apply(amrlev, mglev, resid, x, BCMode::Homogeneous);
-    MultiFab::Xpay(resid, -1.0, b, 0, 0, 1, 0);
+    apply(amrlev, mglev, resid, x, BCMode::Homogeneous, StateMode::Correction);
+    int ncomp = b.nComp();
+    MultiFab::Xpay(resid, -1.0, b, 0, 0, ncomp, 0);
 }
 
 void
 MLNodeLinOp::apply (int amrlev, int mglev, MultiFab& out, MultiFab& in, BCMode bc_mode,
-                    const MLMGBndry*) const
+                    StateMode s_mode, const MLMGBndry*) const
 {
-    applyBC(amrlev, mglev, in, bc_mode);
+    applyBC(amrlev, mglev, in, bc_mode, s_mode);
     Fapply(amrlev, mglev, out, in);
 }
 
@@ -164,7 +167,7 @@ MLNodeLinOp::smooth (int amrlev, int mglev, MultiFab& sol, const MultiFab& rhs,
                      bool skip_fillboundary) const
 {
     if (!skip_fillboundary) {
-        applyBC(amrlev, mglev, sol, BCMode::Homogeneous);
+        applyBC(amrlev, mglev, sol, BCMode::Homogeneous, StateMode::Solution);
     }
     Fsmooth(amrlev, mglev, sol, rhs);
 }
@@ -174,12 +177,13 @@ MLNodeLinOp::xdoty (int amrlev, int mglev, const MultiFab& x, const MultiFab& y,
 {
     AMREX_ASSERT(amrlev==0);
     AMREX_ASSERT(mglev+1==m_num_mg_levels[0] || mglev==0);
-    const auto& mask = (mglev == 0) ? m_coarse_dot_mask : m_bottom_dot_mask;
-    const int ncomp = 1;
+    const auto& mask = (mglev+1 == m_num_mg_levels[0]) ? m_bottom_dot_mask : m_coarse_dot_mask;
+    const int ncomp = y.nComp();
     const int nghost = 0;
-    MultiFab tmp(x.boxArray(), x.DistributionMap(), 1, 0);
+    MultiFab tmp(x.boxArray(), x.DistributionMap(), ncomp, 0);
     MultiFab::Copy(tmp, x, 0, 0, ncomp, nghost);
-    MultiFab::Multiply(tmp, mask, 0, 0, ncomp, nghost);
+    for (int i = 0; i < ncomp; i++)
+	    MultiFab::Multiply(tmp, mask, 0, i, 1, nghost);
     Real result = MultiFab::Dot(tmp,0,y,0,ncomp,nghost,true);
     if (!local) {
         ParallelAllReduce::Sum(result, Communicator(amrlev, mglev));

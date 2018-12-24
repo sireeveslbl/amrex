@@ -18,6 +18,31 @@ namespace
     };
 }
 
+namespace {
+    
+    typedef void (*INTERP_HOOK) (const int* lo, const int*hi,
+                                 Real* d, const int* dlo, const int* dhi, const int nd,
+                                 const int icomp, const int ncomp);
+
+    class FIInterpHook final
+        : public InterpHook
+    {
+    public:
+        FIInterpHook (INTERP_HOOK a_f) : m_f(a_f) {}
+        virtual void operator() (FArrayBox& fab, const Box& bx, int icomp, int ncomp) const final
+        {
+            if (m_f) {
+                m_f(BL_TO_FORTRAN_BOX(bx),
+                    BL_TO_FORTRAN_ANYD(fab), fab.nComp(),
+                    icomp+1, ncomp);
+                // m_f is a fortran function expecting 1-based index
+            }
+        }
+    private:
+        INTERP_HOOK m_f;
+    };
+}
+
 extern "C"
 {
     void amrex_fi_fillpatch_single (MultiFab* mf, Real time, MultiFab* smf[], Real stime[], int ns,
@@ -27,7 +52,7 @@ extern "C"
         FPhysBC pbc(fill, geom);
 	amrex::FillPatchSingleLevel(*mf, time, Vector<MultiFab*>{smf, smf+ns}, 
 				    Vector<Real>{stime, stime+ns},
-				    scomp, dcomp, ncomp, *geom, pbc);
+				    scomp, dcomp, ncomp, *geom, pbc, 0);
     }
 
     void amrex_fi_fillpatch_two (MultiFab* mf, Real time,
@@ -38,11 +63,11 @@ extern "C"
 				 FPhysBC::fill_physbc_funptr_t cfill,
                                  FPhysBC::fill_physbc_funptr_t ffill,
 				 int rr, int interp_id,
-				 int* lo_bc[], int* hi_bc[])
+				 int* lo_bc[], int* hi_bc[],
+                                 INTERP_HOOK pre_interp, INTERP_HOOK post_interp)
     {
-	Vector<BCRec> bcs;
-	// skip first scomp components
-	for (int i = scomp; i < scomp+ncomp; ++i) {
+	Vector<BCRec> bcs(ncomp);
+	for (int i = 0; i < ncomp; ++i) {
 	    bcs.emplace_back(lo_bc[i], hi_bc[i]);
 	}
 
@@ -53,9 +78,11 @@ extern "C"
 				  Vector<MultiFab*>{fmf, fmf+nf}, Vector<Real>{ft, ft+nf},
 				  scomp, dcomp, ncomp,
 				  *cgeom, *fgeom,
-				  cbc, fbc,
+				  cbc, 0, fbc, 0,
 				  IntVect{AMREX_D_DECL(rr,rr,rr)},
-				  interp[interp_id], bcs);
+				  interp[interp_id], bcs, 0,
+                                  FIInterpHook(pre_interp),
+                                  FIInterpHook(post_interp));
     }
 
     void amrex_fi_fillcoarsepatch (MultiFab* mf, Real time, const MultiFab* cmf,
@@ -64,11 +91,11 @@ extern "C"
                                    FPhysBC::fill_physbc_funptr_t cfill,
                                    FPhysBC::fill_physbc_funptr_t ffill,
                                    int rr, int interp_id,
-                                   int* lo_bc[], int* hi_bc[])
+                                   int* lo_bc[], int* hi_bc[],
+                                   INTERP_HOOK pre_interp, INTERP_HOOK post_interp)
     {
-	Vector<BCRec> bcs;
-        // skip first scomp components
-	for (int i = scomp; i < scomp+ncomp; ++i) {
+	Vector<BCRec> bcs(ncomp);
+	for (int i = 0; i < ncomp; ++i) {
 	    bcs.emplace_back(lo_bc[i], hi_bc[i]);
 	}
 
@@ -77,8 +104,10 @@ extern "C"
         amrex::InterpFromCoarseLevel(*mf, time, *cmf, 
                                      scomp, dcomp, ncomp,
                                      *cgeom, *fgeom,
-                                     cbc, fbc,
+                                     cbc, 0, fbc, 0,
                                      IntVect{AMREX_D_DECL(rr,rr,rr)},
-                                     interp[interp_id], bcs);
+                                     interp[interp_id], bcs, 0,
+                                     FIInterpHook(pre_interp),
+                                     FIInterpHook(post_interp));
     }
 }

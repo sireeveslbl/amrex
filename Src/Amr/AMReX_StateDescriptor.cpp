@@ -11,43 +11,6 @@ namespace amrex {
 
 int StateDescriptor::bf_ext_dir_threadsafe = 0;
 
-StateDescriptor::BndryFunc::BndryFunc ()
-    :
-    BndryFunctBase(),
-    m_gfunc(0),
-    m_gfunc3D(0)
-{}
-
-StateDescriptor::BndryFunc::BndryFunc (BndryFuncDefault inFunc)
-    :
-    BndryFunctBase(inFunc),
-    m_gfunc(0),
-    m_gfunc3D(0)
-{}
-
-StateDescriptor::BndryFunc::BndryFunc (BndryFunc3DDefault inFunc)
-    :
-    BndryFunctBase(inFunc),
-    m_gfunc(0),
-    m_gfunc3D(0)
-{}
-
-StateDescriptor::BndryFunc::BndryFunc (BndryFuncDefault inFunc,
-                                       BndryFuncDefault gFunc)
-    :
-    BndryFunctBase(inFunc),
-    m_gfunc(gFunc),
-    m_gfunc3D(0)
-{}
-
-StateDescriptor::BndryFunc::BndryFunc (BndryFunc3DDefault inFunc,
-                                       BndryFunc3DDefault gFunc)
-    :
-    BndryFunctBase(inFunc),
-    m_gfunc(0),
-    m_gfunc3D(gFunc)
-{}
-
 StateDescriptor::BndryFunc*
 StateDescriptor::BndryFunc::clone () const
 {
@@ -127,14 +90,15 @@ StateDescriptor::BndryFunc::operator () (Real* data,const int* lo,const int* hi,
 }
 
 void
-StateDescriptor::BndryFunc::Print () const
+StateDescriptor::BndryFunc::operator () (Box const& bx, FArrayBox& data,
+                                         const int dcomp, const int numcomp,
+                                         Geometry const& geom, const Real time,
+                                         const Vector<BCRec>& bcr, const int bcomp,
+                                         const int scomp) const
 {
-  std::cout << "==== BndryFunc:  m_func    = " << &m_func << std::endl;
-  std::cout << "==== BndryFunc:  m_gfunc   = " << &m_gfunc << std::endl;
-  std::cout << "==== BndryFunc:  m_func3D  = " << m_func3D << std::endl;
-  std::cout << "==== BndryFunc:  m_gfunc3D = " << m_gfunc3D << std::endl;
+    AMREX_ASSERT(m_funcfab != nullptr);
+    m_funcfab(bx,data,dcomp,numcomp,geom,time,bcr,bcomp,scomp);
 }
-
 
 DescriptorList::DescriptorList ()
 {}
@@ -209,16 +173,6 @@ DescriptorList::addDescriptor (int                         indx,
         desc.resize(indx+1);
     desc[indx].reset(new StateDescriptor(typ,ttyp,indx,nextra,num_comp,interp,extrap,a_store_in_checkpoint));
 }  
-
-
-void
-DescriptorList::Print () const
-{
-  std::cout << "==== DescriptorList:  size  = " << desc.size() << std::endl;
-  for(const auto& d : desc) {
-      d->Print();
-  }
-}
 
 
 StateDescriptor::StateDescriptor ()
@@ -614,7 +568,7 @@ StateDescriptor::sameInterps (int a_scomp,
 
     range.push_back(std::pair<int,int>(SComp,NComp));
 
-#ifndef NDEBUG
+#ifdef AMREX_DEBUG
     int sum = 0;
     for (int i = 0; i < static_cast<int>(range.size()); i++)
         sum += range[i].second;
@@ -622,50 +576,6 @@ StateDescriptor::sameInterps (int a_scomp,
 #endif
 
     return range;
-}
-
-
-
-void
-StateDescriptor::Print () const
-{
-  std::cout << "==== StateDescriptor:  type  = " << type << std::endl;
-  std::cout << "==== StateDescriptor:  t_type  = " << t_type << std::endl;
-  std::cout << "==== StateDescriptor:  id  = " << id << std::endl;
-  std::cout << "==== StateDescriptor:  ncomp  = " << ncomp << std::endl;
-  std::cout << "==== StateDescriptor:  ngrow  = " << ngrow << std::endl;
-  std::cout << "==== StateDescriptor:  mapper  = " << mapper << std::endl;
-  std::cout << "==== StateDescriptor:  m_extrap  = " << m_extrap << std::endl;
-  std::cout << "==== StateDescriptor:  m_store_in_checkpoint  = " << m_store_in_checkpoint << std::endl;
-  for(int i(0); i < names.size(); ++i) {
-    std::cout << "==== StateDescriptor:  names[" << i << "]  = " << names[i] << std::endl;
-  }
-  for(int i(0); i < bc.size(); ++i) {
-    for(int j(0); j < bc[i].vectSize(); ++j) {
-      std::cout << "==== StateDescriptor:  bc[" << i << "][" << j << "] = " << bc[i].vect()[j] << std::endl;
-    }
-  }
-  for(int i(0); i < bc_func.size(); ++i) {
-    std::cout << "==== StateDescriptor:  bc_func[" << i << "]  = " << std::endl;
-    bc_func[i]->Print();
-    std::cout << std::endl;
-  }
-  for(int i(0); i < m_master.size(); ++i) {
-    std::cout << "==== StateDescriptor:  m_master[" << i << "]  = " << m_master[i] << std::endl;
-  }
-  for(int i(0); i < m_groupsize.size(); ++i) {
-    std::cout << "==== StateDescriptor:  m_groupsize[" << i << "]  = " << m_groupsize[i] << std::endl;
-  }
-  for(int i(0); i < mapper_comp.size(); ++i) {
-    std::cout << "==== StateDescriptor:  mapper_comp[" << i << "]  = " << mapper_comp[i] << std::endl;
-  }
-  for(int i(0); i < max_map_start_comp.size(); ++i) {
-    std::cout << "==== StateDescriptor:  max_map_start_comp[" << i << "]  = " << max_map_start_comp[i] << std::endl;
-  }
-  for(int i(0); i < min_map_end_comp.size(); ++i) {
-    std::cout << "==== StateDescriptor:  min_map_end_comp[" << i << "]  = " << min_map_end_comp[i] << std::endl;
-  }
-  std::cout << "==== StateDescriptor:  bf_ext_dir_threadsafe  = " << bf_ext_dir_threadsafe << std::endl;
 }
 
 }
