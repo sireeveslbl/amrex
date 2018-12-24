@@ -173,20 +173,6 @@ public:
 
     FabArray (const FabArray<FAB>& rhs, MakeType maketype, int scomp, int ncomp);
 
-    template <class = typename std::enable_if<IsBaseFab<FAB>::value> >
-    FabArray (const BoxArray&            bxs,
-              const DistributionMapping& dm,
-              int                        nvar,
-              int                        ngrow,
-              const Vector<value_type*>& pval);
-
-    template <class = typename std::enable_if<IsBaseFab<FAB>::value> >
-    FabArray (const BoxArray&            bxs,
-              const DistributionMapping& dm,
-              int                        nvar,
-              const IntVect&             ngrow,
-              const Vector<value_type*>& pval);
-
     //! The destructor -- deletes all FABs in the array.
     virtual ~FabArray ();
 
@@ -237,8 +223,6 @@ public:
 #endif
     }
 
-    Box getDomain () const { return m_factory->getDomain(); }
-
     /**
     * \brief Return true if the FabArray is well-defined.  That is,
     * if FABs are allocated for each Box in the BoxArray and the
@@ -248,28 +232,44 @@ public:
     bool ok () const;
 
     //! Return a constant reference to the FAB associated with mfi.
-    const FAB& operator[] (const MFIter& mfi) const;
+    const FAB& operator[] (const MFIter& mfi) const { return *(this->fabHostPtr(mfi)); }
 
     //! Return a constant reference to the FAB associated with mfi.
-    const FAB& get (const MFIter& mfi) const { return this->operator[](mfi); }
+    const FAB& get (const MFIter& mfi) const { return *(this->fabHostPtr(mfi)); }
 
     //! Returns a reference to the FAB associated mfi.
-    FAB& operator[] (const MFIter& mfi);
+    FAB& operator[] (const MFIter& mfi) { return *(this->fabHostPtr(mfi)); }
 
     //! Returns a reference to the FAB associated mfi.
-    FAB& get (const MFIter& mfi) { return this->operator[](mfi); }
+    FAB& get (const MFIter& mfi) { return *(this->fabHostPtr(mfi)); }
 
     //! Return a constant reference to the FAB associated with the Kth element.
-    const FAB& operator[] (int K) const;
+    const FAB& operator[] (int K) const { return *(this->fabHostPtr(K)); }
 
     //! Return a constant reference to the FAB associated with the Kth element.
-    const FAB& get (int K) const { return this->operator[](K); }
+    const FAB& get (int K) const { return *(this->fabHostPtr(K)); }
 
     //! Return a reference to the FAB associated with the Kth element.
-    FAB& operator[] (int K);
+    FAB& operator[] (int K) { return *(this->fabHostPtr(K)); }
 
     //! Return a reference to the FAB associated with the Kth element.
-    FAB& get (int K)  { return this->operator[](K); }
+    FAB& get (int K) { return *(this->fabHostPtr(K)); }
+
+    // Return pointer to FAB 
+    FAB      * fabPtr (const MFIter& mfi);
+    FAB const* fabPtr (const MFIter& mfi) const;
+    FAB      * fabPtr (int K);
+    FAB const* fabPtr (int K) const;
+
+    FAB      * fabHostPtr (const MFIter& mfi);
+    FAB const* fabHostPtr (const MFIter& mfi) const;
+    FAB      * fabHostPtr (int K);
+    FAB const* fabHostPtr (int K) const;
+
+    FAB      * fabDevicePtr (const MFIter& mfi);
+    FAB const* fabDevicePtr (const MFIter& mfi) const;
+    FAB      * fabDevicePtr (int K);
+    FAB const* fabDevicePtr (int K) const;
 
     //! Explicitly set the Kth FAB in the FabArray to point to elem.
     void setFab (int K, FAB* elem);
@@ -612,6 +612,8 @@ public:
     template <class = typename std::enable_if<IsBaseFab<FAB>::value> >
     void FillBoundary_finish ();
 
+    void FillBoundary_test ();
+
     /** \brief Fill cells outside periodic domains with their corresponding cells inside
     * the domain.  Ghost cells are treated the same as valid cells.  The BoxArray
     * is allowed to be overlapping.
@@ -647,6 +649,9 @@ protected:
     // The data.
     //
     std::vector<FAB*> m_fabs_v;
+#ifdef AMREX_USE_GPU
+    std::vector<FAB*> m_host_fabs_v;
+#endif
 
     // for shared memory
     struct ShMem {
@@ -709,8 +714,7 @@ private:
 
 #ifdef BL_USE_MPI
     //! Prepost nonblocking receives
-    void PostRcvs (const MapOfCopyComTagContainers&       m_RcvVols,
-                   const MapOfCopyComTagContainers&       m_RcvTags,
+    void PostRcvs (const MapOfCopyComTagContainers&       m_RcvTags,
                    char*&                                 the_recv_data,
                    Vector<char*>&                         recv_data,
                    Vector<int>&                           recv_size,
@@ -723,7 +727,7 @@ private:
 #endif
 
 #ifdef BL_USE_MPI3
-    void PostRcvs_MPI_Onesided (const MapOfCopyComTagContainers&  m_RcvVols,
+    void PostRcvs_MPI_Onesided (const MapOfCopyComTagContainers&  m_RcvTagss,
                                 char*&                            the_recv_data,
                                 Vector<char*>&                    recv_data,
                                 Vector<int>&                      recv_size,
@@ -750,6 +754,7 @@ public:
     Vector<char*>       fb_recv_data;
     Vector<int>         fb_recv_size;
     Vector<MPI_Request> fb_recv_reqs;
+    Vector<MPI_Status>  fb_recv_stat;
 #ifdef BL_USE_MPI3
     Vector<MPI_Aint>    fb_recv_disp;
 #endif
@@ -789,39 +794,135 @@ FabArray<FAB>::defined (const MFIter& mfi) const
 }
 
 template <class FAB>
-const FAB&
-FabArray<FAB>::operator[] (const MFIter& mfi) const
+FAB*
+FabArray<FAB>::fabDevicePtr (const MFIter& mfi)
 {
     BL_ASSERT(mfi.LocalIndex() < indexArray.size());
     BL_ASSERT(DistributionMap() == mfi.DistributionMap());
-    return *m_fabs_v[mfi.LocalIndex()];
+    return m_fabs_v[mfi.LocalIndex()];
 }
 
 template <class FAB>
-FAB&
-FabArray<FAB>::operator[] (const MFIter& mfi)
+FAB const*
+FabArray<FAB>::fabDevicePtr (const MFIter& mfi) const
 {
     BL_ASSERT(mfi.LocalIndex() < indexArray.size());
     BL_ASSERT(DistributionMap() == mfi.DistributionMap());
-    return *m_fabs_v[mfi.LocalIndex()];
+    return m_fabs_v[mfi.LocalIndex()];
 }
 
 template <class FAB>
-const FAB&
-FabArray<FAB>::operator[] (int K) const
+FAB*
+FabArray<FAB>::fabDevicePtr (int K)
 {
     int li = localindex(K);
     BL_ASSERT(li >=0 && li < indexArray.size());
-    return *m_fabs_v[li];
+    return m_fabs_v[li];
 }
 
 template <class FAB>
-FAB&
-FabArray<FAB>::operator[] (int K)
+FAB const*
+FabArray<FAB>::fabDevicePtr (int K) const
 {
     int li = localindex(K);
     BL_ASSERT(li >=0 && li < indexArray.size());
-    return *m_fabs_v[li];
+    return m_fabs_v[li];
+}
+
+template <class FAB>
+FAB*
+FabArray<FAB>::fabHostPtr (const MFIter& mfi)
+{
+    BL_ASSERT(mfi.LocalIndex() < indexArray.size());
+    BL_ASSERT(DistributionMap() == mfi.DistributionMap());
+#if AMREX_USE_GPU
+    return m_host_fabs_v[mfi.LocalIndex()];
+#else
+    return m_fabs_v[mfi.LocalIndex()];
+#endif
+}
+
+template <class FAB>
+FAB const*
+FabArray<FAB>::fabHostPtr (const MFIter& mfi) const
+{
+    BL_ASSERT(mfi.LocalIndex() < indexArray.size());
+    BL_ASSERT(DistributionMap() == mfi.DistributionMap());
+#if AMREX_USE_GPU
+    return m_host_fabs_v[mfi.LocalIndex()];
+#else
+    return m_fabs_v[mfi.LocalIndex()];
+#endif
+}
+
+template <class FAB>
+FAB*
+FabArray<FAB>::fabHostPtr (int K)
+{
+    int li = localindex(K);
+    BL_ASSERT(li >=0 && li < indexArray.size());
+#if AMREX_USE_GPU
+    return m_host_fabs_v[li];
+#else
+    return m_fabs_v[li];
+#endif
+}
+
+template <class FAB>
+FAB const*
+FabArray<FAB>::fabHostPtr (int K) const
+{
+    int li = localindex(K);
+    BL_ASSERT(li >=0 && li < indexArray.size());
+#if AMREX_USE_GPU
+    return m_host_fabs_v[li];
+#else
+    return m_fabs_v[li];
+#endif
+}
+
+template <class FAB>
+FAB*
+FabArray<FAB>::fabPtr (const MFIter& mfi)
+{
+#if AMREX_USE_GPU
+    return (Gpu::inLaunchRegion()) ? this->fabDevicePtr(mfi) : this->fabHostPtr(mfi);
+#else
+    return this->fabHostPtr(mfi);
+#endif
+}
+
+template <class FAB>
+FAB const*
+FabArray<FAB>::fabPtr (const MFIter& mfi) const
+{
+#if AMREX_USE_GPU
+    return (Gpu::inLaunchRegion()) ? this->fabDevicePtr(mfi) : this->fabHostPtr(mfi);
+#else
+    return this->fabHostPtr(mfi);
+#endif
+}
+
+template <class FAB>
+FAB*
+FabArray<FAB>::fabPtr (int K)
+{
+#if AMREX_USE_GPU
+    return (Gpu::inLaunchRegion()) ? this->fabDevicePtr(K) : this->fabHostPtr(K);
+#else
+    return this->fabHostPtr(K);
+#endif
+}
+
+template <class FAB>
+FAB const*
+FabArray<FAB>::fabPtr (int K) const
+{
+#if AMREX_USE_GPU
+    return (Gpu::inLaunchRegion()) ? this->fabDevicePtr(K) : this->fabHostPtr(K);
+#else
+    return this->fabHostPtr(K);
+#endif
 }
 
 template <class FAB>
@@ -834,10 +935,16 @@ FabArray<FAB>::clear ()
         clearThisBD();  // addThisBD is called in define
     }
 
-    for(Iterator it = m_fabs_v.begin(); it != m_fabs_v.end(); ++it) {
+    for (auto it = m_fabs_v.begin(); it != m_fabs_v.end(); ++it) {
         m_factory->destroy(*it);
     }
     m_fabs_v.clear();
+#ifdef AMREX_USE_GPU
+    for (auto it = m_host_fabs_v.begin(); it != m_host_fabs_v.end(); ++it) {
+        m_factory->destroyHostAlias(*it);
+    }
+    m_host_fabs_v.clear();
+#endif
     m_factory.reset();
     // no need to clear the non-blocking fillboundary stuff
 
@@ -926,6 +1033,9 @@ FabArray<FAB>::FabArray (const FabArray<FAB>& rhs, MakeType maketype, int scomp,
     {
         for (const auto& rhsfab : rhs.m_fabs_v) {
             m_fabs_v.push_back(new FAB(*rhsfab, amrex::make_alias, scomp, ncomp));
+#ifdef AMREX_USE_GPU
+            m_host_fabs_v.push_back(m_factory->createHostAlias(*m_fabs_v.back()));
+#endif
         }
     }
     else
@@ -935,46 +1045,23 @@ FabArray<FAB>::FabArray (const FabArray<FAB>& rhs, MakeType maketype, int scomp,
 }
 
 template <class FAB>
-template <class>
-FabArray<FAB>::FabArray (const BoxArray&            bxs,
-                         const DistributionMapping& dm,
-                         int                        nvar,
-                         int                        ngrow,
-                         const Vector<value_type*>& pval)
-    : FabArray<FAB>::FabArray(bxs,dm,nvar,IntVect(ngrow),pval)
-{}
-
-template <class FAB>
-template <class>
-FabArray<FAB>::FabArray (const BoxArray&            bxs,
-                         const DistributionMapping& dm,
-                         int                        nvar,
-                         const IntVect&             ngrow,
-                         const Vector<value_type*>& pval)
-    : m_factory(new DefaultFabFactory<FAB>()),
-      shmem()
-{
-    m_FA_stats.recordBuild();
-    define(bxs,dm,nvar,ngrow,MFInfo().SetAlloc(false), *m_factory);
-
-    for (MFIter mfi(*this); mfi.isValid(); ++mfi) {
-        setFab(mfi, new FAB(mfi.fabbox(),nvar,pval[mfi.LocalIndex()]));
-    }
-}
-
-
-template <class FAB>
 FabArray<FAB>::FabArray (FabArray<FAB>&& rhs) noexcept
     : FabArrayBase (std::move(rhs))
     , m_factory    (std::move(rhs.m_factory))
     , define_function_called(rhs.define_function_called)
     , m_fabs_v     (std::move(rhs.m_fabs_v))
+#ifdef AMREX_USE_GPU
+    , m_host_fabs_v(std::move(rhs.m_host_fabs_v))
+#endif
     , shmem        (std::move(rhs.shmem))
     // no need to worry about the data used in non-blocking FillBoundary.
 {
     m_FA_stats.recordBuild();
     rhs.define_function_called = false; // the responsibility of clear BD has been transferred.
     rhs.m_fabs_v.clear(); // clear the data pointers so that rhs.clear does delete them.
+#ifdef AMREX_USE_GPU
+    rhs.m_host_fabs_v.clear();
+#endif
     rhs.clear();
 }
 
@@ -990,10 +1077,16 @@ FabArray<FAB>::operator= (FabArray<FAB>&& rhs) noexcept
         m_factory = std::move(rhs.m_factory);
         define_function_called = rhs.define_function_called;
         std::swap(m_fabs_v,rhs.m_fabs_v);
+#ifdef AMREX_USE_GPU
+        std::swap(m_host_fabs_v,rhs.m_host_fabs_v);
+#endif
         shmem = std::move(rhs.shmem);
 
         rhs.define_function_called = false;
         rhs.m_fabs_v.clear();
+#ifdef AMREX_USE_GPU
+        rhs.m_host_fabs_v.clear();
+#endif
         rhs.clear();
     }
     return *this;
@@ -1010,6 +1103,8 @@ template <class FAB>
 bool
 FabArray<FAB>::ok () const
 {
+    // TODO gpu
+
     int isok = 1;
 
     for (MFIter fai(*this); fai.isValid() && isok; ++fai)
@@ -1171,6 +1266,13 @@ FabArray<FAB>::AllocFabs (const FabFactory<FAB>& factory)
 	amrex::update_fab_stats(shmem.n_points, shmem.n_values, sizeof(value_type));
     }
 #endif
+
+#ifdef AMREX_USE_GPU
+    m_host_fabs_v.reserve(n);
+    for (int i = 0; i < n; ++i) {
+        m_host_fabs_v.push_back(factory.createHostAlias(*m_fabs_v[i]));
+    }
+#endif
 }
 
 template <class FAB>
@@ -1193,9 +1295,16 @@ FabArray<FAB>::setFab (int  boxno,
 
     if (m_fabs_v.size() == 0) {
       m_fabs_v.resize(indexArray.size(),nullptr);
+#ifdef AMREX_USE_GPU
+      m_host_fabs_v.resize(m_fabs_v.size(),nullptr);
+#endif
     }
 
-    m_fabs_v[localindex(boxno)] = elem;
+    const int li = localindex(boxno);
+    m_fabs_v[li] = elem;
+#ifdef AMREX_USE_GPU
+    m_host_fabs_v[li] = m_factory->createHostAlias(*elem);
+#endif
 }
 
 template <class FAB>
@@ -1220,9 +1329,16 @@ FabArray<FAB>::setFab (const MFIter& mfi,
 
     if (m_fabs_v.size() == 0) {
       m_fabs_v.resize(indexArray.size(),nullptr);
+#ifdef AMREX_USE_GPU
+      m_host_fabs_v.resize(m_fabs_v.size(),nullptr);
+#endif
     }
 
-    m_fabs_v[mfi.LocalIndex()] = elem;
+    const int li = mfi.LocalIndex();
+    m_fabs_v[li] = elem;
+#ifdef AMREX_USE_GPU
+    m_host_fabs_v[li] = m_factory->createHostAlias(*elem);
+#endif
 }
 
 template <class FAB>
@@ -1260,7 +1376,7 @@ FabArray<FAB>::setBndry (value_type val,
                         ncells += b.numPts();
                     }
 
-                    FAB* fab = &(get(fai));
+                    FAB* fab = this->fabPtr(fai);
                     AMREX_LAUNCH_DEVICE_LAMBDA ( ncells, icell,
                     {
                         const IntVect iv = amrex::getCell(pboxes, nboxes, icell);
@@ -1323,7 +1439,7 @@ FabArray<FAB>::setDomainBndry (value_type val,
                     ncells += b.numPts();
                 }
 
-                FAB* fab = &(get(fai));
+                FAB* fab = this->fabPtr(fai);
                 AMREX_LAUNCH_DEVICE_LAMBDA ( ncells, icell,
                 {
                     const IntVect iv = amrex::getCell(pboxes, nboxes, icell);
@@ -1422,7 +1538,7 @@ FabArray<FAB>::setVal (value_type val,
     for (MFIter fai(*this,TilingIfNotGPU()); fai.isValid(); ++fai)
     {
 	const Box& bx = fai.growntilebox(nghost);
-        FAB* fab = &(get(fai));
+        FAB* fab = this->fabPtr(fai);
 
         AMREX_LAUNCH_HOST_DEVICE_LAMBDA(bx,tbx,
         {
@@ -1465,7 +1581,7 @@ FabArray<FAB>::setVal (value_type val,
         Box b = fai.growntilebox(nghost) & region;
 
         if (b.ok()) {
-            FAB* fab = &(get(fai));
+            FAB* fab = this->fabPtr(fai);
 
             AMREX_LAUNCH_HOST_DEVICE_LAMBDA(b, tbx,
             {
@@ -1479,6 +1595,8 @@ template <class FAB>
 void
 FabArray<FAB>::shift (const IntVect& v)
 {
+    // TODO gpu
+
     clearThisBD();  // The new boxarry will have a different ID.
     for(int id(0); id < AMREX_SPACEDIM; ++id)
     {
@@ -1611,6 +1729,7 @@ template <class FAB>
 void
 FabArray<FAB>::FillBoundary_nowait (int scomp, int ncomp, const Periodicity& period, bool cross)
 {
+    BL_PROFILE("FillBoundary_nowait()");
     FBEP_nowait(scomp, ncomp, nGrowVect(), period, cross);
 }
 
@@ -1619,6 +1738,7 @@ void
 FabArray<FAB>::FillBoundary_nowait (int scomp, int ncomp, const IntVect& nghost,
                                     const Periodicity& period, bool cross)
 {
+    BL_PROFILE("FillBoundary_nowait()");
     FBEP_nowait(scomp, ncomp, nghost, period, cross);
 }
 
@@ -1629,6 +1749,8 @@ FabArray<FAB>::BuildMask (const Box& phys_domain, const Periodicity& period,
 			  value_type covered, value_type notcovered,
 			  value_type physbnd, value_type interior)
 {
+    // TODO gpu
+
     int ncomp = this->nComp();
     const IntVect& ngrow = this->nGrowVect();
 

@@ -106,8 +106,8 @@ MultiFab::Add (MultiFab&       dst,
     for (MFIter mfi(dst,TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         const Box& bx = mfi.growntilebox(nghost);
-        FArrayBox const* srcFab = &(src[mfi]);
-        FArrayBox      * dstFab = &(dst[mfi]);
+        FArrayBox const* srcFab = src.fabPtr(mfi);
+        FArrayBox      * dstFab = dst.fabPtr(mfi);
 
         if (bx.ok())
         {
@@ -150,8 +150,8 @@ MultiFab::Copy (MultiFab&       dst,
     for (MFIter mfi(dst,TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         const Box& bx = mfi.growntilebox(nghost);
-        FArrayBox const* srcFab = &(src[mfi]);
-        FArrayBox      * dstFab = &(dst[mfi]);
+        FArrayBox const* srcFab = src.fabPtr(mfi);
+        FArrayBox      * dstFab = dst.fabPtr(mfi);
 
         if (bx.ok())
         {
@@ -221,8 +221,8 @@ MultiFab::Subtract (MultiFab&       dst,
     for (MFIter mfi(dst,TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         const Box& bx = mfi.growntilebox(nghost);
-        FArrayBox const* srcFab = &(src[mfi]);
-        FArrayBox      * dstFab = &(dst[mfi]);
+        FArrayBox const* srcFab = src.fabPtr(mfi);
+        FArrayBox      * dstFab = dst.fabPtr(mfi);
 
         if (bx.ok())
         {
@@ -265,8 +265,8 @@ MultiFab::Multiply (MultiFab&       dst,
     for (MFIter mfi(dst,TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         const Box& bx = mfi.growntilebox(nghost);
-        FArrayBox const* srcFab = &(src[mfi]);
-        FArrayBox      * dstFab = &(dst[mfi]);
+        FArrayBox const* srcFab = src.fabPtr(mfi);
+        FArrayBox      * dstFab = dst.fabPtr(mfi);
 
         if (bx.ok())
         {
@@ -309,8 +309,8 @@ MultiFab::Divide (MultiFab&       dst,
     for (MFIter mfi(dst,TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         const Box& bx = mfi.growntilebox(nghost);
-        FArrayBox const* srcFab = &(src[mfi]);
-        FArrayBox      * dstFab = &(dst[mfi]);
+        FArrayBox const* srcFab = src.fabPtr(mfi);
+        FArrayBox      * dstFab = dst.fabPtr(mfi);
 
         if (bx.ok())
         {
@@ -345,8 +345,8 @@ MultiFab::Saxpy (MultiFab&       dst,
         const Box& bx = mfi.growntilebox(nghost);
 
         if (bx.ok()) {
-            FArrayBox const* sfab = &(src[mfi]);
-            FArrayBox      * dfab = &(dst[mfi]);
+            FArrayBox const* sfab = src.fabPtr(mfi);
+            FArrayBox      * dfab = dst.fabPtr(mfi);
 
             AMREX_LAUNCH_HOST_DEVICE_LAMBDA( bx, tbx,
             {
@@ -379,8 +379,8 @@ MultiFab::Xpay (MultiFab&       dst,
         const Box& bx = mfi.growntilebox(nghost);
 
         if (bx.ok()) {
-            FArrayBox const* sfab = &(src[mfi]);
-            FArrayBox      * dfab = &(dst[mfi]);
+            FArrayBox const* sfab = src.fabPtr(mfi);
+            FArrayBox      * dfab = dst.fabPtr(mfi);
 
             AMREX_LAUNCH_HOST_DEVICE_LAMBDA( bx, tbx,
             {
@@ -418,9 +418,9 @@ MultiFab::LinComb (MultiFab&       dst,
         const Box& bx = mfi.growntilebox(nghost);
 	
         if (bx.ok()) {
-            FArrayBox const* xfab = &(x  [mfi]);
-            FArrayBox const* yfab = &(y  [mfi]);
-            FArrayBox      * dfab = &(dst[mfi]);
+            FArrayBox const* xfab =   x.fabPtr(mfi);
+            FArrayBox const* yfab =   y.fabPtr(mfi);
+            FArrayBox      * dfab = dst.fabPtr(mfi);
             AMREX_LAUNCH_HOST_DEVICE_LAMBDA( bx, tbx,
             {
                 dfab->linComb(*xfab,tbx,xcomp,*yfab,tbx,ycomp,a,b,tbx,dstcomp,numcomp);
@@ -455,9 +455,9 @@ MultiFab::AddProduct (MultiFab&       dst,
         const Box& bx = mfi.growntilebox(nghost);
 	
         if (bx.ok()) {
-            FArrayBox const* s1fab = &(src1[mfi]);
-            FArrayBox const* s2fab = &(src2[mfi]);
-            FArrayBox      *  dfab = &(dst [mfi]);
+            FArrayBox const* s1fab = src1.fabPtr(mfi);
+            FArrayBox const* s2fab = src2.fabPtr(mfi);
+            FArrayBox      *  dfab =  dst.fabPtr(mfi);
 
             AMREX_LAUNCH_HOST_DEVICE_LAMBDA( bx, tbx,
             {
@@ -590,22 +590,6 @@ MultiFab::MultiFab (const MultiFab& rhs, MakeType maketype, int scomp, int ncomp
 #endif
 }
 
-MultiFab::MultiFab (const BoxArray& ba, const DistributionMapping& dm, int ncomp, int ngrow,
-                    const Vector<Real*>& p)
-    : MultiFab(ba, dm, ncomp, IntVect(ngrow), p)
-{}
-
-MultiFab::MultiFab (const BoxArray& ba, const DistributionMapping& dm, int ncomp, const IntVect& ngrow,
-                    const Vector<Real*>& p)
-    :
-    FabArray<FArrayBox>(ba, dm, ncomp, ngrow, p)
-{
-#ifdef BL_MEM_PROFILING
-    ++num_multifabs;
-    num_multifabs_hwm = std::max(num_multifabs_hwm, num_multifabs);
-#endif
-}
-
 MultiFab::MultiFab (MultiFab&& rhs) noexcept
     : FabArray<FArrayBox>(std::move(rhs))
 {
@@ -655,13 +639,14 @@ MultiFab::define (const BoxArray&            bxs,
 void
 MultiFab::initVal ()
 {
-    // Done in FabArray. Just Cuda wrapping and Tiling check here.
+    // Done in FArrayBox. Just Cuda wrapping and Tiling check here.
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
     for (MFIter mfi(*this, TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
-	(*this)[mfi].initVal();
+        FArrayBox* fab = this->fabPtr(mfi);
+	fab->initVal();
     }
 }
 
@@ -855,7 +840,7 @@ MultiFab::minIndex (int comp,
 	for (MFIter mfi(*this); mfi.isValid(); ++mfi)
 	{
 	    const Box& bx = amrex::grow(mfi.validbox(),nghost);
-            const FArrayBox* fab = &(get(mfi));
+            const FArrayBox* fab = this->fabPtr(mfi);
 
             AMREX_LAUNCH_HOST_DEVICE_LAMBDA(bx, tbx,
             {
@@ -871,7 +856,7 @@ MultiFab::minIndex (int comp,
 	for (MFIter mfi(*this); mfi.isValid(); ++mfi)
 	{
 	    const Box& bx = amrex::grow(mfi.validbox(),nghost);
-            const FArrayBox* fab = &(get(mfi));
+            const FArrayBox* fab = this->fabPtr(mfi);
 
             AMREX_LAUNCH_HOST_DEVICE_LAMBDA(bx, tbx,
             {
@@ -935,7 +920,7 @@ MultiFab::maxIndex (int comp,
     IntVect loc;
 
 #ifdef _OPENMP
-#pragma omp parallel
+#pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
     {
         Real priv_mx = std::numeric_limits<Real>::lowest();
@@ -946,7 +931,7 @@ MultiFab::maxIndex (int comp,
 	for (MFIter mfi(*this); mfi.isValid(); ++mfi)
 	{
 	    const Box& bx = amrex::grow(mfi.validbox(),nghost);
-            const FArrayBox* fab = &(get(mfi));
+            const FArrayBox* fab = this->fabPtr(mfi);
 
             AMREX_LAUNCH_HOST_DEVICE_LAMBDA(bx, tbx,
             {
@@ -962,7 +947,7 @@ MultiFab::maxIndex (int comp,
 	for (MFIter mfi(*this); mfi.isValid(); ++mfi)
 	{
 	    const Box& bx = amrex::grow(mfi.validbox(),nghost);
-            const FArrayBox* fab = &(get(mfi));
+            const FArrayBox* fab = this->fabPtr(mfi);
 
             AMREX_LAUNCH_HOST_DEVICE_LAMBDA(bx, tbx,
             {
@@ -1204,7 +1189,7 @@ MultiFab::plus (Real val,
     for (MFIter mfi(*this,TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         const Box& bx = mfi.growntilebox(nghost);
-        FArrayBox* fab = &(get(mfi));
+        FArrayBox* fab = this->fabPtr(mfi);
         AMREX_LAUNCH_HOST_DEVICE_LAMBDA( bx, tbx,
         {
             fab->plus(val, tbx, comp, num_comp);
@@ -1229,7 +1214,7 @@ MultiFab::plus (Real       val,
     for (MFIter mfi(*this,TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         const Box& b = mfi.growntilebox(nghost) & region;
-        FArrayBox* fab = &(get(mfi));
+        FArrayBox* fab = this->fabPtr(mfi);
         if (b.ok()) {
             AMREX_LAUNCH_HOST_DEVICE_LAMBDA( b, tbx,
             {
@@ -1264,7 +1249,7 @@ MultiFab::mult (Real val,
     for (MFIter mfi(*this,TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         const Box& bx = mfi.growntilebox(nghost);
-        FArrayBox* fab = &(get(mfi));
+        FArrayBox* fab = this->fabPtr(mfi);
         AMREX_LAUNCH_HOST_DEVICE_LAMBDA( bx, tbx,
         {
             fab->mult(val, tbx, comp, num_comp);
@@ -1291,7 +1276,7 @@ MultiFab::mult (Real       val,
         const Box& b = mfi.growntilebox(nghost) & region;
 
         if (b.ok()) {
-            FArrayBox* fab = &(get(mfi));
+            FArrayBox* fab = this->fabPtr(mfi);
             AMREX_LAUNCH_HOST_DEVICE_LAMBDA( b, tbx,
             {
                 fab->mult(val, tbx, comp, num_comp);
@@ -1316,7 +1301,7 @@ MultiFab::invert (Real numerator,
     for (MFIter mfi(*this,TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         const Box& bx = mfi.growntilebox(nghost);
-        FArrayBox* fab = &(get(mfi));
+        FArrayBox* fab = this->fabPtr(mfi);
         AMREX_LAUNCH_HOST_DEVICE_LAMBDA( bx, tbx,
         {
             fab->invert(numerator, tbx, comp, num_comp);
@@ -1343,7 +1328,7 @@ MultiFab::invert (Real       numerator,
         const Box& b = mfi.growntilebox(nghost) & region;
 
         if (b.ok()) {
-            FArrayBox* fab = &(get(mfi));
+            FArrayBox* fab = this->fabPtr(mfi);
             AMREX_LAUNCH_HOST_DEVICE_LAMBDA( b, tbx,
             {
                 fab->invert(numerator, tbx, comp, num_comp);
@@ -1366,7 +1351,7 @@ MultiFab::negate (int comp,
     for (MFIter mfi(*this,TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         const Box& bx = mfi.growntilebox(nghost);
-        FArrayBox* fab = &(get(mfi));
+        FArrayBox* fab = this->fabPtr(mfi);
         AMREX_LAUNCH_HOST_DEVICE_LAMBDA( bx, tbx,
         {
             fab->negate(tbx, comp, num_comp);
@@ -1391,7 +1376,7 @@ MultiFab::negate (const Box& region,
         const Box& b = mfi.growntilebox(nghost) & region;
 
         if (b.ok()) {
-            FArrayBox* fab = &(get(mfi));
+            FArrayBox* fab = this->fabPtr(mfi);
             AMREX_LAUNCH_HOST_DEVICE_LAMBDA( b, tbx,
             {
                 fab->negate(tbx, comp, num_comp);
@@ -1564,8 +1549,8 @@ MultiFab::OverrideSync (const iMultiFab& msk, const Periodicity& period)
     for (MFIter mfi(*this,TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         const Box& bx = mfi.tilebox();
-        FArrayBox* fab = &(*this)[mfi];
-        IArrayBox const* ifab = &(msk[mfi]);
+        FArrayBox* fab = this->fabPtr(mfi);
+        IArrayBox const* ifab = msk.fabPtr(mfi);
         AMREX_LAUNCH_HOST_DEVICE_LAMBDA( bx, tbx,
         {
             fab->setValIfNot(0.0, tbx, *ifab, 0, ncomp);
@@ -1577,6 +1562,13 @@ MultiFab::OverrideSync (const iMultiFab& msk, const Periodicity& period)
     tmpmf.ParallelCopy(*this, period, FabArrayBase::ADD);
 
     MultiFab::Copy(*this, tmpmf, 0, 0, ncomp, 0);
+}
+
+void
+FillBoundary (Vector<MultiFab*> const& mf, const Periodicity& period)
+{
+    Vector<FabArray<FArrayBox>*> fa{mf.begin(),mf.end()};
+    FillBoundary(fa,period);
 }
 
 }

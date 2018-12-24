@@ -1,6 +1,8 @@
 
 #include <CNS.H>
 #include <CNS_K.H>
+#include <CNS_tagging.H>
+#include <CNS_parm.H>
 
 #include <AMReX_MultiFabUtil.H>
 #include <AMReX_ParmParse.H>
@@ -20,6 +22,8 @@ int       CNS::do_reflux = 1;
 int       CNS::refine_max_dengrad_lev   = -1;
 Real      CNS::refine_dengrad           = 1.0e10;
 
+Real      CNS::gravity = 0.0;
+
 CNS::CNS ()
 {}
 
@@ -32,10 +36,7 @@ CNS::CNS (Amr&            papa,
     : AmrLevel(papa,lev,level_geom,bl,dm,time)
 {
     if (do_reflux && level > 0) {
-//        flux_reg.define(bl, papa.boxArray(level-1),
-//                        dm, papa.DistributionMap(level-1),
-//                        level_geom, papa.Geom(level-1),
-//                        papa.refRatio(level-1), level, NUM_STATE);
+        flux_reg.reset(new FluxRegister(grids,dmap,crse_ratio,level,NUM_STATE));
     }
 
     buildMetrics();
@@ -86,7 +87,7 @@ CNS::initData ()
     for (MFIter mfi(S_new); mfi.isValid(); ++mfi)
     {
         const Box& box = mfi.validbox();
-        FArrayBox* sfab = &(S_new[mfi]);
+        FArrayBox* sfab = S_new.fabPtr(mfi);
 
         AMREX_LAUNCH_DEVICE_LAMBDA ( box, tbox,
         {
@@ -221,10 +222,9 @@ void
 CNS::post_timestep (int iteration)
 {
     if (do_reflux && level < parent->finestLevel()) {
+        MultiFab& S = get_new_data(State_Type);
         CNS& fine_level = getLevel(level+1);
-        MultiFab& S_crse = get_new_data(State_Type);
-        MultiFab& S_fine = fine_level.get_new_data(State_Type);
-//xxxxx        fine_level.flux_reg.Reflux(S_crse, *volfrac, S_fine, *fine_level.volfrac);
+        fine_level.flux_reg->Reflux(S, 1.0, 0, 0, NUM_STATE, geom);
     }
 
     if (level < parent->finestLevel()) {
@@ -285,6 +285,35 @@ void
 CNS::errorEst (TagBoxArray& tags, int, int, Real time, int, int)
 {
     BL_PROFILE("CNS::errorEst()");
+
+    if (level < refine_max_dengrad_lev)
+    {
+        int ng = 1;
+        const MultiFab& S_new = get_new_data(State_Type);
+        const Real cur_time = state[State_Type].curTime();
+        MultiFab rho(S_new.boxArray(), S_new.DistributionMap(), 1, 1);
+        FillPatch(*this, rho, rho.nGrow(), cur_time, State_Type, Density, 1, 0);
+
+        const char   tagval = TagBox::SET;
+//        const char clearval = TagBox::CLEAR;
+        const Real dengrad_threshold = refine_dengrad;
+
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+        for (MFIter mfi(rho,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        {
+            const Box& bx = mfi.tilebox();
+
+            FArrayBox const* rhofab = rho.fabPtr(mfi);
+            TagBox * tag = tags.fabPtr(mfi);
+
+            AMREX_LAUNCH_DEVICE_LAMBDA (bx, tbx,
+            {
+                cns_tag_denerror(tbx, *tag, *rhofab, dengrad_threshold, tagval);
+            });
+        }
+    }
 }
 
 void
@@ -314,6 +343,12 @@ CNS::read_params ()
 
     pp.query("refine_max_dengrad_lev", refine_max_dengrad_lev);
     pp.query("refine_dengrad", refine_dengrad);
+
+    pp.query("gravity", gravity);
+
+    pp.query("eos_gamma", Parm::eos_gamma);
+
+    Parm::Initialize();
 }
 
 void
@@ -322,6 +357,17 @@ CNS::avgDown ()
     BL_PROFILE("CNS::avgDown()");
 
     if (level == parent->finestLevel()) return;
+
+    auto& fine_lev = getLevel(level+1);
+
+    MultiFab& S_crse =          get_new_data(State_Type);
+    MultiFab& S_fine = fine_lev.get_new_data(State_Type);
+
+    amrex::average_down(S_fine, S_crse, fine_lev.geom, geom,
+                        0, S_fine.nComp(), parent->refRatio(level));
+
+    const int nghost = 0;
+    computeTemp(S_crse, nghost);
 }
 
 void
@@ -372,7 +418,7 @@ CNS::computeTemp (MultiFab& State, int ng)
     for (MFIter mfi(State,TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         const Box& bx = mfi.growntilebox(ng);
-        FArrayBox* sfab = &(State[mfi]);
+        FArrayBox* sfab = State.fabPtr(mfi);
         AMREX_LAUNCH_DEVICE_LAMBDA (bx, tbx,
         {
             cns_compute_temperature(tbx, *sfab);

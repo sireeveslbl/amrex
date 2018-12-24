@@ -27,7 +27,7 @@ ReduceSum (FabArray<FAB> const& fa, int nghost, F f)
         for (MFIter mfi(fa); mfi.isValid(); ++mfi)
         {
             const Box& bx = amrex::grow(mfi.validbox(),nghost);
-            FAB const* fab = &(fa[mfi]);
+            FAB const* fab = fa.fabPtr(mfi);
 
             const auto& grid_size = gs[mfi];
             const int global_bid_begin = grid_size.globalBlockId;
@@ -41,7 +41,7 @@ ReduceSum (FabArray<FAB> const& fa, int nghost, F f)
                 value_type* sdata = gsm.dataPtr();
 
                 value_type tsum = 0.0;
-                for (auto const& tbx : Gpu::Range(bx)) {
+                for (auto const tbx : Gpu::Range(bx)) {
                     tsum += f(tbx, *fab);
                 }
                 sdata[threadIdx.x] = tsum;
@@ -90,8 +90,8 @@ ReduceSum (FabArray<FAB1> const& fa1, FabArray<FAB2> const& fa2,
         for (MFIter mfi(fa1); mfi.isValid(); ++mfi)
         {
             const Box& bx = amrex::grow(mfi.validbox(),nghost);
-            FAB1 const* fab1 = &(fa1[mfi]);
-            FAB2 const* fab2 = &(fa2[mfi]);
+            FAB1 const* fab1 = fa1.fabPtr(mfi);
+            FAB2 const* fab2 = fa2.fabPtr(mfi);
 
             const auto& grid_size = gs[mfi];
             const int global_bid_begin = grid_size.globalBlockId;
@@ -105,7 +105,7 @@ ReduceSum (FabArray<FAB1> const& fa1, FabArray<FAB2> const& fa2,
                 value_type* sdata = gsm.dataPtr();
 
                 value_type tsum = 0.0;
-                for (auto const& tbx : Gpu::Range(bx)) {
+                for (auto const tbx : Gpu::Range(bx)) {
                     tsum += f(tbx, *fab1, *fab2);
                 }
                 sdata[threadIdx.x] = tsum;
@@ -154,9 +154,9 @@ ReduceSum (FabArray<FAB1> const& fa1, FabArray<FAB2> const& fa2, FabArray<FAB3> 
         for (MFIter mfi(fa1); mfi.isValid(); ++mfi)
         {
             const Box& bx = amrex::grow(mfi.validbox(),nghost);
-            FAB1 const* fab1 = &(fa1[mfi]);
-            FAB2 const* fab2 = &(fa2[mfi]);
-            FAB3 const* fab3 = &(fa3[mfi]);
+            FAB1 const* fab1 = fa1.fabPtr(mfi);
+            FAB2 const* fab2 = fa2.fabPtr(mfi);
+            FAB3 const* fab3 = fa3.fabPtr(mfi);
 
             const auto& grid_size = gs[mfi];
             const int global_bid_begin = grid_size.globalBlockId;
@@ -170,7 +170,7 @@ ReduceSum (FabArray<FAB1> const& fa1, FabArray<FAB2> const& fa2, FabArray<FAB3> 
                 value_type* sdata = gsm.dataPtr();
 
                 value_type tsum = 0.0;
-                for (auto const& tbx : Gpu::Range(bx)) {
+                for (auto const tbx : Gpu::Range(bx)) {
                     tsum += f(tbx, *fab1, *fab2, *fab3);
                 }
                 sdata[threadIdx.x] = tsum;
@@ -218,7 +218,7 @@ ReduceMin (FabArray<FAB> const& fa, int nghost, F f)
         for (MFIter mfi(fa); mfi.isValid(); ++mfi)
         {
             const Box& bx = amrex::grow(mfi.validbox(),nghost);
-            FAB const* fab = &(fa[mfi]);
+            FAB const* fab = fa.fabPtr(mfi);
 
             const auto& grid_size = gs[mfi];
             const int global_bid_begin = grid_size.globalBlockId;
@@ -231,7 +231,7 @@ ReduceMin (FabArray<FAB> const& fa, int nghost, F f)
                 value_type* sdata = gsm.dataPtr();
 
                 value_type tmin = std::numeric_limits<value_type>::max();
-                for (auto const& tbx : Gpu::Range(bx)) {
+                for (auto const tbx : Gpu::Range(bx)) {
                     value_type local_tmin = f(tbx, *fab);
                     tmin = amrex::min(tmin, local_tmin);
                 }
@@ -280,8 +280,8 @@ ReduceMin (FabArray<FAB1> const& fa1, FabArray<FAB2> const& fa2, int nghost, F f
         for (MFIter mfi(fa1); mfi.isValid(); ++mfi)
         {
             const Box& bx = amrex::grow(mfi.validbox(),nghost);
-            FAB1 const* fab1 = &(fa1[mfi]);
-            FAB2 const* fab2 = &(fa2[mfi]);
+            FAB1 const* fab1 = fa1.fabPtr(mfi);
+            FAB2 const* fab2 = fa2.fabPtr(mfi);
 
             const auto& grid_size = gs[mfi];
             const int global_bid_begin = grid_size.globalBlockId;
@@ -294,7 +294,7 @@ ReduceMin (FabArray<FAB1> const& fa1, FabArray<FAB2> const& fa2, int nghost, F f
                 value_type* sdata = gsm.dataPtr();
 
                 value_type tmin = std::numeric_limits<value_type>::max();
-                for (auto const& tbx : Gpu::Range(bx)) {
+                for (auto const tbx : Gpu::Range(bx)) {
                     value_type local_tmin = f(tbx, *fab1, *fab2);
                     tmin = amrex::min(tmin, local_tmin);
                 }
@@ -343,7 +343,7 @@ ReduceMax (FabArray<FAB> const& fa, int nghost, F f)
         for (MFIter mfi(fa); mfi.isValid(); ++mfi)
         {
             const Box& bx = amrex::grow(mfi.validbox(),nghost);
-            FAB const* fab = &(fa[mfi]);
+            FAB const* fab = fa.fabPtr(mfi);
 
             const auto& grid_size = gs[mfi];
             const int global_bid_begin = grid_size.globalBlockId;
@@ -356,7 +356,7 @@ ReduceMax (FabArray<FAB> const& fa, int nghost, F f)
                 value_type* sdata = gsm.dataPtr();
 
                 value_type tmax = std::numeric_limits<value_type>::lowest();
-                for (auto const& tbx : Gpu::Range(bx)) {
+                for (auto const tbx : Gpu::Range(bx)) {
                     value_type local_tmax = f(tbx, *fab);
                     tmax = amrex::max(tmax, local_tmax);
                 }
@@ -405,8 +405,8 @@ ReduceMax (FabArray<FAB1> const& fa1, FabArray<FAB2> const& fa2, int nghost, F f
         for (MFIter mfi(fa1); mfi.isValid(); ++mfi)
         {
             const Box& bx = amrex::grow(mfi.validbox(),nghost);
-            FAB1 const* fab1 = &(fa1[mfi]);
-            FAB2 const* fab2 = &(fa2[mfi]);
+            FAB1 const* fab1 = fa1.fabPtr(mfi);
+            FAB2 const* fab2 = fa2.fabPtr(mfi);
 
             const auto& grid_size = gs[mfi];
             const int global_bid_begin = grid_size.globalBlockId;
@@ -419,7 +419,7 @@ ReduceMax (FabArray<FAB1> const& fa1, FabArray<FAB2> const& fa2, int nghost, F f
                 value_type* sdata = gsm.dataPtr();
 
                 value_type tmax = std::numeric_limits<value_type>::lowest();
-                for (auto const& tbx : Gpu::Range(bx)) {
+                for (auto const tbx : Gpu::Range(bx)) {
                     value_type local_tmax = f(tbx, *fab1, *fab2);
                     tmax = amrex::max(tmax, local_tmax);
                 }
@@ -467,7 +467,7 @@ ReduceLogicalAnd (FabArray<FAB> const& fa, int nghost, F f)
         for (MFIter mfi(fa); mfi.isValid(); ++mfi)
         {
             const Box& bx = amrex::grow(mfi.validbox(),nghost);
-            FAB const* fab = &(fa[mfi]);
+            FAB const* fab = fa.fabPtr(mfi);
 
             const auto& grid_size = gs[mfi];
             const int global_bid_begin = grid_size.globalBlockId;
@@ -480,7 +480,7 @@ ReduceLogicalAnd (FabArray<FAB> const& fa, int nghost, F f)
                 unsigned char* sdata = gsm.dataPtr();
 
                 bool tr = true;
-                for (auto const& tbx : Gpu::Range(bx)) {
+                for (auto const tbx : Gpu::Range(bx)) {
                     tr = tr && f(tbx, *fab);
                 }
                 sdata[threadIdx.x] = tr;
@@ -528,8 +528,8 @@ ReduceLogicalAnd (FabArray<FAB1> const& fa1, FabArray<FAB2> const& fa2,
         for (MFIter mfi(fa1); mfi.isValid(); ++mfi)
         {
             const Box& bx = amrex::grow(mfi.validbox(),nghost);
-            FAB1 const* fab1 = &(fa1[mfi]);
-            FAB2 const* fab2 = &(fa2[mfi]);
+            FAB1 const* fab1 = fa1.fabPtr(mfi);
+            FAB2 const* fab2 = fa2.fabPtr(mfi);
 
             const auto& grid_size = gs[mfi];
             const int global_bid_begin = grid_size.globalBlockId;
@@ -542,7 +542,7 @@ ReduceLogicalAnd (FabArray<FAB1> const& fa1, FabArray<FAB2> const& fa2,
                 unsigned char* sdata = gsm.dataPtr();
 
                 bool tr = true;
-                for (auto const& tbx : Gpu::Range(bx)) {
+                for (auto const tbx : Gpu::Range(bx)) {
                     tr = tr && f(tbx, *fab1, *fab2);
                 }
                 sdata[threadIdx.x] = tr;
@@ -589,7 +589,7 @@ ReduceLogicalOr (FabArray<FAB> const& fa, int nghost, F f)
         for (MFIter mfi(fa); mfi.isValid(); ++mfi)
         {
             const Box& bx = amrex::grow(mfi.validbox(),nghost);
-            FAB const* fab = &(fa[mfi]);
+            FAB const* fab = fa.fabPtr(mfi);
 
             const auto& grid_size = gs[mfi];
             const int global_bid_begin = grid_size.globalBlockId;
@@ -602,7 +602,7 @@ ReduceLogicalOr (FabArray<FAB> const& fa, int nghost, F f)
                 unsigned char* sdata = gsm.dataPtr();
 
                 bool tr = false;
-                for (auto const& tbx : Gpu::Range(bx)) {
+                for (auto const tbx : Gpu::Range(bx)) {
                     tr = tr || f(tbx, *fab);
                 }
                 sdata[threadIdx.x] = tr;
@@ -650,8 +650,8 @@ ReduceLogicalOr (FabArray<FAB1> const& fa1, FabArray<FAB2> const& fa2,
         for (MFIter mfi(fa1); mfi.isValid(); ++mfi)
         {
             const Box& bx = amrex::grow(mfi.validbox(),nghost);
-            FAB1 const* fab1 = &(fa1[mfi]);
-            FAB2 const* fab2 = &(fa2[mfi]);
+            FAB1 const* fab1 = fa1.fabPtr(mfi);
+            FAB2 const* fab2 = fa2.fabPtr(mfi);
 
             const auto& grid_size = gs[mfi];
             const int global_bid_begin = grid_size.globalBlockId;
@@ -664,7 +664,7 @@ ReduceLogicalOr (FabArray<FAB1> const& fa1, FabArray<FAB2> const& fa2,
                 unsigned char* sdata = gsm.dataPtr();
 
                 bool tr = false;
-                for (auto const& tbx : Gpu::Range(bx)) {
+                for (auto const tbx : Gpu::Range(bx)) {
                     tr = tr || f(tbx, *fab1, *fab2);
                 }
                 sdata[threadIdx.x] = tr;

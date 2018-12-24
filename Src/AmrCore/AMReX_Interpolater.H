@@ -417,6 +417,41 @@ public:
                          int              actual_state) override;
 };
 
+class CellGaussianProcess
+    :
+    public Interpolater
+{
+public:
+    //
+    // The destructor.
+    //
+    virtual ~CellGaussianProcess () override;
+    //
+    // Returns coarsened box given fine box and refinement ratio.
+    //
+    virtual Box CoarseBox (const Box& fine,
+                           int        ratio) override;
+    //
+    // Returns coarsened box given fine box and refinement ratio.
+    //
+    virtual Box CoarseBox (const Box&     fine,
+                           const IntVect& ratio) override;
+    //
+    // Coarse to fine interpolation in space.
+    //
+    virtual void interp (const FArrayBox& crse,
+                         int              crse_comp,
+                         FArrayBox&       fine,
+                         int              fine_comp,
+                         int              ncomp,
+                         const Box&       fine_region,
+                         const IntVect&   ratio,
+                         const Geometry&  crse_geom,
+                         const Geometry&  fine_geom,
+                         Vector<BCRec>&    bcr,
+                         int              actual_comp,
+                         int              actual_state) override;
+};
 
 //
 // CONSTRUCT A GLOBAL OBJECT OF EACH VERSION.
@@ -429,6 +464,7 @@ extern CellConservativeLinear    lincc_interp;
 extern CellConservativeLinear    cell_cons_interp;
 extern CellConservativeProtected protected_interp;
 extern CellConservativeQuartic   quartic_interp;
+extern CellGaussianProcess       gp_interp; 
 
 class InterpolaterBoxCoarsener
     : public BoxConverter

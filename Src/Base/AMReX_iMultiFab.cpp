@@ -40,8 +40,8 @@ iMultiFab::Add (iMultiFab&       dst,
         const Box& bx = mfi.growntilebox(nghost);
 
         if (bx.ok()) {
-            IArrayBox const* sfab = &(src[mfi]);
-            IArrayBox      * dfab = &(dst[mfi]);
+            IArrayBox const* sfab = src.fabPtr(mfi);
+            IArrayBox      * dfab = dst.fabPtr(mfi);
             AMREX_LAUNCH_HOST_DEVICE_LAMBDA( bx, tbx,
             {
                 dfab->plus(*sfab, tbx, tbx, srccomp, dstcomp, numcomp);
@@ -70,8 +70,8 @@ iMultiFab::Copy (iMultiFab&       dst,
         const Box& bx = mfi.growntilebox(nghost);
 
         if (bx.ok()) {
-            IArrayBox const* sfab = &(src[mfi]);
-            IArrayBox      * dfab = &(dst[mfi]);
+            IArrayBox const* sfab = src.fabPtr(mfi);
+            IArrayBox      * dfab = dst.fabPtr(mfi);
             AMREX_LAUNCH_HOST_DEVICE_LAMBDA( bx, tbx,
             {            
                 dfab->copy(*sfab, tbx, srccomp, tbx, dstcomp, numcomp);
@@ -100,8 +100,8 @@ iMultiFab::Subtract (iMultiFab&       dst,
         const Box& bx = mfi.growntilebox(nghost);
 
         if (bx.ok()) {
-            IArrayBox const* sfab = &(src[mfi]);
-            IArrayBox      * dfab = &(dst[mfi]);
+            IArrayBox const* sfab = src.fabPtr(mfi);
+            IArrayBox      * dfab = dst.fabPtr(mfi);
             AMREX_LAUNCH_HOST_DEVICE_LAMBDA( bx, tbx,
             {            
                 dfab->minus(*sfab, tbx, tbx, srccomp, dstcomp, numcomp);
@@ -130,8 +130,8 @@ iMultiFab::Multiply (iMultiFab&       dst,
         const Box& bx = mfi.growntilebox(nghost);
 
         if (bx.ok()) {
-            IArrayBox const* sfab = &(src[mfi]);
-            IArrayBox      * dfab = &(dst[mfi]);
+            IArrayBox const* sfab = src.fabPtr(mfi);
+            IArrayBox      * dfab = dst.fabPtr(mfi);
             AMREX_LAUNCH_HOST_DEVICE_LAMBDA( bx, tbx,
             {            
                 dfab->mult(*sfab, tbx, tbx, srccomp, dstcomp, numcomp);
@@ -160,8 +160,8 @@ iMultiFab::Divide (iMultiFab&       dst,
         const Box& bx = mfi.growntilebox(nghost);
 
         if (bx.ok()) {
-            IArrayBox const* sfab = &(src[mfi]);
-            IArrayBox      * dfab = &(dst[mfi]);
+            IArrayBox const* sfab = src.fabPtr(mfi);
+            IArrayBox      * dfab = dst.fabPtr(mfi);
             AMREX_LAUNCH_HOST_DEVICE_LAMBDA( bx, tbx,
             {            
                 dfab->divide(*sfab, tbx, tbx, srccomp, dstcomp, numcomp);
@@ -397,9 +397,6 @@ iMultiFab::max (const Box& region,
 long
 iMultiFab::sum (int comp, int nghost, bool local) const
 {
-#ifdef BL_NO_FORT
-    return 0;  // we could remove this after MultiFabUtil works w/o Fortran
-#else
     AMREX_ASSERT(nghost >= 0 && nghost <= n_grow.min());
 
     iMultiFab imf(*this, amrex::make_alias, comp, 1);
@@ -414,7 +411,6 @@ iMultiFab::sum (int comp, int nghost, bool local) const
     if (!local) ParallelAllReduce::Sum(sm, ParallelContext::CommunicatorSub());
 
     return sm;
-#endif
 }
 
 IntVect
@@ -625,7 +621,7 @@ iMultiFab::plus (int val,
     for (MFIter mfi(*this,TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         const Box& bx = mfi.growntilebox(nghost);
-        IArrayBox* fab = &(get(mfi));
+        IArrayBox* fab = this->fabPtr(mfi);
         AMREX_LAUNCH_HOST_DEVICE_LAMBDA( bx, tbx,
         {
             fab->plus(val, tbx, comp, num_comp);
@@ -652,7 +648,7 @@ iMultiFab::plus (int       val,
         const Box& b = mfi.growntilebox(nghost) & region;
 
         if (b.ok()) {
-            IArrayBox* fab = &(get(mfi));
+            IArrayBox* fab = this->fabPtr(mfi);
             AMREX_LAUNCH_HOST_DEVICE_LAMBDA( b, tbx,
             {
                 fab->plus(val, tbx, comp, num_comp);
@@ -679,8 +675,8 @@ iMultiFab::plus (const iMultiFab& mf,
     for (MFIter mfi(*this,TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         const Box& bx = mfi.growntilebox(nghost);
-        IArrayBox const* sfab = &(mf[mfi]);
-        IArrayBox      * dfab = &(get(mfi));
+        IArrayBox const* sfab = mf.fabPtr(mfi);
+        IArrayBox      * dfab = this->fabPtr(mfi);
         AMREX_LAUNCH_HOST_DEVICE_LAMBDA( bx, tbx,
         {
             dfab->plus(*sfab, tbx, strt_comp, strt_comp, num_comp);
@@ -704,7 +700,7 @@ iMultiFab::mult (int val,
     for (MFIter mfi(*this,TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         const Box& bx = mfi.growntilebox(nghost);
-        IArrayBox* fab = &(get(mfi));
+        IArrayBox* fab = this->fabPtr(mfi);
         AMREX_LAUNCH_HOST_DEVICE_LAMBDA( bx, tbx,
         {
             fab->mult(val, tbx, comp,num_comp);
@@ -731,7 +727,7 @@ iMultiFab::mult (int       val,
         const Box& b = mfi.growntilebox(nghost) & region;
 
         if (b.ok()) {
-            IArrayBox* fab = &(get(mfi));
+            IArrayBox* fab = this->fabPtr(mfi);
             AMREX_LAUNCH_HOST_DEVICE_LAMBDA( b, tbx,
             {
                 fab->mult(val, tbx, comp, num_comp);
@@ -754,7 +750,7 @@ iMultiFab::negate (int comp,
     for (MFIter mfi(*this,TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         const Box& bx = mfi.growntilebox(nghost);
-        IArrayBox* fab = &(get(mfi));
+        IArrayBox* fab = this->fabPtr(mfi);
         AMREX_LAUNCH_HOST_DEVICE_LAMBDA( bx, tbx,
         {
             fab->negate(tbx, comp, num_comp);
@@ -779,7 +775,7 @@ iMultiFab::negate (const Box& region,
         const Box& b = mfi.growntilebox(nghost) & region;
 
         if (b.ok()) {
-            IArrayBox* fab = &(get(mfi));
+            IArrayBox* fab = this->fabPtr(mfi);
             AMREX_LAUNCH_HOST_DEVICE_LAMBDA( b, tbx,
             {
                 fab->negate(tbx, comp, num_comp);

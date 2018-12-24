@@ -46,7 +46,7 @@ public:
     virtual ~LSCoreBase ();
 
     // Initializes multilevel data
-    void InitData ();
+    void InitData (bool a_use_phierr = false);
     void InitData (const Vector<Real> & m_phierr);
 
     // Make a new level using provided BoxArray and DistributionMapping and fill
@@ -67,6 +67,9 @@ public:
     virtual void ClearLevel (int lev) override = 0;
     virtual void MakeNewLevelFromScratch (int lev, Real time, const BoxArray & ba,
                                           const DistributionMapping & dm) override = 0;
+
+    void UpdateGrids (int lev, const BoxArray & ba, const DistributionMapping & dm);
+
 
     // Tag all cells for refinement. Overrides the pure virtual function in
     // AmrCore
@@ -115,7 +118,8 @@ protected:
 
     // Construct a box over which to search for eb facets using the coarser
     // level to inform how many ghost cells to fill
-    Box EBSearchBox(const FArrayBox & ls_crse, const Geometry & geom_fine, bool & bail);
+    Box EBSearchBox(const Box & box, const FArrayBox & ls_crse,
+                    const Geometry & geom_fine, bool & bail);
 
     // Get plotfile name
     std::string PlotFileName (int lev) const;
@@ -145,7 +149,7 @@ protected:
     Vector<const EB2::Level *>         eb_levels;
     Vector<std::unique_ptr<LSFactory>> ls_factory;
     // Apparently std::vector<bool> isn't a thing?! (more precisely it's a
-    // different thing)
+    // different thing) => use int vector
     Vector<int>                        rebuild_eb;
 
     // Level set data
@@ -160,6 +164,7 @@ protected:
     // condition types at the lo/hi walls in each direction
     Vector<BCRec> bcs; // 1-component
 
+    bool use_phierr = false;
     bool phierr_set = false;
     Vector<Real> phierr;
 

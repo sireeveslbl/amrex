@@ -48,7 +48,7 @@ int main(int argc, char* argv[])
     
     int is_per[BL_SPACEDIM];
     for (int i = 0; i < BL_SPACEDIM; i++) 
-        is_per[i] = 0;
+        is_per[i] = 1;
 
     // This defines a Geometry object which is useful for writing the plotfiles  
     Vector<Geometry> geom(nlevs);
@@ -78,23 +78,25 @@ int main(int argc, char* argv[])
     }
 
     Vector<DistributionMapping> dmap(nlevs);
-   
+    for (int lev = 0; lev < nlevs; lev++) {
+        dmap[lev] = DistributionMapping{ba[lev]};
+    }
+    
     int num_neighbor_cells = 1;
+
     NeighborListParticleContainer myPC(geom, dmap, ba, rr, num_neighbor_cells);
 
     myPC.InitParticles();
 
-    const int lev = 0;
-
     for (int i = 0; i < max_step; i++) {
         if (write_particles) myPC.writeParticles(i);
         
-        myPC.fillNeighbors(lev);
+        myPC.fillNeighbors();
 
         if (do_nl) { myPC.computeForcesNL(); } 
         else {       myPC.computeForces();   }
 
-        myPC.clearNeighbors(lev);
+        myPC.clearNeighbors();
 
         myPC.moveParticles(dt);
 

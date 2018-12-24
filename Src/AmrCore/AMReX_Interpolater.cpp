@@ -5,6 +5,7 @@
 #include <AMReX_Geometry.H>
 #include <AMReX_Interpolater.H>
 #include <AMReX_INTERP_F.H>
+#include <AMReX_Interp_C.H>
 
 namespace amrex {
 
@@ -24,6 +25,7 @@ CellConservativeLinear    lincc_interp;
 CellConservativeLinear    cell_cons_interp(0);
 CellConservativeProtected protected_interp;
 CellConservativeQuartic   quartic_interp;
+CellGaussianProcess       gp_interp; 
 
 Interpolater::~Interpolater () {}
 
@@ -929,6 +931,131 @@ CellConservativeQuartic::interp (const FArrayBox&  crse,
 		      AMREX_D_DECL(&ratioV[0],&ratioV[1],&ratioV[2]),
 		      AMREX_D_DECL(ftmp.dataPtr(), ctmp.dataPtr(), ctmp2.dataPtr()),
 		      bc.dataPtr(),&actual_comp,&actual_state);
+}
+
+//Cell GP interp SR Dissertation Work 
+CellGaussianProcess::CellGaussianProcess (bool mult_sample)
+{
+    do_multi_sampled = mult_sample;
+}
+
+CellGaussianProcess::~CellGaussianProcess () {}
+
+Box
+CellGaussianProcess::CoarseBox (const Box&     fine,
+                          const IntVect& ratio)
+{
+    Box crse = amrex::coarsen(fine,ratio);
+    crse.grow(1);
+    return crse;
+}
+
+Box
+CellGaussianProcess::CoarseBox (const Box& fine,
+                          int        ratio)
+{
+    Box crse = amrex::coarsen(fine,ratio);
+    crse.grow(1);
+    return crse;
+}
+
+void
+CellGaussianProcess::interp (const FArrayBox& crse,
+                       int              crse_comp,
+                       FArrayBox&       fine,
+                       int              fine_comp,
+                       int              ncomp,
+                       const Box&       fine_region,
+                       const IntVect&   ratio,
+                       const Geometry&  crse_geom,
+                       const Geometry&  fine_geom,
+                       Vector<BCRec>&    bcr,
+                       int              actual_comp,
+                       int              actual_state)
+{
+    BL_PROFILE("CellGaussianProcess::interp()");
+    BL_ASSERT(bcr.size() >= ncomp);
+    //
+    // Make box which is intersection of fine_region and domain of fine.
+    //
+    Box target_fine_region = fine_region & fine.box();
+
+    Box crse_bx(amrex::coarsen(target_fine_region,ratio));
+    Box fslope_bx(amrex::refine(crse_bx,ratio));
+    Box cslope_bx(crse_bx);
+    cslope_bx.grow(1);
+    BL_ASSERT(crse.box().contains(cslope_bx));
+    //
+    // Alloc temp space for coarse grid slopes: here we use 5
+    // instead of AMREX_SPACEDIM because of the x^2, y^2 and xy terms
+    //
+    long t_long = cslope_bx.numPts();
+    BL_ASSERT(t_long < INT_MAX);
+    int c_len = int(t_long);
+
+    Vector<Real> cslope(5*c_len);
+
+    int loslp = cslope_bx.index(crse_bx.smallEnd());
+    int hislp = cslope_bx.index(crse_bx.bigEnd());
+
+    t_long = cslope_bx.numPts();
+    BL_ASSERT(t_long < INT_MAX);
+    int cslope_vol = int(t_long);
+    int clo        = 1 - loslp;
+    int chi        = clo + cslope_vol - 1;
+    c_len          = hislp - loslp + 1;
+    //
+    // Alloc temp space for one strip of fine grid slopes: here we use 5
+    // instead of AMREX_SPACEDIM because of the x^2, y^2 and xy terms.
+    //
+    int dir;
+    int f_len = fslope_bx.longside(dir);
+
+    Vector<Real> strip((5+2)*f_len);
+
+    Real* fstrip = strip.dataPtr();
+    Real* foff   = fstrip + f_len;
+    Real* fslope = foff + f_len;
+    //
+    // Get coarse and fine edge-centered volume coordinates.
+    //
+    Vector<Real> fvc[AMREX_SPACEDIM];
+    Vector<Real> cvc[AMREX_SPACEDIM];
+    for (dir = 0; dir < AMREX_SPACEDIM; dir++)
+    {
+        fine_geom.GetEdgeVolCoord(fvc[dir],target_fine_region,dir);
+        crse_geom.GetEdgeVolCoord(cvc[dir],crse_bx,dir);
+    }
+    //
+    // Alloc tmp space for slope calc and to allow for vectorization.
+    //
+    Real* fdat        = fine.dataPtr(fine_comp);
+    const Real* cdat  = crse.dataPtr(crse_comp);
+    const int* flo    = fine.loVect();
+    const int* fhi    = fine.hiVect();
+    const int* fblo   = target_fine_region.loVect();
+    const int* fbhi   = target_fine_region.hiVect();
+    const int* cblo   = crse_bx.loVect();
+    const int* cbhi   = crse_bx.hiVect();
+    const int* fslo   = fslope_bx.loVect();
+    const int* fshi   = fslope_bx.hiVect();
+    int slope_flag    = (do_limited_slope ? 1 : 0);
+    Vector<int> bc     = GetBCArray(bcr);
+    const int* ratioV = ratio.getVect();
+
+
+    amrex_cgpinterp(fdat,AMREX_ARLIM(flo),AMREX_ARLIM(fhi),
+                   AMREX_ARLIM(fblo), AMREX_ARLIM(fbhi),
+                   &ncomp,AMREX_D_DECL(&ratioV[0],&ratioV[1],&ratioV[2]),
+                   cdat,&clo,&chi,
+                   AMREX_ARLIM(cblo), AMREX_ARLIM(cbhi),
+                   fslo,fshi,
+                   cslope.dataPtr(),&c_len,fslope,fstrip,&f_len,foff,
+                   bc.dataPtr(), &slope_flag,
+                   AMREX_D_DECL(fvc[0].dataPtr(),fvc[1].dataPtr(),fvc[2].dataPtr()),
+                   AMREX_D_DECL(cvc[0].dataPtr(),cvc[1].dataPtr(),cvc[2].dataPtr()),
+                   &actual_comp,&actual_state);
+
 }
 
 }
