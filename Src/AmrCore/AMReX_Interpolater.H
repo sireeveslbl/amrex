@@ -414,7 +414,77 @@ public:
                          int              actual_state) override;
 };
 
-
+class CellGaussianProcess
+    :
+    public Interpolater
+{
+public:
+    //
+    // The destructor.
+    //
+    virtual ~CellGaussianProcess () override;
+    //
+    // Returns coarsened box given fine box and refinement ratio.
+    //
+    virtual Box CoarseBox (const Box& fine,
+                           int        ratio) override;
+    //
+    // Returns coarsened box given fine box and refinement ratio.
+    //
+    virtual Box CoarseBox (const Box&     fine,
+                           const IntVect& ratio) override;
+    //
+    // Coarse to fine interpolation in space.
+    //
+    virtual void interp (const FArrayBox& crse,
+                         int              crse_comp,
+                         FArrayBox&       fine,
+                         int              fine_comp,
+                         int              ncomp,
+                         const Box&       fine_region,
+                         const IntVect&   ratio,
+                         const Geometry&  crse_geom,
+                         const Geometry&  fine_geom,
+                         Vector<BCRec>&    bcr,
+                         int              actual_comp,
+                         int              actual_state) override;
+    // Set up for the multi-sampled Weighted GP interpolation 
+    //
+    // Build K makes the Coviarance Kernel Matrices for each Samples 
+    // And for Total Stencil
+    void GetK(amrex::Real *K, amrex::Real *Ktot); 
+    //
+    // Get Weights builds k*Kinv for each stencil
+    //
+    void GetWeights(const amrex::Real *K); 
+    //
+    // Get Gamma by solving a LSQ problem only need this once. 
+    //
+    void GetGamma(const amrex::Real *K, const amrex::Real *Ktot); 
+    //
+    //  Get EigenVecs and EigenValues for smoothness indicators. 
+    //  Will use the Shifted QR algorithm with deflation 
+    //
+    void GetEigenPairs(const amrex::Real *K); 
+    //
+    // Eigen Values of Covariance Matrix 
+    //
+    amrex::Real lambda[5]; 
+    //
+    //  Eigen Vectors of Covariance Matrix
+    //
+    amrex::Real Vec[5][5];
+    //
+    //  Weights to be applied for interpolation
+    //
+    amrex::Real w[16][5]; 
+    //
+    //  Gammas needed for smoothness indication
+    //
+    amrex::Real gamma[5];
+    amrex::Real l; 
+    bool init = false;  
+};
 //
 // CONSTRUCT A GLOBAL OBJECT OF EACH VERSION.
 //
@@ -426,6 +496,7 @@ extern CellConservativeLinear    lincc_interp;
 extern CellConservativeLinear    cell_cons_interp;
 extern CellConservativeProtected protected_interp;
 extern CellConservativeQuartic   quartic_interp;
+extern CellGaussianProcess       gp_interp; 
 
 class InterpolaterBoxCoarsener
     : public BoxConverter
