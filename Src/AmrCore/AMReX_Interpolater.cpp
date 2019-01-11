@@ -932,8 +932,35 @@ CellGaussianProcess::GetK(amrex::Real *K, amrex::Real *Ktot)
 //Inputs: K, outputs w = k*K^-1. 
 //Here we have 12 vectors per quadrant. K is shift invariant, so only k* matters. 
 void 
-CellGaussianProcess::GetWeights(const amrex::Real *K)
+CellGaussianProcess::GetWeights(amrex::Real const *K, amrex::Real const *dx)
 {
+
+    //Locations of new points relative to i,j 
+    amrex::Real pnt[16][2]; 
+    pnt[0][0] = -.375,  pnt[0][1] = -.375; 
+    pnt[1][0] = -.125,  pnt[1][1] = -.375; 
+    pnt[2][0] = 0.125,  pnt[2][1] = -.375; 
+    pnt[3][0] = 0.375,  pnt[3][1] = -.375; 
+    pnt[4][0] = -.375,  pnt[4][1] = -.125; 
+    pnt[5][0] = -.125,  pnt[5][1] = -.125; 
+    pnt[6][0] = 0.125,  pnt[6][1] = -.125; 
+    pnt[7][0] = 0.375,  pnt[7][1] = -.125; 
+    pnt[8][0] = -.375,  pnt[8][1] = 0.125; 
+    pnt[9][0] = -.125,  pnt[9][1] = 0.125; 
+    pnt[10][0] = 0.125, pnt[10][1] = 0.125; 
+    pnt[11][0] = 0.375, pnt[11][1] = 0.125; 
+    pnt[12][0] = -.375, pnt[12][1] = 0.375; 
+    pnt[13][0] = -.125, pnt[13][1] = 0.375; 
+    pnt[14][0] = 0.125, pnt[14][1] = 0.375; 
+    pnt[15][0] = 0.375, pnt[15][1] = 0.375; 
+
+    //Quadrant one, three stencils. 
+    //Stencil one centered at i, j-1 
+
+    //Stencil two centered at i-1, j 
+    
+    //Stencil three is standard i,j 
+
 
 }
 
