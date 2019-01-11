@@ -38,7 +38,14 @@ def get_amrex_version():
 # ones.
 extensions = ['sphinx.ext.mathjax',
               'sphinx.ext.githubpages',
-              'sphinx.ext.viewcode']
+              'sphinx.ext.viewcode',
+              'sphinx.ext.intersphinx']
+
+intersphinx_mapping = {
+    'amrex_docs': ('https://amrex-codes.github.io/amrex/docs_html/', None)
+    # 'amrex_docs': ('../../../sphinx_documentation/build/html/',
+    #               '../../sphinx_documentation/build/html/objects.inv')
+}
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['ytemplates']
@@ -92,7 +99,6 @@ numfig = True
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-
 html_theme = 'sphinx_rtd_theme'
 
 # Theme options are theme-specific and customize the look and feel of a theme
