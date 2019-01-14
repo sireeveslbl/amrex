@@ -1128,15 +1128,38 @@ CellGaussianProcess::GetKs(amrex::Real const *K, amrex::Real const *dx)
 void
 CellGaussianProcess::CholeskyDecomp(amrex::Real *K)
 {
+     for(int i = 0; i < 5; ++i){
+        for( int j = i; j < 5; ++j){
+            K[i + 5*i] -= K[j + 5*i]*K[j + 5*i]; 
+        }
+        K[i + 5*i] = sqrt(K[i + 5*i]); 
+        for(int j = i+1; j < 5; ++j){
+            for(int k = 0; k < j; ++j){
+                K[j + 5*i] -= K[j + 5*k]*K[i + 5*k]; 
+            }
+        K[j + 5*i] /= K[j + 5*j]; 
+        }
+    }
 }
 
 //Performs Cholesky Backsubstitution 
 void 
-CellGaussianProcess::cholesky(amrex::Real const kstar[], amrex::Real const K[], 
-                              amrex::Real ks[])
+CellGaussianProcess::cholesky(amrex::Real const *kstar, amrex::Real const *K, 
+                              amrex::Real *ks)
 {
-
-
+    /* Forward sub Ly = b */ 
+    for(int i = 0; i < 5; ++i){
+        ks[i] = 0.0e0; 
+        for(int j = 0; j < i; ++j)
+            ks[i] = ks[i] + kstar[j]*K[j + 5*i]; 
+        ks[i] /= K[i + 5*i]; 
+    }
+    /* Back sub Ux = y */ 
+    for(int i = 4; i >= 0; --i){
+        for(int j = i; j < 5; ++j)
+            ks[i] -= K[j + 5*i]*ks[j]; 
+        ks[i] /= K[i + 5*i]; 
+    }   
 }
 
 
