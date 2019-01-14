@@ -838,7 +838,7 @@ CellGaussianProcess::GetK(amrex::Real *K, amrex::Real *Ktot)
     for(int i = 1; i < 5; ++i)
         for(int j = i; j < 5; ++j){
             arg = pow(double(pnt[i][0] - pnt[j][0])*dx[0],2)
-                            + pow(double(pnt[i][1] - pnt[j][1])*dx[1],2) 
+                            + pow(double(pnt[i][1] - pnt[j][1])*dx[1],2);
             arg /= pow(l,2); 
             K[j + 5*i] = exp(-0.5*arg); 
         }
@@ -864,7 +864,7 @@ CellGaussianProcess::GetK(amrex::Real *K, amrex::Real *Ktot)
     for(int i = 1; i < 10; ++i)
         for(int j = i; j <10; ++j){
             arg = pow(double(spnt[i][0] - spnt[j][0])*dx[0],2)
-                            + pow(double(spnt[i][1] - spnt[j][1])*dx[1],2) 
+                            + pow(double(spnt[i][1] - spnt[j][1])*dx[1],2);
             arg /= pow(l,2); 
             Ktot[j + 10*i] = exp(-0.5e0*arg); 
         }
@@ -883,7 +883,7 @@ CellGaussianProcess::GetK(amrex::Real *K, amrex::Real *Ktot)
     for(int i = 1; i < 10; ++i)
         for(int j = i; j <10; ++j){
             arg = pow(double(spnt[i][0] - spnt[j][0])*dx[0],2)
-                            + pow(double(spnt[i][1] - spnt[j][1])*dx[1],2) 
+                            + pow(double(spnt[i][1] - spnt[j][1])*dx[1],2);
             arg /= pow(l,2); 
             Ktot[j + 10*i + 100] = exp(-0.5e0*arg); 
         }
@@ -903,7 +903,7 @@ CellGaussianProcess::GetK(amrex::Real *K, amrex::Real *Ktot)
     for(int i = 1; i < 10; ++i)
         for(int j = i; j <10; ++j){
             arg = pow(double(spnt[i][0] - spnt[j][0])*dx[0],2)
-                            + pow(double(spnt[i][1] - spnt[j][1])*dx[1],2) 
+                            + pow(double(spnt[i][1] - spnt[j][1])*dx[1],2); 
             arg /= pow(l,2); 
             Ktot[j + 10*i + 200] = exp(-0.5e0*arg); 
         }
@@ -922,7 +922,7 @@ CellGaussianProcess::GetK(amrex::Real *K, amrex::Real *Ktot)
     for(int i = 1; i < 10; ++i)
         for(int j = i; j <10; ++j){
             arg = pow(double(spnt[i][0] - spnt[j][0])*dx[0],2)
-                            + pow(double(spnt[i][1] - spnt[j][1])*dx[1],2) 
+                            + pow(double(spnt[i][1] - spnt[j][1])*dx[1],2); 
             arg /= pow(l,2); 
             Ktot[j + 10*i + 300] = exp(-0.5e0*arg); 
         }
@@ -932,7 +932,7 @@ CellGaussianProcess::GetK(amrex::Real *K, amrex::Real *Ktot)
 //Inputs: K, outputs w = k*K^-1. 
 //Here we have 12 vectors per quadrant. K is shift invariant, so only k* matters. 
 void 
-CellGaussianProcess::GetWeights(amrex::Real const *K, amrex::Real const *dx)
+CellGaussianProcess::GetKs(amrex::Real const *K, amrex::Real const *dx)
 {
 
     //Locations of new points relative to i,j 
@@ -954,13 +954,196 @@ CellGaussianProcess::GetWeights(amrex::Real const *K, amrex::Real const *dx)
     pnt[14][0] = 0.125, pnt[14][1] = 0.375; 
     pnt[15][0] = 0.375, pnt[15][1] = 0.375; 
 
-    //Quadrant one, three stencils. 
+    int spnt[5][2]; 
+    spnt[0][0] = 0 , spnt[0][1] = -1; 
+    spnt[1][0] = -1, spnt[1][1] = 0; 
+    spnt[2][0] = 0 , spnt[2][1] = 0; 
+    spnt[3][0] = 1 , spnt[3][1] = 0; 
+    spnt[4][0] = 0 , spnt[4][1] = 1; 
+
+    amrex::Real kstar[4][5];
+//================ Quadrant one i-1/4, j-1/4, three stencils. ======================
+
     //Stencil one centered at i, j-1 
-
+    //Build covariance vector between interpolant points and stencil 
+     for(int i = 0; i < 4; ++i){
+        for(int j = i; j < 5; ++j){
+            arg = pow(double(pnt[i][0] - spnt[j][0])*dx[0],2)
+                            + pow(double(pnt[i][1] - (spnt[j][1] -1))*dx[1],2); 
+            arg /= pow(l,2); 
+            kstar[i][j] = exp(-arg); 
+        }
+        cholesky(kstar[i], K, ks[i][0]); 
+    }
+     
     //Stencil two centered at i-1, j 
-    
+    //Build covariance vector between interpolant points and stencil 
+     for(int i = 0; i < 4; ++i){
+        for(int j = i; j < 5; ++j){
+            arg = pow(double(pnt[i][0] - (spnt[j][0] - 1))*dx[0],2)
+                            + pow(double(pnt[i][1] - spnt[j][1])*dx[1],2); 
+            arg /= pow(l,2); 
+            kstar[i][j] = exp(-arg); 
+        }
+        cholesky(kstar[i], K, ks[i][1]); 
+    }
+     
     //Stencil three is standard i,j 
+    //Build covariance vector between interpolant points and stencil 
+     for(int i = 0; i < 4; ++i){
+        for(int j = i; j < 5; ++j){
+            arg = pow(double(pnt[i][0] - spnt[j][0])*dx[0],2)
+                            + pow(double(pnt[i][1] - spnt[j][1])*dx[1],2); 
+            arg /= pow(l,2); 
+            kstar[i][j] = exp(-arg); 
+        }
+        cholesky(kstar[i], K, ks[i][2]); 
+    }
+     
+//================= Quadrant two i+1/4, j-1/4, three stencils. ===================
 
+    //Stencil one centered at i, j-1 
+    //Build covariance vector between interpolant points and stencil 
+     for(int i = 0; i < 4; ++i){
+        int id = i + 4; 
+        for(int j = i; j < 5; ++j){
+            arg = pow(double(pnt[id][0] - spnt[j][0])*dx[0],2)
+                            + pow(double(pnt[id][1] - (spnt[j][1] -1))*dx[1],2); 
+            arg /= pow(l,2); 
+            kstar[i][j] = exp(-arg); 
+        }
+        cholesky(kstar[i], K, ks[id][0]); 
+    }
+     
+    //Stencil two centered at i, j 
+    //Build covariance vector between interpolant points and stencil 
+     for(int i = 0; i < 4; ++i){
+        int id = i + 4; 
+        for(int j = i; j < 5; ++j){
+            arg = pow(double(pnt[id][0] - spnt[j][0])*dx[0],2)
+                            + pow(double(pnt[id][1] - spnt[j][1])*dx[1],2); 
+            arg /= pow(l,2); 
+            kstar[i][j] = exp(-arg); 
+        }
+        cholesky(kstar[i], K, ks[id][1]); 
+    }
+     
+    //Stencil three centered i+1,j 
+    //Build covariance vector between interpolant points and stencil 
+     for(int i = 0; i < 4; ++i){
+        int id = i + 4; 
+        for(int j = i; j < 5; ++j){
+            arg = pow(double(pnt[id][0] - (spnt[j][0] + 1))*dx[0],2)
+                            + pow(double(pnt[id][1] - spnt[j][1])*dx[1],2); 
+            arg /= pow(l,2); 
+            kstar[i][j] = exp(-arg); 
+        }
+        cholesky(kstar[i], K, ks[id][2]); 
+    }
+
+//============== Quadrant three i-1/4, j+1/4, three stencils. ================
+
+    //Stencil one centered at i-1, j
+    //Build covariance vector between interpolant points and stencil 
+     for(int i = 0; i < 4; ++i){
+        int id = i + 8; 
+        for(int j = i; j < 5; ++j){
+            arg = pow(double(pnt[id][0] - (spnt[j][0]-1))*dx[0],2)
+                            + pow(double(pnt[id][1] - spnt[j][1])*dx[1],2); 
+            arg /= pow(l,2); 
+            kstar[i][j] = exp(-arg); 
+        }
+        cholesky(kstar[i], K, ks[id][0]); 
+    }
+     
+    //Stencil two centered at i, j 
+    //Build covariance vector between interpolant points and stencil 
+     for(int i = 0; i < 4; ++i){
+        int id = i + 8; 
+        for(int j = i; j < 5; ++j){
+            arg = pow(double(pnt[id][0] - spnt[j][0])*dx[0],2)
+                            + pow(double(pnt[id][1] - spnt[j][1])*dx[1],2); 
+            arg /= pow(l,2); 
+            kstar[i][j] = exp(-arg); 
+        }
+        cholesky(kstar[i], K, ks[id][1]); 
+    }
+     
+    //Stencil three centered i+1,j 
+    //Build covariance vector between interpolant points and stencil 
+     for(int i = 0; i < 4; ++i){
+        int id = i + 8; 
+        for(int j = i; j < 5; ++j){
+            arg = pow(double(pnt[id][0] - (spnt[j][0] + 1))*dx[0],2)
+                            + pow(double(pnt[id][1] - spnt[j][1])*dx[1],2); 
+            arg /= pow(l,2); 
+            kstar[i][j] = exp(-arg); 
+        }
+        cholesky(kstar[i], K, ks[id][2]); 
+    }
+
+//============== Quadrant four i+1/4, j+1/4, three stencils. ==============
+
+    //Stencil one centered at i, j
+    //Build covariance vector between interpolant points and stencil 
+     for(int i = 0; i < 4; ++i){
+        int id = i + 12; 
+        for(int j = i; j < 5; ++j){
+            arg = pow(double(pnt[id][0] - spnt[j][0])*dx[0],2)
+                            + pow(double(pnt[id][1] - spnt[j][1])*dx[1],2); 
+            arg /= pow(l,2); 
+            kstar[i][j] = exp(-arg); 
+        }
+        cholesky(kstar[i], K, ks[id][0]); 
+    }
+     
+    //Stencil two centered at i+1, j 
+    //Build covariance vector between interpolant points and stencil 
+     for(int i = 0; i < 4; ++i){
+        int id = i + 12; 
+        for(int j = i; j < 5; ++j){
+            arg = pow(double(pnt[id][0] - (spnt[j][0] + 1))*dx[0],2)
+                            + pow(double(pnt[id][1] - spnt[j][1])*dx[1],2); 
+            arg /= pow(l,2); 
+            kstar[i][j] = exp(-arg); 
+        }
+        cholesky(kstar[i], K, ks[id][1]); 
+    }
+     
+    //Stencil three centered i,j+1
+    //Build covariance vector between interpolant points and stencil 
+     for(int i = 0; i < 4; ++i){
+        int id = i + 12; 
+        for(int j = i; j < 5; ++j){
+            arg = pow(double(pnt[id][0] - spnt[j][0])*dx[0],2)
+                            + pow(double(pnt[id][1] - (spnt[j][1]+1))*dx[1],2); 
+            arg /= pow(l,2); 
+            kstar[i][j] = exp(-arg); 
+        }
+        cholesky(kstar[i], K, ks[id][2]); 
+    }
+}
+
+//Perfroms Cholesky Decomposition on covariance matrix K
+void
+CellGaussianProcess::CholeskyDecomp(amrex::Real *K)
+{
+}
+
+//Performs Cholesky Backsubstitution 
+void 
+CellGaussianProcess::cholesky(amrex::Real const kstar[], amrex::Real const K[], 
+                              amrex::Real ks[])
+{
+
+
+}
+
+
+void
+CellGaussianProcess::GetGamma(const amrex::Real *Ktot)
+{
+    
 
 }
 
@@ -971,10 +1154,6 @@ CellGaussianProcess::GetEigenPairs(const amrex::Real *K)
 
 }
 
-void
-CellGaussianProcess::GetGamma(const amrex::Real *K, const amrex::Real *Ktot)
-{
-}
 
 void
 CellGaussianProcess::interp (const FArrayBox& crse,
