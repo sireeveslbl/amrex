@@ -1126,18 +1126,18 @@ CellGaussianProcess::GetKs(amrex::Real const *K, amrex::Real const *dx)
 
 //Perfroms Cholesky Decomposition on covariance matrix K
 void
-CellGaussianProcess::CholeskyDecomp(amrex::Real *K)
+CellGaussianProcess::CholeskyDecomp(amrex::Real *K, const int n)
 {
-     for(int i = 0; i < 5; ++i){
-        for( int j = i; j < 5; ++j){
-            K[i + 5*i] -= K[j + 5*i]*K[j + 5*i]; 
+     for(int i = 0; i < n; ++i){
+        for( int j = i; j < n; ++j){
+            K[i + n*i] -= K[j + n*i]*K[j + n*i]; 
         }
-        K[i + 5*i] = sqrt(K[i + 5*i]); 
-        for(int j = i+1; j < 5; ++j){
+        K[i + n*i] = sqrt(K[i + n*i]); 
+        for(int j = i+1; j < n; ++j){
             for(int k = 0; k < j; ++j){
-                K[j + 5*i] -= K[j + 5*k]*K[i + 5*k]; 
+                K[j + n*i] -= K[j + n*k]*K[i + n*k]; 
             }
-        K[j + 5*i] /= K[j + 5*j]; 
+        K[j + n*i] /= K[j + n*j]; 
         }
     }
 }
@@ -1145,23 +1145,168 @@ CellGaussianProcess::CholeskyDecomp(amrex::Real *K)
 //Performs Cholesky Backsubstitution 
 void 
 CellGaussianProcess::cholesky(amrex::Real const *kstar, amrex::Real const *K, 
-                              amrex::Real *ks)
+                              amrex::Real *ks, const int n)
 {
     /* Forward sub Ly = b */ 
-    for(int i = 0; i < 5; ++i){
+    for(int i = 0; i < n; ++i){
         ks[i] = 0.0e0; 
         for(int j = 0; j < i; ++j)
             ks[i] = ks[i] + kstar[j]*K[j + 5*i]; 
-        ks[i] /= K[i + 5*i]; 
+        ks[i] /= K[i + n*i]; 
     }
     /* Back sub Ux = y */ 
-    for(int i = 4; i >= 0; --i){
-        for(int j = i; j < 5; ++j)
-            ks[i] -= K[j + 5*i]*ks[j]; 
-        ks[i] /= K[i + 5*i]; 
+    for(int i = n-1; i >= 0; --i){
+        for(int j = i; j < n; ++j)
+            ks[i] -= K[j + n*i]*ks[j]; 
+        ks[i] /= K[i + n*i]; 
     }   
 }
 
+// Here we are using the 4 Ktotols to get the total weights for each quadrant. 
+// In this case, we will have 4 new points per quadrant 
+// Therefore, we will need 16 k*^T Ktot^(-1) 
+void 
+CellGaussianProcess::GetKtotks(const amrex::Real *Ktot, const amrex::Real ks[16][])
+{
+    //Locations of new points relative to i,j 
+    amrex::Real pnt[16][2]; 
+    pnt[0][0] = -.375,  pnt[0][1] = -.375; 
+    pnt[1][0] = -.125,  pnt[1][1] = -.375; 
+    pnt[2][0] = 0.125,  pnt[2][1] = -.375; 
+    pnt[3][0] = 0.375,  pnt[3][1] = -.375; 
+    pnt[4][0] = -.375,  pnt[4][1] = -.125; 
+    pnt[5][0] = -.125,  pnt[5][1] = -.125; 
+    pnt[6][0] = 0.125,  pnt[6][1] = -.125; 
+    pnt[7][0] = 0.375,  pnt[7][1] = -.125; 
+    pnt[8][0] = -.375,  pnt[8][1] = 0.125; 
+    pnt[9][0] = -.125,  pnt[9][1] = 0.125; 
+    pnt[10][0] = 0.125, pnt[10][1] = 0.125; 
+    pnt[11][0] = 0.375, pnt[11][1] = 0.125; 
+    pnt[12][0] = -.375, pnt[12][1] = 0.375; 
+    pnt[13][0] = -.125, pnt[13][1] = 0.375; 
+    pnt[14][0] = 0.125, pnt[14][1] = 0.375; 
+    pnt[15][0] = 0.375, pnt[15][1] = 0.375; 
+
+    amrex::Real *K; 
+
+    //Super K positions 
+    int spnt[10][2]; 
+// i-1/4,j-1/4 
+    spnt[0][0] =  0, spnt[0][1] = -2; 
+    spnt[1][0] = -1, spnt[1][1] = -1; 
+    spnt[2][0] =  0, spnt[2][1] = -1; 
+    spnt[3][0] =  1, spnt[3][1] = -1; 
+    spnt[4][0] = -2, spnt[4][1] =  0; 
+    spnt[5][0] = -1, spnt[5][1] =  0; 
+    spnt[6][0] =  0, spnt[6][1] =  0; 
+    spnt[7][0] =  1, spnt[7][1] =  0; 
+    spnt[8][0] = -1, spnt[8][1] =  1;
+    spnt[9][0] =  0, spnt[9][1] =  1;
+    
+/*    for(int i = 0; i < 10; ++i)
+        for(int j = 0; j < 10; ++j)
+            K[j + 10*i] = Ktot[j + 10*i]; 
+*/ 
+   K = &Ktot; 
+   CholeskyDecomp(K, 10); 
+    
+    for(int i = 0; i < 4; ++i){
+       for(int j = i; j < 10; ++j){
+           arg = pow(double(pnt[i][0] - spnt[j][0])*dx[0],2)
+               + pow(double(pnt[i][1] - spnt[j][1])*dx[1],2); 
+            arg /= pow(l,2); 
+            kstar[i][j] = exp(-arg); 
+        }
+        cholesky(kstar[i], K, ks[i], 10); 
+    }
+  
+    // i+1/4,j-1/4 
+    spnt[0][0] =  0, spnt[0][1] = -2; 
+    spnt[1][0] = -1, spnt[1][1] = -1; 
+    spnt[2][0] =  0, spnt[2][1] = -1; 
+    spnt[3][0] =  1, spnt[3][1] = -1; 
+    spnt[4][0] = -1, spnt[4][1] =  0; 
+    spnt[5][0] =  0, spnt[5][1] =  0; 
+    spnt[6][0] =  1, spnt[6][1] =  0; 
+    spnt[7][0] =  2, spnt[7][1] =  0; 
+    spnt[8][0] =  0, spnt[8][1] =  1;
+    spnt[9][0] =  1, spnt[9][1] =  1; 
+
+/*    for(int i = 0; i < 10; ++i)
+        for(int j = 0; j < 10; ++j)
+            K[j + 10*i] = Ktot[j + 10*i + 100]; 
+*/ 
+   K = &Ktot + 100; 
+   CholeskyDecomp(K, 10); 
+    
+    for(int i = 4; i < 8; ++i){
+       for(int j = i; j < 10; ++j){
+           arg = pow(double(pnt[i][0] - spnt[j][0])*dx[0],2)
+               + pow(double(pnt[i][1] - spnt[j][1])*dx[1],2); 
+            arg /= pow(l,2); 
+            kstar[i][j] = exp(-arg); 
+        }
+        cholesky(kstar[i], K, ks[i], 10); 
+    }
+
+// i-1/4,j+1/4 
+    spnt[0][0] = -1, spnt[0][1] = -1; 
+    spnt[1][0] =  0, spnt[1][1] = -1; 
+    spnt[2][0] = -2, spnt[2][1] =  0; 
+    spnt[3][0] = -1, spnt[3][1] =  0; 
+    spnt[4][0] =  0, spnt[4][1] =  0; 
+    spnt[5][0] =  1, spnt[5][1] =  0; 
+    spnt[6][0] = -1, spnt[6][1] =  1; 
+    spnt[7][0] =  0, spnt[7][1] =  1; 
+    spnt[8][0] =  1, spnt[8][1] =  1;
+    spnt[9][0] =  0, spnt[9][1] =  2; 
+/*    for(int i = 0; i < 10; ++i)
+        for(int j = 0; j < 10; ++j)
+            K[j + 10*i] = Ktot[j + 10*i + 200]; 
+*/ 
+   K = &Ktot + 200; 
+   CholeskyDecomp(K, 10); 
+    
+    for(int i = 8; i
+ < 12; ++i){
+       for(int j = i; j < 10; ++j){
+           arg = pow(double(pnt[i][0] - spnt[j][0])*dx[0],2)
+               + pow(double(pnt[i][1] - spnt[j][1])*dx[1],2); 
+            arg /= pow(l,2); 
+            kstar[i][j] = exp(-arg); 
+        }
+        cholesky(kstar[i], K, ks[i], 10); 
+    }
+
+// i+1/4,j+1/4 
+    spnt[0][0] =  0, spnt[0][1] = -1; 
+    spnt[1][0] =  1, spnt[1][1] = -1; 
+    spnt[2][0] = -1, spnt[2][1] =  0; 
+    spnt[3][0] =  0, spnt[3][1] =  0; 
+    spnt[4][0] =  1, spnt[4][1] =  0; 
+    spnt[5][0] =  2, spnt[5][1] =  0; 
+    spnt[6][0] = -1, spnt[6][1] =  1; 
+    spnt[7][0] =  0, spnt[7][1] =  1; 
+    spnt[8][0] =  1, spnt[8][1] =  1;
+    spnt[9][0] =  0, spnt[9][1] =  2; 
+
+/*    for(int i = 0; i < 10; ++i)
+        for(int j = 0; j < 10; ++j)
+            K[j + 10*i] = Ktot[j + 10*i + 300]; */ 
+   K = &Ktot + 300; 
+   CholeskyDecomp(K, 10); 
+    
+    for(int i = 12; i < 16; ++i){
+       for(int j = i; j < 10; ++j){
+           arg = pow(double(pnt[i][0] - spnt[j][0])*dx[0],2)
+               + pow(double(pnt[i][1] - spnt[j][1])*dx[1],2); 
+            arg /= pow(l,2); 
+            kstar[i][j] = exp(-arg); 
+        }
+        cholesky(kstar[i], K, ks[i], 10); 
+    }
+
+}
 
 void
 CellGaussianProcess::GetGamma(const amrex::Real *Ktot)
