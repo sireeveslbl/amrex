@@ -76,8 +76,6 @@ public:
                              const amrex::MultiFab& Bz,
                              amrex::Real      dt);
 
-    void PushParticlePositions(amrex::Real dt);
-
     void RedistributeLocal()
     {
         const int lev_min = 0;
@@ -86,7 +84,7 @@ public:
         const int local = 1;
         Redistribute(lev_min, lev_max, nGrow, local);
     }
-    
+
 protected:
 
     int m_species_id;
