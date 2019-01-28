@@ -1319,6 +1319,18 @@ CellGaussianProcess::GetGamma(const amrex::Real *Ktot)
 void 
 CellGaussianProcess::GetEigenPairs(const amrex::Real *K)
 {
+    std::vector<amrex::Real, 25> p; 
+    hessen(K, p);
+    for(int j = 5; j > 1; j--){
+        amrex::Real er = 1.e0; 
+        while(er> 1.e-10){
+            amrex::Real mu = K(j + 5*j); 
+            qr_decomp(B, Q); 
+            qr_appl(B, Q); 
+            if(j < 5)
+        }
+
+    }
 
 }
 
