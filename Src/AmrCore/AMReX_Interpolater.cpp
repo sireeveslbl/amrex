@@ -1325,13 +1325,28 @@ CellGaussianProcess::GetEigenPairs(const amrex::Real *K)
         amrex::Real er = 1.e0; 
         while(er> 1.e-10){
             amrex::Real mu = K(j + 5*j); 
+#pragma unroll 
+            for(int i = 0; i < 5; i++)
+                P[i + 5*i] -= mu;   
             qr_decomp(B, Q); 
-            qr_appl(B, Q); 
-            if(j < 5)
+            qr_appl(B, Q, 5); 
+            if(j < 5){
+                qr_appl(P, q, j);                 
+            }
+            for(int i = 0; i < j; i++)
+#pragma unroll
+                for(int k = 0; k < j; k++)
+                    V_iter[i][k] = Q[i][k];
+            
+            q_appl(V,V_iter,5); 
+#pragma unroll
+            for(int i = 0; i < 5; i++)
+                B[i + 5*i] += mu; 
+
+            er = fabs(B[j + 5*(j-1)]); 
         }
-
     }
-
+//Since K is symmetric the eigenvectors are converged. 
 }
 
 
