@@ -545,8 +545,6 @@ public:
       return doUnlink;
     }
 
-protected:
-
     void RedistributeCPU (int lev_min = 0, int lev_max = -1, int nGrow = 0, int local=0);
 
     void RedistributeGPU (int lev_min = 0, int lev_max = -1, int nGrow = 0, int local=0);
@@ -554,6 +552,16 @@ protected:
     bool OKCPU (int lev_min = 0, int lev_max = -1, int nGrow = 0) const;
 
     bool OKGPU (int lev_min = 0, int lev_max = -1, int nGrow = 0) const;
+
+#ifdef AMREX_USE_CUDA
+    void RedistributeMPIGPU (const std::map<int, size_t>& send_bytes,
+                             Vector<int>& DstProc, Vector<std::size_t>& sOffset,
+                             char* snd_buffer);
+    
+    void EnforcePeriodicGPU ();
+#endif
+
+protected:
 
     //
     // Checks a particle's location on levels lev_min and higher.
@@ -631,19 +639,20 @@ protected:
     mutable IntVector  m_idata_r;
 
     mutable thrust::device_vector<int> m_grids_r;
-
+    mutable thrust::device_vector<int> m_lo;
+    mutable thrust::device_vector<int> m_hi;
+    mutable thrust::device_vector<int> m_output;
+    
     mutable thrust::device_vector<amrex::IntVect> m_cells_tmp;
     mutable thrust::device_vector<int> m_grids_tmp;
     mutable thrust::device_vector<int> m_grid_begin;
     mutable thrust::device_vector<int> m_grid_end;    
     mutable thrust::device_vector<int> m_index_sequence_tmp;
-    mutable std::map<int, thrust::device_vector<char> > m_not_ours;
-    mutable thrust::device_vector<char> m_recvdata;
     #endif
     
 private:
 
-    virtual void particlePostLocate(const ParticleType& p, const ParticleLocData& pld,
+    virtual void particlePostLocate(ParticleType& p, const ParticleLocData& pld,
                                     const int lev) {};
     
     virtual void correctCellVectors(int old_index, int new_index,
@@ -651,13 +660,6 @@ private:
 
     void RedistributeMPI (std::map<int, Vector<char> >& not_ours,
 			  int lev_min = 0, int lev_max = 0, int nGrow = 0, int local=0);
-
-#ifdef AMREX_USE_CUDA
-    void RedistributeMPIGPU ();
-    
-    void EnforcePeriodicGPU ();
-
-#endif
 
     void locateParticle(ParticleType& p, ParticleLocData& pld,
                         int lev_min, int lev_max, int nGrow, int local_grid=-1) const;
