@@ -1308,11 +1308,48 @@ CellGaussianProcess::GetKtotks(const amrex::Real *Ktot, const amrex::Real ks[16]
 
 }
 
-void
-CellGaussianProcess::GetGamma(const amrex::Real *Ktot)
-{
-    
 
+//This will need to be called from a bigger function for 
+//each point in each quadrant. Essentially each point will have its
+//own set of gammas. 
+void
+CellGaussianProcess::GetGamma(amrex::Real const ks[3][5],
+                              amrex::Real const Kt[10], 
+                              amrex::Real &gam[3])
+{
+// We will try the normal equations for this portion. So we need to construct 
+// each partitions' over-determined system.
+ 
+    amrex::Real A[9] = {}; 
+    amrex::Real RHS[3] = {}; 
+
+//Fill A from data
+
+    for(int i = 0; i < 5; ++i){
+        A[0] += ks[0][i]*ks[0][i]; 
+        A[4] += ks[1][i]*ks[1][i]; 
+        A[8] += ks[2][i]*ks[2][i]; 
+    }
+
+    A[1] = ks[0][2]*ks[1][1] + ks[0][3]*ks[1][2]; 
+    A[3] = A[1]; 
+    A[2] = ks[0][1]*ks[2][0] + ks[0][3]*ks[2][1]; 
+    A[6] = A[2]; 
+    A[5] = ks[2][1]*ks[1][2] + ks[1][3]*ks[2][2]; 
+    A[7] = A[5]; 
+    CholeskyDecomp(A, 3); 
+
+//Fill RHS 
+    RHS[0] = ks[0][0]*Kt[0] + ks[0][1]*Kt[2] + ks[0][2]*Kt[3]
+           + ks[0][3]*Kt[4] + ks[0][4]*Kt[7]; 
+
+    RHS[1] = ks[1][0]*Kt[1] + ks[1][1]*Kt[3] + ks[1][2]*Kt[4]
+           + ks[1][3]*Kt[5] + ks[1][4]*Kt[8]; 
+
+    RHS[2] = ks[2][0]*Kt[2] + ks[2][1]*Kt[4] + ks[2][2]*Kt[5]
+           + ks[2][3]*Kt[6] + ks[2][4]*Kt[9]; 
+
+    cholesky(RHS,A,gam,3); 
 }
 
 //Use Shifted QR with deflation to get eigen pairs. 
@@ -1324,7 +1361,7 @@ CellGaussianProcess::GetEigenPairs(const amrex::Real *K)
     for(int j = 5; j > 1; j--){
         amrex::Real er = 1.e0; 
         while(er> 1.e-10){
-            amrex::Real mu = K(j + 5*j); 
+            amrex::Real mu = K[j + 5*j]; 
 #pragma unroll 
             for(int i = 0; i < 5; i++)
                 P[i + 5*i] -= mu;   
