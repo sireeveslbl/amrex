@@ -39,7 +39,7 @@ MDParticleContainer::
 MDParticleContainer(const Geometry            & a_geom,
                     const DistributionMapping & a_dmap,
                     const BoxArray            & a_ba)
-    : ParticleContainer<0, 0, PIdx::nattribs, 0>(a_geom, a_dmap, a_ba)
+    : ParticleContainer<PIdx::ncomps>(a_geom, a_dmap, a_ba)
 {}
 
 void
@@ -60,15 +60,11 @@ InitParticles(const IntVect& a_num_particles_per_cell,
                                      *a_num_particles_per_cell[1],
                                      *a_num_particles_per_cell[2]);
 
-    std::array<Real,PIdx::nattribs> attribs;
-    attribs.fill(0.0);    
-
     for(MFIter mfi = MakeMFIter(lev); mfi.isValid(); ++mfi)
     {
         const Box& tile_box  = mfi.tilebox();
 
         Cuda::HostVector<ParticleType> host_particles;
-        std::array<Cuda::HostVector<Real>, PIdx::nattribs> host_attribs;
         
         for (IntVect iv = tile_box.smallEnd(); iv <= tile_box.bigEnd(); tile_box.next(iv)) {
             for (int i_part=0; i_part<num_ppc;i_part++) {
@@ -91,17 +87,15 @@ InitParticles(const IntVect& a_num_particles_per_cell,
                 p.pos(1) = y;
                 p.pos(2) = z;
                 
-                attribs[PIdx::vx] = v[0];
-                attribs[PIdx::vy] = v[1];
-                attribs[PIdx::vz] = v[2];
+                p.rdata(PIdx::vx) = v[0];
+                p.rdata(PIdx::vy) = v[1];
+                p.rdata(PIdx::vz) = v[2];
 
-                attribs[PIdx::ax] = 0.0;
-                attribs[PIdx::ay] = 0.0;
-                attribs[PIdx::az] = 0.0;
+                p.rdata(PIdx::ax) = 0.0;
+                p.rdata(PIdx::ay) = 0.0;
+                p.rdata(PIdx::az) = 0.0;
                 
                 host_particles.push_back(p);
-                for (int kk = 0; kk < PIdx::nattribs; ++kk)
-                    host_attribs[kk].push_back(attribs[kk]);                
             }
         }
         
@@ -113,14 +107,7 @@ InitParticles(const IntVect& a_num_particles_per_cell,
         
         Cuda::thrust_copy(host_particles.begin(),
                           host_particles.end(),
-                          particle_tile.GetArrayOfStructs().begin() + old_size);
-        
-        for (int kk = 0; kk < PIdx::nattribs; ++kk)
-        {
-            Cuda::thrust_copy(host_attribs[kk].begin(),
-                              host_attribs[kk].end(),
-                              particle_tile.GetStructOfArrays().GetRealData(kk).begin() + old_size);
-        }
+                          particle_tile.GetArrayOfStructs().begin() + old_size);        
     }
 }
 
@@ -132,8 +119,6 @@ void MDParticleContainer::BuildNeighborList()
     const Geometry& geom = Geom(lev);
     const auto dxi = Geom(lev).InvCellSizeArray();
     const auto plo = Geom(lev).ProbLoArray();
-    const BoxArray& ba   = ParticleBoxArray(lev);
-    const DistributionMapping& dmap = ParticleDistributionMap(lev);
     auto& plev  = GetParticles(lev);
 
     for(MFIter mfi = MakeMFIter(lev); mfi.isValid(); ++mfi)
@@ -147,7 +132,6 @@ void MDParticleContainer::BuildNeighborList()
 
         auto& ptile = plev[std::make_pair(gid, tid)];
         auto& aos   = ptile.GetArrayOfStructs();
-        auto& soa   = ptile.GetStructOfArrays();
         const size_t np = aos.numParticles();
 
         thrust::device_vector<unsigned int> cells(np);
@@ -184,10 +168,12 @@ void MDParticleContainer::BuildNeighborList()
 
         thrust::copy(offsets.begin(), offsets.end()-1, counts.begin());
 
+        constexpr unsigned int max_unsigned_int = std::numeric_limits<unsigned int>::max();
+
         AMREX_FOR_1D ( np, i,
         {
             unsigned int index = atomicInc(&pcount[pcell[i]],
-                                           std::numeric_limits<unsigned int>::max());
+                                           max_unsigned_int);
             pperm[index] = i;
         });
 
@@ -262,6 +248,31 @@ void MDParticleContainer::BuildNeighborList()
             }
         });
 
+        // now we loop over the neighbor list and compute the forces
+        AMREX_FOR_1D ( np, i,
+        {
+            pstruct[i].rdata(PIdx::ax) = 0.0;
+            pstruct[i].rdata(PIdx::ay) = 0.0;
+            pstruct[i].rdata(PIdx::az) = 0.0;
+
+            for (int k = pnbor_offset[i]; k < pnbor_offset[i+1]; ++k) {
+                int j = pnbor_list[k];
+                
+                Real dx = pstruct[i].pos(0) - pstruct[j].pos(0);
+                Real dy = pstruct[i].pos(1) - pstruct[j].pos(1);
+                Real dz = pstruct[i].pos(2) - pstruct[j].pos(2);
+
+                Real r2 = dx*dx + dy*dy + dz*dz;
+                r2 = amrex::max(r2, Params::min_r*Params::min_r);
+                Real r = sqrt(r2);
+
+                Real coef = (1.0 - Params::cutoff / r) / r2 / Params::mass;
+                pstruct[i].rdata(PIdx::ax) += coef * dx;
+                pstruct[i].rdata(PIdx::ay) += coef * dy;
+                pstruct[i].rdata(PIdx::az) += coef * dz;                
+            }
+        });
+        
         // for (int i = 0; i < np; ++i) {
         //     amrex::Print() << "Particle " << i << " will collide with: ";
         //     for (int j = nbor_offsets[i]; j < nbor_offsets[i+1]; ++j) {
@@ -270,4 +281,51 @@ void MDParticleContainer::BuildNeighborList()
         //     amrex::Print() << "\n";
         // }
     }
+}
+
+void MDParticleContainer::moveParticles(const amrex::Real& dt)
+{
+    BL_PROFILE("MDParticleContainer::moveParticles");
+
+    const int lev = 0;
+    const Geometry& geom = Geom(lev);
+    const auto plo = Geom(lev).ProbLoArray();
+    const auto phi = Geom(lev).ProbHiArray();
+    auto& plev  = GetParticles(lev);
+
+    for(MFIter mfi = MakeMFIter(lev); mfi.isValid(); ++mfi)
+    {
+        int gid = mfi.index();
+        int tid = mfi.LocalTileIndex();
+        
+        auto& ptile = plev[std::make_pair(gid, tid)];
+        auto& aos   = ptile.GetArrayOfStructs();
+        ParticleType* pstruct = &(aos[0]);
+
+        const size_t np = aos.numParticles();
+    
+        // now we move the particles
+        AMREX_FOR_1D ( np, i,
+        {
+            pstruct[i].rdata(PIdx::vx) += pstruct[i].rdata(PIdx::ax) * dt;
+            pstruct[i].rdata(PIdx::vy) += pstruct[i].rdata(PIdx::ay) * dt;
+            pstruct[i].rdata(PIdx::vz) += pstruct[i].rdata(PIdx::az) * dt;
+
+            pstruct[i].pos(0) += pstruct[i].rdata(PIdx::vx) * dt;
+            pstruct[i].pos(1) += pstruct[i].rdata(PIdx::vy) * dt;
+            pstruct[i].pos(2) += pstruct[i].rdata(PIdx::vz) * dt;
+
+            for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
+                while ( (pstruct[i].pos(idim) < plo[idim]) or (pstruct[i].pos(idim) > phi[idim]) ) {
+                    if ( pstruct[i].pos(idim) < plo[idim] ) {
+                        pstruct[i].pos(idim) = 2*plo[idim] - pstruct[i].pos(idim);
+                    } else {
+                        pstruct[i].pos(idim) = 2*phi[idim] - pstruct[i].pos(idim);
+                    }
+                    pstruct[i].rdata(idim) *= -1; // flip velocity
+                }
+            }
+        
+        });
+    }        
 }
