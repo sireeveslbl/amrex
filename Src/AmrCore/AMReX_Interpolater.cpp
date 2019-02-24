@@ -1386,6 +1386,29 @@ CellGaussianProcess::GetEigenPairs(const amrex::Real *K)
 //Since K is symmetric the eigenvectors are converged. 
 }
 
+template <size_t rows> 
+void 
+CellGaussianProcess::q_appl(amrex::Real (&A)[rows][rows], 
+                            amrex::Real (&V)[rows][rows])
+{
+    for(int i = 0; i < rows; ++i) 
+        q_appl_vec(A[i], V); 
+}
+
+template <size_t rows> 
+void 
+CellGaussianProcess::q_appl_vec(amrex::Real (&A)[rows], 
+                                amrex::Real (&V)[rows][rows])
+{
+    for(int i = 0; i < rows; ++i) 
+        {
+            amrex::Real temp = 0; 
+            for(int j = 0; j < rows; ++j)
+                temp += A[i]*V[j][i]; 
+            for(int j = 0; j < rows; ++j) 
+                A[j] -= 2*V[j][i]*temp; 
+        }
+}
 
 void
 CellGaussianProcess::interp (const FArrayBox& crse,
