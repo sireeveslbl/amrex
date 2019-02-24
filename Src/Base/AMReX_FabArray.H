@@ -300,7 +300,7 @@ public:
 
     //! Set all components in the entire region of each FAB to val.
     template <class = typename std::enable_if<IsBaseFab<FAB>::value> >
-    void operator= (const value_type& val);
+    void operator= (value_type val);
 
     /**
     * \brief Set the value of num_comp components in the valid region of
@@ -364,6 +364,12 @@ public:
     void setVal (value_type val,
                  const Box& region,
                  const IntVect& nghost);
+
+    template <class = typename std::enable_if<IsBaseFab<FAB>::value> >
+    void abs (int comp, int num_comp, int nghost = 0);
+
+    template <class = typename std::enable_if<IsBaseFab<FAB>::value> >
+    void abs (int comp, int num_comp, const IntVect& nghost);
 
     template <class = typename std::enable_if<IsBaseFab<FAB>::value> >
     void plus (value_type val, int comp, int num_comp, int nghost = 0);
@@ -1516,7 +1522,7 @@ FabArray<FAB>::setVal (value_type val)
 template <class FAB>
 template <class>
 void
-FabArray<FAB>::operator= (const value_type& val)
+FabArray<FAB>::operator= (value_type val)
 {
     setVal(val);
 }
@@ -1599,6 +1605,35 @@ FabArray<FAB>::setVal (value_type val,
                 fab(i,j,k,n+comp) = val;
             });
         }
+    }
+}
+
+template <class FAB>
+template <class FOO>  // FOO fools nvcc
+void
+FabArray<FAB>::abs (int comp, int ncomp, int nghost)
+{
+    abs(comp, ncomp, IntVect(nghost));
+}
+
+template <class FAB>
+template <class FOO>  // FOO fools nvcc
+void
+FabArray<FAB>::abs (int comp, int ncomp, const IntVect& nghost)
+{
+    BL_ASSERT(nghost.allGE(IntVect::TheZeroVector()) && nghost.allLE(n_grow));
+    BL_ASSERT(comp+ncomp <= n_comp);
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+    for (MFIter mfi(*this,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const Box& bx = mfi.growntilebox(nghost);
+        auto fab = this->array(mfi);
+        AMREX_HOST_DEVICE_FOR_4D ( bx, ncomp, i, j, k, n,
+        {
+            fab(i,j,k,n+comp) = std::abs(fab(i,j,k,n+comp));
+        });
     }
 }
 
