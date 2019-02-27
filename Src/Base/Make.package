@@ -62,6 +62,9 @@ C$(AMREX_BASE)_sources += AMReX_CudaAsyncFabImpl.cpp
 C$(AMREX_BASE)_headers += AMReX_CudaAsyncArray.H
 C$(AMREX_BASE)_sources += AMReX_CudaAsyncArray.cpp
 
+C$(AMREX_BASE)_headers += AMReX_CudaElixir.H
+C$(AMREX_BASE)_sources += AMReX_CudaElixir.cpp
+
 #
 # I/O stuff.
 #
@@ -145,8 +148,8 @@ C$(AMREX_BASE)_headers += AMReX_FilCC_C.H AMReX_FilCC_$(DIM)D_C.H
 # Plotfile
 #
 ifneq ($(BL_NO_FORT),TRUE)
-  C$(AMREX_BASE)_sources += AMReX_PlotFileUtil.cpp
-  C$(AMREX_BASE)_headers += AMReX_PlotFileUtil.H
+  C$(AMREX_BASE)_sources += AMReX_PlotFileUtil.cpp AMReX_PlotFileDataImpl.cpp
+  C$(AMREX_BASE)_headers += AMReX_PlotFileUtil.H AMReX_PlotFileDataImpl.H
 endif
 
 #
@@ -162,7 +165,6 @@ ifneq ($(BL_NO_FORT),TRUE)
   F90$(AMREX_BASE)_headers += AMReX_filcc_f.H
 
   F90$(AMREX_BASE)_sources += AMReX_BLutil_F.F90
-  F90$(AMREX_BASE)_sources += AMReX_BLBoxLib_F.F90
   F90$(AMREX_BASE)_sources += AMReX_BLProfiler_F.F90
 
   f90$(AMREX_BASE)_sources +=  AMReX_constants_mod.f90

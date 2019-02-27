@@ -16,7 +16,7 @@ ReduceSum (FabArray<FAB> const& fa, int nghost, F f)
     using value_type = typename FAB::value_type;
     value_type sm = 0;
 
-#ifdef AMREX_USE_GPU
+#ifdef AMREX_USE_CUDA
     if (Gpu::inLaunchRegion())
     {
         AsyncArray<value_type> as_sm(&sm, 1);
@@ -76,7 +76,7 @@ ReduceSum (FabArray<FAB1> const& fa1, FabArray<FAB2> const& fa2,
     using value_type = typename FAB1::value_type;
     value_type sm = 0;
 
-#ifdef AMREX_USE_GPU
+#ifdef AMREX_USE_CUDA
     if (Gpu::inLaunchRegion())
     {
         AsyncArray<value_type> as_sm(&sm, 1);
@@ -137,7 +137,7 @@ ReduceSum (FabArray<FAB1> const& fa1, FabArray<FAB2> const& fa2, FabArray<FAB3> 
     using value_type = typename FAB1::value_type;
     value_type sm = 0;
 
-#ifdef AMREX_USE_GPU
+#ifdef AMREX_USE_CUDA
     if (Gpu::inLaunchRegion())
     {
         AsyncArray<value_type> as_sm(&sm, 1);
@@ -199,7 +199,7 @@ ReduceMin (FabArray<FAB> const& fa, int nghost, F f)
     constexpr value_type value_max = std::numeric_limits<value_type>::max();
     value_type r = value_max;
 
-#ifdef AMREX_USE_GPU
+#ifdef AMREX_USE_CUDA
     if (Gpu::inLaunchRegion())
     {
         AsyncArray<value_type> as_r(&r, 1);
@@ -264,7 +264,7 @@ ReduceMin (FabArray<FAB1> const& fa1, FabArray<FAB2> const& fa2, int nghost, F f
     constexpr value_type value_max = std::numeric_limits<value_type>::max();
     value_type r = value_max;
 
-#ifdef AMREX_USE_GPU
+#ifdef AMREX_USE_CUDA
     if (Gpu::inLaunchRegion())
     {
         AsyncArray<value_type> as_r(&r, 1);
@@ -330,7 +330,7 @@ ReduceMax (FabArray<FAB> const& fa, int nghost, F f)
     constexpr value_type value_lowest = std::numeric_limits<value_type>::lowest();
     value_type r = value_lowest;
 
-#ifdef AMREX_USE_GPU
+#ifdef AMREX_USE_CUDA
     if (Gpu::inLaunchRegion())
     {
         AsyncArray<value_type> as_r(&r, 1);
@@ -395,7 +395,7 @@ ReduceMax (FabArray<FAB1> const& fa1, FabArray<FAB2> const& fa2, int nghost, F f
     constexpr value_type value_lowest = std::numeric_limits<value_type>::lowest();
     value_type r = value_lowest;
 
-#ifdef AMREX_USE_GPU
+#ifdef AMREX_USE_CUDA
     if (Gpu::inLaunchRegion())
     {
         AsyncArray<value_type> as_r(&r, 1);
@@ -459,7 +459,7 @@ ReduceLogicalAnd (FabArray<FAB> const& fa, int nghost, F f)
 {
     int r = true;
 
-#ifdef AMREX_USE_GPU
+#ifdef AMREX_USE_CUDA
     if (Gpu::inLaunchRegion())
     {
         AsyncArray<int> as_r(&r, 1);
@@ -518,7 +518,7 @@ ReduceLogicalAnd (FabArray<FAB1> const& fa1, FabArray<FAB2> const& fa2,
 {
     int r = true;
 
-#ifdef AMREX_USE_GPU
+#ifdef AMREX_USE_CUDA
     if (Gpu::inLaunchRegion())
     {
         AsyncArray<int> as_r(&r, 1);
@@ -577,7 +577,7 @@ ReduceLogicalOr (FabArray<FAB> const& fa, int nghost, F f)
 {
     int r = false;
 
-#ifdef AMREX_USE_GPU
+#ifdef AMREX_USE_CUDA
     if (Gpu::inLaunchRegion())
     {
         AsyncArray<int> as_r(&r, 1);
@@ -636,7 +636,7 @@ ReduceLogicalOr (FabArray<FAB1> const& fa1, FabArray<FAB2> const& fa2,
 {
     int r = false;
 
-#ifdef AMREX_USE_GPU
+#ifdef AMREX_USE_CUDA
     if (Gpu::inLaunchRegion())
     {
         AsyncArray<int> as_r(&r, 1);
@@ -857,6 +857,37 @@ template <class FAB,
           class bar = amrex::EnableIf_t<IsBaseFab<FAB>::value> >
 void
 Divide (FabArray<FAB>& dst, FabArray<FAB> const& src, int srccomp, int dstcomp, int numcomp, const IntVect& nghost)
+{
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+    for (MFIter mfi(dst,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const Box& bx = mfi.growntilebox(nghost);
+        if (bx.ok())
+        {
+            auto const srcFab = src.array(mfi);
+            auto       dstFab = dst.array(mfi);
+            AMREX_HOST_DEVICE_FOR_4D ( bx, numcomp, i, j, k, n,
+            {
+                dstFab(i,j,k,n+dstcomp) /= srcFab(i,j,k,n+srccomp);
+            });
+        }
+    }
+}
+
+template <class FAB,
+          class bar = amrex::EnableIf_t<IsBaseFab<FAB>::value> >
+void
+Abs (FabArray<FAB>& dst, FabArray<FAB> const& src, int srccomp, int dstcomp, int numcomp, int nghost)
+{
+    Abs(dst,src,srccomp,dstcomp,numcomp,IntVect(nghost));
+}
+
+template <class FAB,
+          class bar = amrex::EnableIf_t<IsBaseFab<FAB>::value> >
+void
+Abs (FabArray<FAB>& dst, FabArray<FAB> const& src, int srccomp, int dstcomp, int numcomp, const IntVect& nghost)
 {
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
