@@ -1046,6 +1046,119 @@ CellGaussianProcess::GetKtotks(const amrex::Real K1[13][13], amrex::Real &ks[16]
     } 
 }
 
+//Solves Ux = b where U is upper triangular
+template<size_t n> 
+void Ux_solve(const amrex::Real R[n][n], amrex::Real &x[n], const amrex::Real b[n])
+{
+        for(int k = n-1; k>=0; --k){
+            x[k] = b[k]; 
+            for( i = k+1; i < n; i++) x[k] -= x[i]*(U[i][k]); 
+            x[k] /= U[i][i]; 
+        }
+}
+
+// QR Decomposition routines! 
+// In qr_decomp A is decomposed into R and V contains the Householder Vectors to construct Q. 
+template <size_t n> 
+void
+CellGaussianProcess::qr_decomp(const amrex::Real A[n][n], amrex::Real &R[n][n], 
+                                     amrex::Real &v[n][n])
+{
+    amrex::Real s, anorm, vnorm, innerprod; 
+    for(int j = 0; j < n; j++){
+        anorm = 0.e0; 
+        vnorm = 0.e0;
+
+        for(int i = j; i < n; i++) anorm += A[i][j]*A[i][j]; 
+        anorm = std::sqrt(anorm); 
+
+        s = std::copysign(1.e0, A[j][j])*anorm; 
+        for(int i = j; i < n; i++){
+            v[i][j] = A[i][j]; 
+        }
+        v[j][j] += s;
+
+        for(int i = 0; i < n; i++) vnorm += v[i][j]*v[i][j]; 
+        vnorm = std::sqrt(vnorm); 
+        
+        for(int i =0; i < n; i++) v[i][j] /= vnorm; 
+
+        for(k = 0; k < n; k++){
+            innerprod = 0.e0; 
+            for(int i = 0; i < n; i++) innerprod += v[i][j]*A[i][k]; 
+            
+            for(int i = 0; i < n; i++) R[i][k] = A[i][k] - 2.e0*v[i][j]*innerprod; 
+        }        
+    }
+}
+
+//QR decomp for the non-square matrix 
+void 
+CellGaussianProcess::QR(const amrex::Real A[13][5], amrex::Real &R[5][5], amrex::Real &Q[13][13])
+{
+    //Q = I 
+    amrex::Real v[13] = {}; 
+    amrex::Real norm, inner, s; 
+    for(int i = 0; i < 13; ++i){
+        for(int j = 0; j < 13; ++j)
+            Q[i][j] = 0.e0; 
+        Q[i][i] = 1.e0; 
+    }
+
+    for(int j = 0; j < 5; ++j){
+       for(int i = 0; i < j; ++i) v[i] = 0; 
+       for(int i = j; i < 13; ++i){
+             v[i] = A[i][j]; 
+             norm += v[i]*v[i]; 
+        }
+        norm = std::sqrt(norm); 
+        s = std::copysign(norm, A[j][j]); 
+        v[j] += s; 
+        norm = 0.e0; 
+        for(int i = j; i < 13; i++) norm += v[i]*v[i]; 
+        norm = std::sqrt(norm); 
+        if(std::abs(norm) > std::numeric_limits::<double>epsilon())
+        {
+            for(int i = j; i < 13; ++i) v[i] /= norm; //Normalize vector v
+            for(int k = j; k < 5; ++k){
+                inner = 0.e0; 
+                for(int i = 0; i < 13; ++i) inner += v[i]*A[i][k]; 
+                for(int i = 0; i < 13; ++i) A[i][k] -= 2.e0*inner*v[i];
+            }
+            for(int k = 0; k < 13; ++k){
+                inner = 0.e0; 
+                for(int i = 0; i < 13; ++i) inner += v[i]*Q[i][k]; 
+                for(int i = 0; i < 13; ++i) Q[i][k] -= 2.e0*inner*v[i]; 
+            }
+        }
+    } 
+}
+
+//Applies V onto A -> QA 
+template <size_t rows> 
+void 
+CellGaussianProcess::q_appl(amrex::Real (&A)[rows][rows], 
+                            amrex::Real (&V)[rows][rows])
+{
+    for(int i = 0; i < rows; ++i) 
+        q_appl_vec(A[i], V); 
+}
+
+template <size_t rows> 
+void 
+CellGaussianProcess::q_appl_vec(amrex::Real (&A)[rows], 
+                                amrex::Real (&V)[rows][rows])
+{
+    for(int i = 0; i < rows; ++i) 
+        {
+            amrex::Real temp = 0; 
+            for(int j = 0; j < rows; ++j)
+                temp += A[i]*V[j][i]; 
+            for(int j = 0; j < rows; ++j) 
+                A[j] -= 2*V[j][i]*temp; 
+        }
+}
+
 
 //Each point will have its
 //own set of gammas. 
@@ -1055,23 +1168,37 @@ CellGaussianProcess::GetGamma(amrex::Real const ks[5][5],
                               amrex::Real const Kt[13], 
                               amrex::Real &gam[5])
 {
-    amrex::Real A[5][13] = {{ks[0][0] 0 ks[1][0] ks[2][0] ks[3][0] 0 0 0 ks[4][0] 0 0 0 0},
-                            {0 ks[0][1] 0 ks[1][1] ks[2][1] ks[3][1] 0 0 0 ks[4][1] 0 0 0},
-                            {0 0 ks[0][2] 0 ks[1][2] ks[2][2] ks[3][2] 0 0 0 ks[4][2] 0 0},
-                            {0 0 0 ks[0][3] 0 ks[1][3] ks[2][3] ks[3][3] 0 0 0 ks[4][3] 0},
-                            {0 0 0 0 ks[0][4] 0 ks[1][4] ks[2][4] ks[3][4] 0 0 0 ks[4][4]}};
+
+//Extended matrix Each column contains the vector of coviarances corresponding 
+//to each sample (weno-like stencil)
+    amrex::Real A[13][5] = {{ks[0][0], 0.e0    , 0.e0    , 0.e0    , 0.e0    }, 
+                            {0.e0    , ks[0][1], 0.e0    , 0.e0    , 0.e0    }, 
+                            {ks[1][0], 0.e0    , ks[0][2], 0.e0    , 0.e0    }, 
+                            {ks[2][0], ks[1][1], 0.e0    , ks[0][3], 0.e0    }, 
+                            {ks[3][0], ks[2][1], ks[1][2], 0.e0    , ks[0][4]}, 
+                            {0.e0    , ks[3][1], ks[2][2], ks[1][3], 0.e0    }, 
+                            {0.e0    , 0.e0    , ks[3][2], ks[2][3], ks[1][4]}, 
+                            {0.e0    , 0.e0    , 0.e0    , ks[3][3], ks[2][4]}, 
+                            {ks[4][0], 0.e0    , 0.e0    , 0.e0    , ks[3][4]}, 
+                            {0.e0    , ks[4][1], 0.e0    , 0.e0    , 0.e0    }, 
+                            {0.e0    , 0.e0    , ks[4][2], 0.e0    , 0.e0    }, 
+                            {0.e0    , 0.e0    , 0.e0    , ks[4][3], 0.e0    }, 
+                            {0.e0    , 0.e0    , 0.e0    , 0.e0    , ks[4][4]}};
+
 
    amrex::Real Q[13][13]; 
    amrex::Real R[5][5]; 
    QR(A, Q, R); // This one is for non-square matrices
-   CholeskyDecomp<5>(R); 
-   amrex::Real temp[13] ={0}; 
-   for(int i = 0; i < 13; i++)
+   amrex::Real temp[5] ={0};
+
+   //Q'*Kt 
+   for(int i = 0; i < 5; i++)
       for(int j = 0; j < 13; j++)
         temp[i] += Q[j][i]*Kt[j];
-    amrex::Real temp2[5] = {temp[0], temp[1], temp[2], temp[3], temp[4]}; 
-    cholesky<5>(temp2, R, gam);     
+    //gam = R^-1 Q'Kt 
+    Ux_solve<5>(R, gam, temp);         
 }
+
 
 //Use Shifted QR with deflation to get eigen pairs. 
 template<size_t n>
@@ -1111,28 +1238,77 @@ CellGaussianProcess::GetEigenPairs(const amrex::Real K[n][n])
 //Since K is symmetric the eigenvectors are converged. 
 }
 
-template <size_t rows> 
-void 
-CellGaussianProcess::q_appl(amrex::Real (&A)[rows][rows], 
-                            amrex::Real (&V)[rows][rows])
-{
-    for(int i = 0; i < rows; ++i) 
-        q_appl_vec(A[i], V); 
-}
 
-template <size_t rows> 
 void 
-CellGaussianProcess::q_appl_vec(amrex::Real (&A)[rows], 
-                                amrex::Real (&V)[rows][rows])
+CellGaussianProcess::amrex_cginterp(const int i, const int j, const int k, const int n,  
+                              const int rx, const int ry, 
+                              amrex::Array4<const amrex::Real> const& crse, 
+                              amrex::Array4<amrex::Real> const& fine)
 {
-    for(int i = 0; i < rows; ++i) 
-        {
-            amrex::Real temp = 0; 
-            for(int j = 0; j < rows; ++j)
-                temp += A[i]*V[j][i]; 
-            for(int j = 0; j < rows; ++j) 
-                A[j] -= 2*V[j][i]*temp; 
+#if (AMREX_SPACEDIM==2)
+    amrex::Real sten_cen[5] = {crse(i,j-1,k,n)  , crse(i-1,j,k,n)  , crse(i,j,k,n)  , crse(i+1,j,k,n)  , crse(i,j+1,k,n)  };
+    amrex::Real sten_im[5]  = {crse(i-1,j-1,k,n), crse(i-2,j,k,n)  , crse(i-1,j,k,n), crse(i,j,k,n)    , crse(i-1,j+1,k,n)}; 
+    amrex::Real sten_jm[5]  = {crse(i,j-2,k,n)  , crse(i-1,j-1,k,n), crse(i,j-1,k,n), crse(i+1,j-1,k,n), crse(i,j,k,n)    }; 
+    amrex::Real sten_ip[5]  = {crse(i+1,j-1,k,n), crse(i,j,k,n)    , crse(i+1,j,k,n), crse(i+2,j,k,n)  , crse(i+1,j+1,k,n)}; 
+    amrex::Real sten_jp[5]  = {crse(i,j,k,n)    , crse(i-1,j+1,k,n), crse(i,j+1,k,n), crse(i+1,j+1,;), crse(i,j+2,k,n)  }; 
+    amrex::Real beta[5] = {0}, ws[5] = {0}, summ, test, sqrmean = 0;
+    amrex::Real inn;  
+    int idx, idy; 
+    
+    for(int ii = 0; ii < 4; ii++)
+    {
+        inn = inner_prod(V[n], sten_jm); 
+        beta[0] += 1.e0/lam[ii]*inn*inn; 
+
+        inn = inner_prod(V[n], sten_im); 
+        beta[1] += 1.e0/lam[ii]*inn*inn; 
+
+        inn = inner_prod(V[n], sten_cen); 
+        beta[2] += 1.e0/lam[ii]*inn*inn; 
+
+        inn = inner_prod(V[n], sten_ip); 
+        beta[3] += 1.e0/lam[ii]*inn*inn; 
+
+        inn = inner_prod(V[n], sten_jp); 
+        beta[4] += 1.e0/lam[ii]*inn*inn; 
+
+        sqrmean += sten_cen[ii]; 
+    } 
+
+    sqrmean /= 5; 
+    sqrmean *= sqrmean; 
+    test = beta[2]/sqrmean; 
+    if(test > 100){
+        for(int jj = 0; jj < ry; ++jj){
+            idy = j*ry + jj; 
+            for(int ii = 0; ii < rx; ++ii){
+                idx = i*rx + ii; 
+                id = ii + jj*rx; //TODO this assumes Rx = Ry. If this is not the case, we need to rethink. 
+                summ = 0.e0; 
+                for(int m = 0; m < 5; ++m){
+                    ws[m] = gam[id][m]/((1e-32 + beta[m])*(1e-32 + beta[m])); 
+                    summ += ws[m]; 
+                }
+                fine(idx,idy,k,n) = (ws[0]/summ)*inner_prod(ks[id][0], sten_jm) 
+                                  + (ws[1]/summ)*inner_prod(ks[id][1], sten_im) 
+                                  + (ws[2]/summ)*inner_prod(ks[id][2], sten_cen) 
+                                  + (ws[3]/summ)*inner_prod(ks[id][3], sten_ip) 
+                                  + (ws[4]/summ)*inner_prod(ks[id][4], sten_jp);
+            }
         }
+    }
+    else{
+        for(int jj = 0; jj < ry; ++jj){
+            idy = j*ry + jj; 
+            for(int ii = 0; ii < rx; ++ii){
+                idx = i*rx + ii; 
+                id = ii + jj*rx; //TODO this assumes Rx = Ry. If this is not the case, we need to rethink. 
+                fine(idx,idy,k,n) = inner_prod(ks[id][2], sten_cen);
+            }
+        }
+    }
+
+#endif    
 }
 
 void
@@ -1157,80 +1333,12 @@ CellGaussianProcess::interp (const FArrayBox& crse,
     Box target_fine_region = fine_region & fine.box();
 
     Box crse_bx(amrex::coarsen(target_fine_region,ratio));
-    Box fslope_bx(amrex::refine(crse_bx,ratio));
-    Box cslope_bx(crse_bx);
-    cslope_bx.grow(1);
-    BL_ASSERT(crse.box().contains(cslope_bx));
-    //
-    // Alloc temp space for coarse grid slopes: here we use 5
-    // instead of AMREX_SPACEDIM because of the x^2, y^2 and xy terms
-    //
-    long t_long = cslope_bx.numPts();
-    BL_ASSERT(t_long < INT_MAX);
-    int c_len = int(t_long);
+    Vector<int> bc     = GetBCArray(bcr); //Assess if we need this. 
 
-    Vector<Real> cslope(5*c_len);
+    AMREX_PARALLEL_FOR_4D(crse_bx, fine_comp, i, j, k, n, {
+        amrex_cgpinterp(i,j,k,n, ratio[0], ratio[1], crse.array(), fine.array());
+    }); 
 
-    int loslp = cslope_bx.index(crse_bx.smallEnd());
-    int hislp = cslope_bx.index(crse_bx.bigEnd());
-
-    t_long = cslope_bx.numPts();
-    BL_ASSERT(t_long < INT_MAX);
-    int cslope_vol = int(t_long);
-    int clo        = 1 - loslp;
-    int chi        = clo + cslope_vol - 1;
-    c_len          = hislp - loslp + 1;
-    //
-    // Alloc temp space for one strip of fine grid slopes: here we use 5
-    // instead of AMREX_SPACEDIM because of the x^2, y^2 and xy terms.
-    //
-    int dir;
-    int f_len = fslope_bx.longside(dir);
-
-    Vector<Real> strip((5+2)*f_len);
-
-    Real* fstrip = strip.dataPtr();
-    Real* foff   = fstrip + f_len;
-    Real* fslope = foff + f_len;
-    //
-    // Get coarse and fine edge-centered volume coordinates.
-    //
-    Vector<Real> fvc[AMREX_SPACEDIM];
-    Vector<Real> cvc[AMREX_SPACEDIM];
-    for (dir = 0; dir < AMREX_SPACEDIM; dir++)
-    {
-        fine_geom.GetEdgeVolCoord(fvc[dir],target_fine_region,dir);
-        crse_geom.GetEdgeVolCoord(cvc[dir],crse_bx,dir);
-    }
-    //
-    // Alloc tmp space for slope calc and to allow for vectorization.
-    //
-    Real* fdat        = fine.dataPtr(fine_comp);
-    const Real* cdat  = crse.dataPtr(crse_comp);
-    const int* flo    = fine.loVect();
-    const int* fhi    = fine.hiVect();
-    const int* fblo   = target_fine_region.loVect();
-    const int* fbhi   = target_fine_region.hiVect();
-    const int* cblo   = crse_bx.loVect();
-    const int* cbhi   = crse_bx.hiVect();
-    const int* fslo   = fslope_bx.loVect();
-    const int* fshi   = fslope_bx.hiVect();
-    int slope_flag    = (do_limited_slope ? 1 : 0);
-    Vector<int> bc     = GetBCArray(bcr);
-    const int* ratioV = ratio.getVect();
-
-
-    amrex_cgpinterp(fdat,AMREX_ARLIM(flo),AMREX_ARLIM(fhi),
-                   AMREX_ARLIM(fblo), AMREX_ARLIM(fbhi),
-                   &ncomp,AMREX_D_DECL(&ratioV[0],&ratioV[1],&ratioV[2]),
-                   cdat,&clo,&chi,
-                   AMREX_ARLIM(cblo), AMREX_ARLIM(cbhi),
-                   fslo,fshi,
-                   cslope.dataPtr(),&c_len,fslope,fstrip,&f_len,foff,
-                   bc.dataPtr(), &slope_flag,
-                   AMREX_D_DECL(fvc[0].dataPtr(),fvc[1].dataPtr(),fvc[2].dataPtr()),
-                   AMREX_D_DECL(cvc[0].dataPtr(),cvc[1].dataPtr(),cvc[2].dataPtr()),
-                   &actual_comp,&actual_state);
 
 }
 
