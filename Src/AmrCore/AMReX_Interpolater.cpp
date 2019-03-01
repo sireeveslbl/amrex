@@ -817,122 +817,110 @@ CellGaussianProcess::CoarseBox (const Box& fine,
     Box crse = amrex::coarsen(fine,ratio);
     crse.grow(1);
     return crse;
+} 
+
+//Perfroms Cholesky Decomposition on covariance matrix K
+template<size_t n> 
+void
+CellGaussianProcess::CholeskyDecomp(amrex::Real K[n][n])
+{
+     for(int i = 0; i < n; ++i){
+        for( int j = 0; j < i-1; ++j){
+            K[i][i] -= K[i][j]*K[i][j]; 
+        }
+        K[i][i] = sqrt(K[i][i]); 
+        for(int j = i+1; j < n; ++j){
+            for(int k = 0; k < j; ++j){
+                K[i][j] -= K[i][k]*K[j][k]; 
+            }
+        K[i][j] /= K[j][j]; 
+        }
+    }
 }
- 
+
+//Performs Cholesky Backsubstitution
+template<size_t n> 
+void 
+CellGaussianProcess::cholesky(amrex::Real const kstar[n], amrex::Real const K[n][n], 
+                              amrex::Real &ks[n])
+{
+    /* Forward sub Ly = b */ 
+    for(int i = 0; i < n; ++i){
+        ks[i] = 0.0e0; 
+        for(int j = 0; j < i; ++j) ks[i] += kstar[j]*K[i][j]; 
+        ks[i] /= K[i][i]; 
+    }
+    /* Back sub Ux = y */ 
+    for(int i = n-1; i >= 0; --i){
+        for(int j = i; j < n; ++j) ks[i] -= K[j][i]*ks[j]; 
+        ks[i] /= K[i][i]; 
+    }
+}
+
+inline amrex::Real
+CellGaussianProcess::sqrexp(const amrex::Real x[2],const amrex::Real y[2], const amrex::Real dx[2], const amrex::Real l)
+{
+    amrex::Real result = std::exp(-0.5*((x[0] - y[0])*(x[0] - y[0])*dx[0]*dx[0] + 
+                                        (x[1] - y[1])*(x[1] - y[1])*dx[1]*dx[1])/(l*l));
+    return result;    
+} 
+
 //Builds the Covariance matrix K if uninitialized --> if(!init) GetK, weights etc.
 //Four K totals to make the gammas.  
 void
-CellGaussianProcess::GetK(amrex::Real *K, amrex::Real *Ktot)
+CellGaussianProcess::GetK(amrex::Real &K[5][5], amrex::Real &Ktot[13][13],
+                          const amrex::Real dx*, const amrex::Real l)
 {
 
     int pnt[5][2];
-    amrex::Real arg;  
-    pnt[0][0] = 0 , pnt[0][1] = -1; 
+/*    pnt[0][0] = 0 , pnt[0][1] = -1; 
     pnt[1][0] = -1, pnt[1][1] = 0; 
     pnt[2][0] = 0 , pnt[2][1] = 0; 
     pnt[3][0] = 1 , pnt[3][1] = 0; 
-    pnt[4][0] = 0 , pnt[4][1] = 1; 
+    pnt[4][0] = 0 , pnt[4][1] = 1; */ 
+    pnt[0] = { 0, -1}; 
+    pnt[1] = {-1,  0}; 
+    pnt[2] = { 0,  0}; 
+    pnt[3] = { 1,  0}; 
+    pnt[4] = { 0,  1}; 
 
-    for(int i = 0; i < 5; ++i) K[i + 5*i] = 1.e0; 
+    for(int i = 0; i < 5; ++i) K[i][i] = 1.e0; 
 //Small K
     for(int i = 1; i < 5; ++i)
         for(int j = i; j < 5; ++j){
-            arg = pow(double(pnt[i][0] - pnt[j][0])*dx[0],2)
-                            + pow(double(pnt[i][1] - pnt[j][1])*dx[1],2);
-            arg /= pow(l,2); 
-            K[j + 5*i] = exp(-0.5*arg); 
+            K[i][j] = sqrexp(pnt[i], pnt[j], dx, l); 
         }
 
-// "Super K"s 
+    for(int i = 0; i < 13; ++i) Ktot[i][i] = 1.e0; 
 
-//TODO double check index maths.     
-    for(int k = 0; k < 4; ++k)
-        for(int i = 0; i < 10; ++i) Ktot[i + 10*i + 100*k] = 1.e0; 
-    int spnt[10][2]; 
-// i-1/4,j-1/4 
-    spnt[0][0] =  0, spnt[0][1] = -2; 
-    spnt[1][0] = -1, spnt[1][1] = -1; 
-    spnt[2][0] =  0, spnt[2][1] = -1; 
-    spnt[3][0] =  1, spnt[3][1] = -1; 
-    spnt[4][0] = -2, spnt[4][1] =  0; 
-    spnt[5][0] = -1, spnt[5][1] =  0; 
-    spnt[6][0] =  0, spnt[6][1] =  0; 
-    spnt[7][0] =  1, spnt[7][1] =  0; 
-    spnt[8][0] = -1, spnt[8][1] =  1;
-    spnt[9][0] =  0, spnt[9][1] =  1; 
+    amrex::Real spnt[13][2]; 
+    spnt[0]  = { 0, -2}; 
+    spnt[1]  = {-1, -1}; 
+    spnt[2]  = { 0, -1};
+    spnt[3]  = { 1, -1}; 
+    spnt[4]  = {-2,  0}; 
+    spnt[5]  = {-1,  0}; 
+    spnt[6]  = { 0,  0}; 
+    spnt[7]  = { 1,  0}; 
+    spnt[8]  = { 2,  0}; 
+    spnt[9]  = {-1,  1}; 
+    spnt[10] = { 0,  1}; 
+    spnt[11] = { 1,  1}; 
+    spnt[12] = { 0,  2}; 
 
-    for(int i = 1; i < 10; ++i)
-        for(int j = i; j <10; ++j){
-            arg = pow(double(spnt[i][0] - spnt[j][0])*dx[0],2)
-                            + pow(double(spnt[i][1] - spnt[j][1])*dx[1],2);
-            arg /= pow(l,2); 
-            Ktot[j + 10*i] = exp(-0.5e0*arg); 
-        }
-// i+1/4,j-1/4 
-    spnt[0][0] =  0, spnt[0][1] = -2; 
-    spnt[1][0] = -1, spnt[1][1] = -1; 
-    spnt[2][0] =  0, spnt[2][1] = -1; 
-    spnt[3][0] =  1, spnt[3][1] = -1; 
-    spnt[4][0] = -1, spnt[4][1] =  0; 
-    spnt[5][0] =  0, spnt[5][1] =  0; 
-    spnt[6][0] =  1, spnt[6][1] =  0; 
-    spnt[7][0] =  2, spnt[7][1] =  0; 
-    spnt[8][0] =  0, spnt[8][1] =  1;
-    spnt[9][0] =  1, spnt[9][1] =  1; 
-
-    for(int i = 1; i < 10; ++i)
-        for(int j = i; j <10; ++j){
-            arg = pow(double(spnt[i][0] - spnt[j][0])*dx[0],2)
-                            + pow(double(spnt[i][1] - spnt[j][1])*dx[1],2);
-            arg /= pow(l,2); 
-            Ktot[j + 10*i + 100] = exp(-0.5e0*arg); 
-        }
-
-// i-1/4,j+1/4 
-    spnt[0][0] = -1, spnt[0][1] = -1; 
-    spnt[1][0] =  0, spnt[1][1] = -1; 
-    spnt[2][0] = -2, spnt[2][1] =  0; 
-    spnt[3][0] = -1, spnt[3][1] =  0; 
-    spnt[4][0] =  0, spnt[4][1] =  0; 
-    spnt[5][0] =  1, spnt[5][1] =  0; 
-    spnt[6][0] = -1, spnt[6][1] =  1; 
-    spnt[7][0] =  0, spnt[7][1] =  1; 
-    spnt[8][0] =  1, spnt[8][1] =  1;
-    spnt[9][0] =  0, spnt[9][1] =  2; 
-
-    for(int i = 1; i < 10; ++i)
-        for(int j = i; j <10; ++j){
-            arg = pow(double(spnt[i][0] - spnt[j][0])*dx[0],2)
-                            + pow(double(spnt[i][1] - spnt[j][1])*dx[1],2); 
-            arg /= pow(l,2); 
-            Ktot[j + 10*i + 200] = exp(-0.5e0*arg); 
-        }
-// i+1/4,j+1/4 
-    spnt[0][0] =  0, spnt[0][1] = -1; 
-    spnt[1][0] =  1, spnt[1][1] = -1; 
-    spnt[2][0] = -1, spnt[2][1] =  0; 
-    spnt[3][0] =  0, spnt[3][1] =  0; 
-    spnt[4][0] =  1, spnt[4][1] =  0; 
-    spnt[5][0] =  2, spnt[5][1] =  0; 
-    spnt[6][0] = -1, spnt[6][1] =  1; 
-    spnt[7][0] =  0, spnt[7][1] =  1; 
-    spnt[8][0] =  1, spnt[8][1] =  1;
-    spnt[9][0] =  0, spnt[9][1] =  2; 
-
-    for(int i = 1; i < 10; ++i)
-        for(int j = i; j <10; ++j){
-            arg = pow(double(spnt[i][0] - spnt[j][0])*dx[0],2)
-                            + pow(double(spnt[i][1] - spnt[j][1])*dx[1],2); 
-            arg /= pow(l,2); 
-            Ktot[j + 10*i + 300] = exp(-0.5e0*arg); 
+    for(int i = 1; i < 13; ++i)
+        for(int j = i; j <13; ++j){
+            Ktot[i][j] = sqrexp(spnt[i], spnt[j], dx, l); 
         }
 }
 
 //Use a Cholesky Decomposition to solve for k*K^-1 
 //Inputs: K, outputs w = k*K^-1. 
-//Here we have 12 vectors per quadrant. K is shift invariant, so only k* matters. 
+//We need weights for each stencil. Therefore we'll have 5 arrays of 16 X 5 each. 
+
 void 
-CellGaussianProcess::GetKs(amrex::Real const *K, amrex::Real const *dx)
+CellGaussianProcess::GetKs(amrex::Real ks[16][5][5], amrex::Real amrex::Real const K[5][5], amrex::Real const *dx,
+                           const amrex::Real l)
 {
 
     //Locations of new points relative to i,j 
@@ -961,212 +949,46 @@ CellGaussianProcess::GetKs(amrex::Real const *K, amrex::Real const *dx)
     spnt[3][0] = 1 , spnt[3][1] = 0; 
     spnt[4][0] = 0 , spnt[4][1] = 1; 
 
-    amrex::Real kstar[4][5];
-//================ Quadrant one i-1/4, j-1/4, three stencils. ======================
+    amrex::Real k1[16][5], k2[16][5], k3[16][5], k4[16][5], k5[16][5]; 
+    amrex::Real temp[2]; 
+    amrex::Real temp2[5]; 
+    //Build covariance vector between interpolant points and stencil 
+     for(int i = 0; i < 16; ++i){
+        for(int j = i; j < 5; ++j){
+            temp = {spnt[j][0], spnt[j][1] - 1.0}; 
+            k1[i][j] = sqrexp(pnt[i], temp, dx, l);
 
-    //Stencil one centered at i, j-1 
-    //Build covariance vector between interpolant points and stencil 
-     for(int i = 0; i < 4; ++i){
-        for(int j = i; j < 5; ++j){
-            arg = pow(double(pnt[i][0] - spnt[j][0])*dx[0],2)
-                            + pow(double(pnt[i][1] - (spnt[j][1] -1))*dx[1],2); 
-            arg /= pow(l,2); 
-            kstar[i][j] = exp(-arg); 
-        }
-        cholesky(kstar[i], K, ks[i][0]); 
-    }
-     
-    //Stencil two centered at i-1, j 
-    //Build covariance vector between interpolant points and stencil 
-     for(int i = 0; i < 4; ++i){
-        for(int j = i; j < 5; ++j){
-            arg = pow(double(pnt[i][0] - (spnt[j][0] - 1))*dx[0],2)
-                            + pow(double(pnt[i][1] - spnt[j][1])*dx[1],2); 
-            arg /= pow(l,2); 
-            kstar[i][j] = exp(-arg); 
-        }
-        cholesky(kstar[i], K, ks[i][1]); 
-    }
-     
-    //Stencil three is standard i,j 
-    //Build covariance vector between interpolant points and stencil 
-     for(int i = 0; i < 4; ++i){
-        for(int j = i; j < 5; ++j){
-            arg = pow(double(pnt[i][0] - spnt[j][0])*dx[0],2)
-                            + pow(double(pnt[i][1] - spnt[j][1])*dx[1],2); 
-            arg /= pow(l,2); 
-            kstar[i][j] = exp(-arg); 
-        }
-        cholesky(kstar[i], K, ks[i][2]); 
-    }
-     
-//================= Quadrant two i+1/4, j-1/4, three stencils. ===================
+            temp = {spnt[j][0] - 1.0,  spnt[j][1]};
+            k2[i][j] = sqrexp(pnt[i], temp, dx, l);
 
-    //Stencil one centered at i, j-1 
-    //Build covariance vector between interpolant points and stencil 
-     for(int i = 0; i < 4; ++i){
-        int id = i + 4; 
-        for(int j = i; j < 5; ++j){
-            arg = pow(double(pnt[id][0] - spnt[j][0])*dx[0],2)
-                            + pow(double(pnt[id][1] - (spnt[j][1] -1))*dx[1],2); 
-            arg /= pow(l,2); 
-            kstar[i][j] = exp(-arg); 
-        }
-        cholesky(kstar[i], K, ks[id][0]); 
-    }
-     
-    //Stencil two centered at i, j 
-    //Build covariance vector between interpolant points and stencil 
-     for(int i = 0; i < 4; ++i){
-        int id = i + 4; 
-        for(int j = i; j < 5; ++j){
-            arg = pow(double(pnt[id][0] - spnt[j][0])*dx[0],2)
-                            + pow(double(pnt[id][1] - spnt[j][1])*dx[1],2); 
-            arg /= pow(l,2); 
-            kstar[i][j] = exp(-arg); 
-        }
-        cholesky(kstar[i], K, ks[id][1]); 
-    }
-     
-    //Stencil three centered i+1,j 
-    //Build covariance vector between interpolant points and stencil 
-     for(int i = 0; i < 4; ++i){
-        int id = i + 4; 
-        for(int j = i; j < 5; ++j){
-            arg = pow(double(pnt[id][0] - (spnt[j][0] + 1))*dx[0],2)
-                            + pow(double(pnt[id][1] - spnt[j][1])*dx[1],2); 
-            arg /= pow(l,2); 
-            kstar[i][j] = exp(-arg); 
-        }
-        cholesky(kstar[i], K, ks[id][2]); 
-    }
+            k3[i][j] = sqrexp(pnt[i], spnt[j], dx, l);
+    
+            temp = {spnt[j][0] + 1.0, spnt[j][1]};
+            k4[i][j] = sqrexp(pnt[i], temp, dx, l); 
 
-//============== Quadrant three i-1/4, j+1/4, three stencils. ================
-
-    //Stencil one centered at i-1, j
-    //Build covariance vector between interpolant points and stencil 
-     for(int i = 0; i < 4; ++i){
-        int id = i + 8; 
-        for(int j = i; j < 5; ++j){
-            arg = pow(double(pnt[id][0] - (spnt[j][0]-1))*dx[0],2)
-                            + pow(double(pnt[id][1] - spnt[j][1])*dx[1],2); 
-            arg /= pow(l,2); 
-            kstar[i][j] = exp(-arg); 
+            temp = {spnt[j][0], spnt[j][1] + 1.0}; 
+            k5[i][j] = sqrexp(pnt[i], temp, dx, l); 
         }
-        cholesky(kstar[i], K, ks[id][0]); 
-    }
-     
-    //Stencil two centered at i, j 
-    //Build covariance vector between interpolant points and stencil 
-     for(int i = 0; i < 4; ++i){
-        int id = i + 8; 
-        for(int j = i; j < 5; ++j){
-            arg = pow(double(pnt[id][0] - spnt[j][0])*dx[0],2)
-                            + pow(double(pnt[id][1] - spnt[j][1])*dx[1],2); 
-            arg /= pow(l,2); 
-            kstar[i][j] = exp(-arg); 
-        }
-        cholesky(kstar[i], K, ks[id][1]); 
-    }
-     
-    //Stencil three centered i+1,j 
-    //Build covariance vector between interpolant points and stencil 
-     for(int i = 0; i < 4; ++i){
-        int id = i + 8; 
-        for(int j = i; j < 5; ++j){
-            arg = pow(double(pnt[id][0] - (spnt[j][0] + 1))*dx[0],2)
-                            + pow(double(pnt[id][1] - spnt[j][1])*dx[1],2); 
-            arg /= pow(l,2); 
-            kstar[i][j] = exp(-arg); 
-        }
-        cholesky(kstar[i], K, ks[id][2]); 
-    }
-
-//============== Quadrant four i+1/4, j+1/4, three stencils. ==============
-
-    //Stencil one centered at i, j
-    //Build covariance vector between interpolant points and stencil 
-     for(int i = 0; i < 4; ++i){
-        int id = i + 12; 
-        for(int j = i; j < 5; ++j){
-            arg = pow(double(pnt[id][0] - spnt[j][0])*dx[0],2)
-                            + pow(double(pnt[id][1] - spnt[j][1])*dx[1],2); 
-            arg /= pow(l,2); 
-            kstar[i][j] = exp(-arg); 
-        }
-        cholesky(kstar[i], K, ks[id][0]); 
-    }
-     
-    //Stencil two centered at i+1, j 
-    //Build covariance vector between interpolant points and stencil 
-     for(int i = 0; i < 4; ++i){
-        int id = i + 12; 
-        for(int j = i; j < 5; ++j){
-            arg = pow(double(pnt[id][0] - (spnt[j][0] + 1))*dx[0],2)
-                            + pow(double(pnt[id][1] - spnt[j][1])*dx[1],2); 
-            arg /= pow(l,2); 
-            kstar[i][j] = exp(-arg); 
-        }
-        cholesky(kstar[i], K, ks[id][1]); 
-    }
-     
-    //Stencil three centered i,j+1
-    //Build covariance vector between interpolant points and stencil 
-     for(int i = 0; i < 4; ++i){
-        int id = i + 12; 
-        for(int j = i; j < 5; ++j){
-            arg = pow(double(pnt[id][0] - spnt[j][0])*dx[0],2)
-                            + pow(double(pnt[id][1] - (spnt[j][1]+1))*dx[1],2); 
-            arg /= pow(l,2); 
-            kstar[i][j] = exp(-arg); 
-        }
-        cholesky(kstar[i], K, ks[id][2]); 
+        cholesky<5>(k1[i], K, temp2); 
+        for(int k = 0; k < 5; k++) ks[i][k][0] = temp2[k];
+        cholesky<5>(k2[i], K, temp2); 
+        for(int k = 0; k < 5; k++) ks[i][k][1] = temp2[k]; 
+        cholesky<5>(k3[i], K, temp2); 
+        for(int k = 0; k < 5; k++) ks[i][k][2] = temp2[k]; 
+        cholesky<5>(k4[i], K, temp2); 
+        for(int k = 0; k < 5; k++) ks[i][k][3] = temp2[k]; 
+        cholesky<5>(k5[i], K, temp2); 
+        for(int k = 0; k < 5; k++) ks[i][k][4] = temp2[k]; 
     }
 }
 
-//Perfroms Cholesky Decomposition on covariance matrix K
-void
-CellGaussianProcess::CholeskyDecomp(amrex::Real *K, const int n)
-{
-     for(int i = 0; i < n; ++i){
-        for( int j = i; j < n; ++j){
-            K[i + n*i] -= K[j + n*i]*K[j + n*i]; 
-        }
-        K[i + n*i] = sqrt(K[i + n*i]); 
-        for(int j = i+1; j < n; ++j){
-            for(int k = 0; k < j; ++j){
-                K[j + n*i] -= K[j + n*k]*K[i + n*k]; 
-            }
-        K[j + n*i] /= K[j + n*j]; 
-        }
-    }
-}
-
-//Performs Cholesky Backsubstitution 
+// Here we are using Kt to get the weights for the overdetermined  
+// In this case, we will have 16 new points
+// Therefore, we will need 16 b =  k*^T Ktot^(-1)
+// K1 is already Choleskied  
 void 
-CellGaussianProcess::cholesky(amrex::Real const *kstar, amrex::Real const *K, 
-                              amrex::Real *ks, const int n)
-{
-    /* Forward sub Ly = b */ 
-    for(int i = 0; i < n; ++i){
-        ks[i] = 0.0e0; 
-        for(int j = 0; j < i; ++j)
-            ks[i] = ks[i] + kstar[j]*K[j + 5*i]; 
-        ks[i] /= K[i + n*i]; 
-    }
-    /* Back sub Ux = y */ 
-    for(int i = n-1; i >= 0; --i){
-        for(int j = i; j < n; ++j)
-            ks[i] -= K[j + n*i]*ks[j]; 
-        ks[i] /= K[i + n*i]; 
-    }   
-}
-
-// Here we are using the 4 Ktotols to get the total weights for each quadrant. 
-// In this case, we will have 4 new points per quadrant 
-// Therefore, we will need 16 k*^T Ktot^(-1) 
-void 
-CellGaussianProcess::GetKtotks(const amrex::Real *Ktot, const amrex::Real ks[16][])
+CellGaussianProcess::GetKtotks(const amrex::Real K1[13][13], amrex::Real &ks[16][13], 
+                               const amrex::Real *dx, const amrex::Real l)
 {
     //Locations of new points relative to i,j 
     amrex::Real pnt[16][2]; 
@@ -1187,11 +1009,22 @@ CellGaussianProcess::GetKtotks(const amrex::Real *Ktot, const amrex::Real ks[16]
     pnt[14][0] = 0.125, pnt[14][1] = 0.375; 
     pnt[15][0] = 0.375, pnt[15][1] = 0.375; 
 
-    amrex::Real *K; 
-
     //Super K positions 
-    int spnt[10][2]; 
-// i-1/4,j-1/4 
+    amrex::Real spnt[13][2]; 
+    spnt[0]  = { 0, -2}; 
+    spnt[1]  = {-1, -1}; 
+    spnt[2]  = { 0, -1};
+    spnt[3]  = { 1, -1}; 
+    spnt[4]  = {-2,  0}; 
+    spnt[5]  = {-1,  0}; 
+    spnt[6]  = { 0,  0}; 
+    spnt[7]  = { 1,  0}; 
+    spnt[8]  = { 2,  0}; 
+    spnt[9]  = {-1,  1}; 
+    spnt[10] = { 0,  1}; 
+    spnt[11] = { 1,  1}; 
+    spnt[12] = { 0,  2}; 
+/*
     spnt[0][0] =  0, spnt[0][1] = -2; 
     spnt[1][0] = -1, spnt[1][1] = -1; 
     spnt[2][0] =  0, spnt[2][1] = -1; 
@@ -1202,190 +1035,106 @@ CellGaussianProcess::GetKtotks(const amrex::Real *Ktot, const amrex::Real ks[16]
     spnt[7][0] =  1, spnt[7][1] =  0; 
     spnt[8][0] = -1, spnt[8][1] =  1;
     spnt[9][0] =  0, spnt[9][1] =  1;
-    
-/*    for(int i = 0; i < 10; ++i)
-        for(int j = 0; j < 10; ++j)
-            K[j + 10*i] = Ktot[j + 10*i]; 
 */ 
-   K = &Ktot; 
-   CholeskyDecomp(K, 10); 
-    
-    for(int i = 0; i < 4; ++i){
-       for(int j = i; j < 10; ++j){
-           arg = pow(double(pnt[i][0] - spnt[j][0])*dx[0],2)
-               + pow(double(pnt[i][1] - spnt[j][1])*dx[1],2); 
-            arg /= pow(l,2); 
-            kstar[i][j] = exp(-arg); 
-        }
-        cholesky(kstar[i], K, ks[i], 10); 
-    }
-  
-    // i+1/4,j-1/4 
-    spnt[0][0] =  0, spnt[0][1] = -2; 
-    spnt[1][0] = -1, spnt[1][1] = -1; 
-    spnt[2][0] =  0, spnt[2][1] = -1; 
-    spnt[3][0] =  1, spnt[3][1] = -1; 
-    spnt[4][0] = -1, spnt[4][1] =  0; 
-    spnt[5][0] =  0, spnt[5][1] =  0; 
-    spnt[6][0] =  1, spnt[6][1] =  0; 
-    spnt[7][0] =  2, spnt[7][1] =  0; 
-    spnt[8][0] =  0, spnt[8][1] =  1;
-    spnt[9][0] =  1, spnt[9][1] =  1; 
 
-/*    for(int i = 0; i < 10; ++i)
-        for(int j = 0; j < 10; ++j)
-            K[j + 10*i] = Ktot[j + 10*i + 100]; 
-*/ 
-   K = &Ktot + 100; 
-   CholeskyDecomp(K, 10); 
-    
-    for(int i = 4; i < 8; ++i){
-       for(int j = i; j < 10; ++j){
-           arg = pow(double(pnt[i][0] - spnt[j][0])*dx[0],2)
-               + pow(double(pnt[i][1] - spnt[j][1])*dx[1],2); 
-            arg /= pow(l,2); 
-            kstar[i][j] = exp(-arg); 
-        }
-        cholesky(kstar[i], K, ks[i], 10); 
-    }
-
-// i-1/4,j+1/4 
-    spnt[0][0] = -1, spnt[0][1] = -1; 
-    spnt[1][0] =  0, spnt[1][1] = -1; 
-    spnt[2][0] = -2, spnt[2][1] =  0; 
-    spnt[3][0] = -1, spnt[3][1] =  0; 
-    spnt[4][0] =  0, spnt[4][1] =  0; 
-    spnt[5][0] =  1, spnt[5][1] =  0; 
-    spnt[6][0] = -1, spnt[6][1] =  1; 
-    spnt[7][0] =  0, spnt[7][1] =  1; 
-    spnt[8][0] =  1, spnt[8][1] =  1;
-    spnt[9][0] =  0, spnt[9][1] =  2; 
-/*    for(int i = 0; i < 10; ++i)
-        for(int j = 0; j < 10; ++j)
-            K[j + 10*i] = Ktot[j + 10*i + 200]; 
-*/ 
-   K = &Ktot + 200; 
-   CholeskyDecomp(K, 10); 
-    
-    for(int i = 8; i
- < 12; ++i){
-       for(int j = i; j < 10; ++j){
-           arg = pow(double(pnt[i][0] - spnt[j][0])*dx[0],2)
-               + pow(double(pnt[i][1] - spnt[j][1])*dx[1],2); 
-            arg /= pow(l,2); 
-            kstar[i][j] = exp(-arg); 
-        }
-        cholesky(kstar[i], K, ks[i], 10); 
-    }
-
-// i+1/4,j+1/4 
-    spnt[0][0] =  0, spnt[0][1] = -1; 
-    spnt[1][0] =  1, spnt[1][1] = -1; 
-    spnt[2][0] = -1, spnt[2][1] =  0; 
-    spnt[3][0] =  0, spnt[3][1] =  0; 
-    spnt[4][0] =  1, spnt[4][1] =  0; 
-    spnt[5][0] =  2, spnt[5][1] =  0; 
-    spnt[6][0] = -1, spnt[6][1] =  1; 
-    spnt[7][0] =  0, spnt[7][1] =  1; 
-    spnt[8][0] =  1, spnt[8][1] =  1;
-    spnt[9][0] =  0, spnt[9][1] =  2; 
-
-/*    for(int i = 0; i < 10; ++i)
-        for(int j = 0; j < 10; ++j)
-            K[j + 10*i] = Ktot[j + 10*i + 300]; */ 
-   K = &Ktot + 300; 
-   CholeskyDecomp(K, 10); 
-    
-    for(int i = 12; i < 16; ++i){
-       for(int j = i; j < 10; ++j){
-           arg = pow(double(pnt[i][0] - spnt[j][0])*dx[0],2)
-               + pow(double(pnt[i][1] - spnt[j][1])*dx[1],2); 
-            arg /= pow(l,2); 
-            kstar[i][j] = exp(-arg); 
-        }
-        cholesky(kstar[i], K, ks[i], 10); 
-    }
-
+    amrex::Real temp[13];        
+    for(int i = 0; i < 16; i++){
+       for (int j = 0; j < 13; j++){
+            temp[j] = sqrexp(pnt[i], spnt[j], dx, l); 
+       }
+       cholesky<13>(temp, K1, ks[i]); 
+    } 
 }
 
+//Solves Ux = b where U is upper triangular
+template<size_t n> 
+void Ux_solve(const amrex::Real R[n][n], amrex::Real &x[n], const amrex::Real b[n])
+{
+        for(int k = n-1; k>=0; --k){
+            x[k] = b[k]; 
+            for( i = k+1; i < n; i++) x[k] -= x[i]*(U[i][k]); 
+            x[k] /= U[i][i]; 
+        }
+}
 
-//This will need to be called from a bigger function for 
-//each point in each quadrant. Essentially each point will have its
-//own set of gammas. 
+// QR Decomposition routines! 
+// In qr_decomp A is decomposed into R and V contains the Householder Vectors to construct Q. 
+template <size_t n> 
 void
-CellGaussianProcess::GetGamma(amrex::Real const ks[3][5],
-                              amrex::Real const Kt[10], 
-                              amrex::Real &gam[3])
+CellGaussianProcess::qr_decomp(const amrex::Real A[n][n], amrex::Real &R[n][n], 
+                                     amrex::Real &v[n][n])
 {
-// We will try the normal equations for this portion. So we need to construct 
-// each partitions' over-determined system.
- 
-    amrex::Real A[9] = {}; 
-    amrex::Real RHS[3] = {}; 
+    amrex::Real s, anorm, vnorm, innerprod; 
+    for(int j = 0; j < n; j++){
+        anorm = 0.e0; 
+        vnorm = 0.e0;
 
-//Fill A from data
+        for(int i = j; i < n; i++) anorm += A[i][j]*A[i][j]; 
+        anorm = std::sqrt(anorm); 
 
-    for(int i = 0; i < 5; ++i){
-        A[0] += ks[0][i]*ks[0][i]; 
-        A[4] += ks[1][i]*ks[1][i]; 
-        A[8] += ks[2][i]*ks[2][i]; 
-    }
-
-    A[1] = ks[0][2]*ks[1][1] + ks[0][3]*ks[1][2]; 
-    A[3] = A[1]; 
-    A[2] = ks[0][1]*ks[2][0] + ks[0][3]*ks[2][1]; 
-    A[6] = A[2]; 
-    A[5] = ks[2][1]*ks[1][2] + ks[1][3]*ks[2][2]; 
-    A[7] = A[5]; 
-    CholeskyDecomp(A, 3); 
-
-//Fill RHS 
-    RHS[0] = ks[0][0]*Kt[0] + ks[0][1]*Kt[2] + ks[0][2]*Kt[3]
-           + ks[0][3]*Kt[4] + ks[0][4]*Kt[7]; 
-
-    RHS[1] = ks[1][0]*Kt[1] + ks[1][1]*Kt[3] + ks[1][2]*Kt[4]
-           + ks[1][3]*Kt[5] + ks[1][4]*Kt[8]; 
-
-    RHS[2] = ks[2][0]*Kt[2] + ks[2][1]*Kt[4] + ks[2][2]*Kt[5]
-           + ks[2][3]*Kt[6] + ks[2][4]*Kt[9]; 
-
-    cholesky(RHS,A,gam,3); 
-}
-
-//Use Shifted QR with deflation to get eigen pairs. 
-void 
-CellGaussianProcess::GetEigenPairs(const amrex::Real *K)
-{
-    std::vector<amrex::Real, 25> p; 
-    hessen(K, p);
-    for(int j = 5; j > 1; j--){
-        amrex::Real er = 1.e0; 
-        while(er> 1.e-10){
-            amrex::Real mu = K[j + 5*j]; 
-#pragma unroll 
-            for(int i = 0; i < 5; i++)
-                P[i + 5*i] -= mu;   
-            qr_decomp(B, Q); 
-            qr_appl(B, Q, 5); 
-            if(j < 5){
-                qr_appl(P, q, j);                 
-            }
-            for(int i = 0; i < j; i++)
-#pragma unroll
-                for(int k = 0; k < j; k++)
-                    V_iter[i][k] = Q[i][k];
-            
-            q_appl(V,V_iter,5); 
-#pragma unroll
-            for(int i = 0; i < 5; i++)
-                B[i + 5*i] += mu; 
-
-            er = fabs(B[j + 5*(j-1)]); 
+        s = std::copysign(1.e0, A[j][j])*anorm; 
+        for(int i = j; i < n; i++){
+            v[i][j] = A[i][j]; 
         }
+        v[j][j] += s;
+
+        for(int i = 0; i < n; i++) vnorm += v[i][j]*v[i][j]; 
+        vnorm = std::sqrt(vnorm); 
+        
+        for(int i =0; i < n; i++) v[i][j] /= vnorm; 
+
+        for(k = 0; k < n; k++){
+            innerprod = 0.e0; 
+            for(int i = 0; i < n; i++) innerprod += v[i][j]*A[i][k]; 
+            
+            for(int i = 0; i < n; i++) R[i][k] = A[i][k] - 2.e0*v[i][j]*innerprod; 
+        }        
     }
-//Since K is symmetric the eigenvectors are converged. 
 }
 
+//QR decomp for the non-square matrix 
+void 
+CellGaussianProcess::QR(const amrex::Real A[13][5], amrex::Real &R[5][5], amrex::Real &Q[13][13])
+{
+    //Q = I 
+    amrex::Real v[13] = {}; 
+    amrex::Real norm, inner, s; 
+    for(int i = 0; i < 13; ++i){
+        for(int j = 0; j < 13; ++j)
+            Q[i][j] = 0.e0; 
+        Q[i][i] = 1.e0; 
+    }
+
+    for(int j = 0; j < 5; ++j){
+       for(int i = 0; i < j; ++i) v[i] = 0; 
+       for(int i = j; i < 13; ++i){
+             v[i] = A[i][j]; 
+             norm += v[i]*v[i]; 
+        }
+        norm = std::sqrt(norm); 
+        s = std::copysign(norm, A[j][j]); 
+        v[j] += s; 
+        norm = 0.e0; 
+        for(int i = j; i < 13; i++) norm += v[i]*v[i]; 
+        norm = std::sqrt(norm); 
+        if(std::abs(norm) > std::numeric_limits::<double>epsilon())
+        {
+            for(int i = j; i < 13; ++i) v[i] /= norm; //Normalize vector v
+            for(int k = j; k < 5; ++k){
+                inner = 0.e0; 
+                for(int i = 0; i < 13; ++i) inner += v[i]*A[i][k]; 
+                for(int i = 0; i < 13; ++i) A[i][k] -= 2.e0*inner*v[i];
+            }
+            for(int k = 0; k < 13; ++k){
+                inner = 0.e0; 
+                for(int i = 0; i < 13; ++i) inner += v[i]*Q[i][k]; 
+                for(int i = 0; i < 13; ++i) Q[i][k] -= 2.e0*inner*v[i]; 
+            }
+        }
+    } 
+}
+
+//Applies V onto A -> QA 
 template <size_t rows> 
 void 
 CellGaussianProcess::q_appl(amrex::Real (&A)[rows][rows], 
@@ -1410,6 +1159,158 @@ CellGaussianProcess::q_appl_vec(amrex::Real (&A)[rows],
         }
 }
 
+
+//Each point will have its
+//own set of gammas. 
+//Use x = R^-1Q'b 
+void
+CellGaussianProcess::GetGamma(amrex::Real const ks[5][5],
+                              amrex::Real const Kt[13], 
+                              amrex::Real &gam[5])
+{
+
+//Extended matrix Each column contains the vector of coviarances corresponding 
+//to each sample (weno-like stencil)
+    amrex::Real A[13][5] = {{ks[0][0], 0.e0    , 0.e0    , 0.e0    , 0.e0    }, 
+                            {0.e0    , ks[0][1], 0.e0    , 0.e0    , 0.e0    }, 
+                            {ks[1][0], 0.e0    , ks[0][2], 0.e0    , 0.e0    }, 
+                            {ks[2][0], ks[1][1], 0.e0    , ks[0][3], 0.e0    }, 
+                            {ks[3][0], ks[2][1], ks[1][2], 0.e0    , ks[0][4]}, 
+                            {0.e0    , ks[3][1], ks[2][2], ks[1][3], 0.e0    }, 
+                            {0.e0    , 0.e0    , ks[3][2], ks[2][3], ks[1][4]}, 
+                            {0.e0    , 0.e0    , 0.e0    , ks[3][3], ks[2][4]}, 
+                            {ks[4][0], 0.e0    , 0.e0    , 0.e0    , ks[3][4]}, 
+                            {0.e0    , ks[4][1], 0.e0    , 0.e0    , 0.e0    }, 
+                            {0.e0    , 0.e0    , ks[4][2], 0.e0    , 0.e0    }, 
+                            {0.e0    , 0.e0    , 0.e0    , ks[4][3], 0.e0    }, 
+                            {0.e0    , 0.e0    , 0.e0    , 0.e0    , ks[4][4]}};
+
+
+   amrex::Real Q[13][13]; 
+   amrex::Real R[5][5]; 
+   QR(A, Q, R); // This one is for non-square matrices
+   amrex::Real temp[5] ={0};
+
+   //Q'*Kt 
+   for(int i = 0; i < 5; i++)
+      for(int j = 0; j < 13; j++)
+        temp[i] += Q[j][i]*Kt[j];
+    //gam = R^-1 Q'Kt 
+    Ux_solve<5>(R, gam, temp);         
+}
+
+
+//Use Shifted QR with deflation to get eigen pairs. 
+template<size_t n>
+void 
+CellGaussianProcess::GetEigenPairs(const amrex::Real K[n][n])
+{
+// lam and V are part of class definition! 
+
+    amrex::Real p[n][n], Q[n][n]; 
+    amrex::Real V_iter[n][n]; 
+    hessen(K, p); // Puts K into Hessenberg Form 
+    for(int j = n-1; j > 0; j--){
+        amrex::Real er = 1.e0; 
+        while(er> 1.e-10){
+            amrex::Real mu = K[j][j]; 
+#pragma unroll 
+            for(int i = 0; i < n; i++)
+                p[i][i] -= mu;   
+            qr_decomp<n>(B, Q); 
+            qr_appl<n>(B, Q); 
+            if(j < n){
+                qr_appl(P, q, j);                 
+            }
+            for(int i = 0; i < j; i++)
+#pragma unroll
+                for(int k = 0; k < j; k++)
+                    V_iter[i][k] = Q[i][k];
+            
+            q_appl<n>(V,V_iter); 
+#pragma unroll
+            for(int i = 0; i < n; i++)
+                B[i + n*i] += mu; 
+
+            er = fabs(B[j + n*(j-1)]); 
+        }
+    }
+//Since K is symmetric the eigenvectors are converged. 
+}
+
+
+void 
+CellGaussianProcess::amrex_cginterp(const int i, const int j, const int k, const int n,  
+                              const int rx, const int ry, 
+                              amrex::Array4<const amrex::Real> const& crse, 
+                              amrex::Array4<amrex::Real> const& fine)
+{
+#if (AMREX_SPACEDIM==2)
+    amrex::Real sten_cen[5] = {crse(i,j-1,k,n)  , crse(i-1,j,k,n)  , crse(i,j,k,n)  , crse(i+1,j,k,n)  , crse(i,j+1,k,n)  };
+    amrex::Real sten_im[5]  = {crse(i-1,j-1,k,n), crse(i-2,j,k,n)  , crse(i-1,j,k,n), crse(i,j,k,n)    , crse(i-1,j+1,k,n)}; 
+    amrex::Real sten_jm[5]  = {crse(i,j-2,k,n)  , crse(i-1,j-1,k,n), crse(i,j-1,k,n), crse(i+1,j-1,k,n), crse(i,j,k,n)    }; 
+    amrex::Real sten_ip[5]  = {crse(i+1,j-1,k,n), crse(i,j,k,n)    , crse(i+1,j,k,n), crse(i+2,j,k,n)  , crse(i+1,j+1,k,n)}; 
+    amrex::Real sten_jp[5]  = {crse(i,j,k,n)    , crse(i-1,j+1,k,n), crse(i,j+1,k,n), crse(i+1,j+1,;), crse(i,j+2,k,n)  }; 
+    amrex::Real beta[5] = {0}, ws[5] = {0}, summ, test, sqrmean = 0;
+    amrex::Real inn;  
+    int idx, idy; 
+    
+    for(int ii = 0; ii < 4; ii++)
+    {
+        inn = inner_prod(V[n], sten_jm); 
+        beta[0] += 1.e0/lam[ii]*inn*inn; 
+
+        inn = inner_prod(V[n], sten_im); 
+        beta[1] += 1.e0/lam[ii]*inn*inn; 
+
+        inn = inner_prod(V[n], sten_cen); 
+        beta[2] += 1.e0/lam[ii]*inn*inn; 
+
+        inn = inner_prod(V[n], sten_ip); 
+        beta[3] += 1.e0/lam[ii]*inn*inn; 
+
+        inn = inner_prod(V[n], sten_jp); 
+        beta[4] += 1.e0/lam[ii]*inn*inn; 
+
+        sqrmean += sten_cen[ii]; 
+    } 
+
+    sqrmean /= 5; 
+    sqrmean *= sqrmean; 
+    test = beta[2]/sqrmean; 
+    if(test > 100){
+        for(int jj = 0; jj < ry; ++jj){
+            idy = j*ry + jj; 
+            for(int ii = 0; ii < rx; ++ii){
+                idx = i*rx + ii; 
+                id = ii + jj*rx; //TODO this assumes Rx = Ry. If this is not the case, we need to rethink. 
+                summ = 0.e0; 
+                for(int m = 0; m < 5; ++m){
+                    ws[m] = gam[id][m]/((1e-32 + beta[m])*(1e-32 + beta[m])); 
+                    summ += ws[m]; 
+                }
+                fine(idx,idy,k,n) = (ws[0]/summ)*inner_prod(ks[id][0], sten_jm) 
+                                  + (ws[1]/summ)*inner_prod(ks[id][1], sten_im) 
+                                  + (ws[2]/summ)*inner_prod(ks[id][2], sten_cen) 
+                                  + (ws[3]/summ)*inner_prod(ks[id][3], sten_ip) 
+                                  + (ws[4]/summ)*inner_prod(ks[id][4], sten_jp);
+            }
+        }
+    }
+    else{
+        for(int jj = 0; jj < ry; ++jj){
+            idy = j*ry + jj; 
+            for(int ii = 0; ii < rx; ++ii){
+                idx = i*rx + ii; 
+                id = ii + jj*rx; //TODO this assumes Rx = Ry. If this is not the case, we need to rethink. 
+                fine(idx,idy,k,n) = inner_prod(ks[id][2], sten_cen);
+            }
+        }
+    }
+
+#endif    
+}
+
 void
 CellGaussianProcess::interp (const FArrayBox& crse,
                        int              crse_comp,
@@ -1432,80 +1333,12 @@ CellGaussianProcess::interp (const FArrayBox& crse,
     Box target_fine_region = fine_region & fine.box();
 
     Box crse_bx(amrex::coarsen(target_fine_region,ratio));
-    Box fslope_bx(amrex::refine(crse_bx,ratio));
-    Box cslope_bx(crse_bx);
-    cslope_bx.grow(1);
-    BL_ASSERT(crse.box().contains(cslope_bx));
-    //
-    // Alloc temp space for coarse grid slopes: here we use 5
-    // instead of AMREX_SPACEDIM because of the x^2, y^2 and xy terms
-    //
-    long t_long = cslope_bx.numPts();
-    BL_ASSERT(t_long < INT_MAX);
-    int c_len = int(t_long);
+    Vector<int> bc     = GetBCArray(bcr); //Assess if we need this. 
 
-    Vector<Real> cslope(5*c_len);
+    AMREX_PARALLEL_FOR_4D(crse_bx, fine_comp, i, j, k, n, {
+        amrex_cgpinterp(i,j,k,n, ratio[0], ratio[1], crse.array(), fine.array());
+    }); 
 
-    int loslp = cslope_bx.index(crse_bx.smallEnd());
-    int hislp = cslope_bx.index(crse_bx.bigEnd());
-
-    t_long = cslope_bx.numPts();
-    BL_ASSERT(t_long < INT_MAX);
-    int cslope_vol = int(t_long);
-    int clo        = 1 - loslp;
-    int chi        = clo + cslope_vol - 1;
-    c_len          = hislp - loslp + 1;
-    //
-    // Alloc temp space for one strip of fine grid slopes: here we use 5
-    // instead of AMREX_SPACEDIM because of the x^2, y^2 and xy terms.
-    //
-    int dir;
-    int f_len = fslope_bx.longside(dir);
-
-    Vector<Real> strip((5+2)*f_len);
-
-    Real* fstrip = strip.dataPtr();
-    Real* foff   = fstrip + f_len;
-    Real* fslope = foff + f_len;
-    //
-    // Get coarse and fine edge-centered volume coordinates.
-    //
-    Vector<Real> fvc[AMREX_SPACEDIM];
-    Vector<Real> cvc[AMREX_SPACEDIM];
-    for (dir = 0; dir < AMREX_SPACEDIM; dir++)
-    {
-        fine_geom.GetEdgeVolCoord(fvc[dir],target_fine_region,dir);
-        crse_geom.GetEdgeVolCoord(cvc[dir],crse_bx,dir);
-    }
-    //
-    // Alloc tmp space for slope calc and to allow for vectorization.
-    //
-    Real* fdat        = fine.dataPtr(fine_comp);
-    const Real* cdat  = crse.dataPtr(crse_comp);
-    const int* flo    = fine.loVect();
-    const int* fhi    = fine.hiVect();
-    const int* fblo   = target_fine_region.loVect();
-    const int* fbhi   = target_fine_region.hiVect();
-    const int* cblo   = crse_bx.loVect();
-    const int* cbhi   = crse_bx.hiVect();
-    const int* fslo   = fslope_bx.loVect();
-    const int* fshi   = fslope_bx.hiVect();
-    int slope_flag    = (do_limited_slope ? 1 : 0);
-    Vector<int> bc     = GetBCArray(bcr);
-    const int* ratioV = ratio.getVect();
-
-
-    amrex_cgpinterp(fdat,AMREX_ARLIM(flo),AMREX_ARLIM(fhi),
-                   AMREX_ARLIM(fblo), AMREX_ARLIM(fbhi),
-                   &ncomp,AMREX_D_DECL(&ratioV[0],&ratioV[1],&ratioV[2]),
-                   cdat,&clo,&chi,
-                   AMREX_ARLIM(cblo), AMREX_ARLIM(cbhi),
-                   fslo,fshi,
-                   cslope.dataPtr(),&c_len,fslope,fstrip,&f_len,foff,
-                   bc.dataPtr(), &slope_flag,
-                   AMREX_D_DECL(fvc[0].dataPtr(),fvc[1].dataPtr(),fvc[2].dataPtr()),
-                   AMREX_D_DECL(cvc[0].dataPtr(),cvc[1].dataPtr(),cvc[2].dataPtr()),
-                   &actual_comp,&actual_state);
 
 }
 
