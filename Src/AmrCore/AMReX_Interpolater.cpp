@@ -794,9 +794,23 @@ CellConservativeQuartic::interp (const FArrayBox&  crse,
 }
 
 //Cell GP interp SR Dissertation Work 
-CellGaussianProcess::CellGaussianProcess (bool mult_sample)
+CellGaussianProcess::CellGaussianProcess ()
 {
-    do_multi_sampled = mult_sample;
+    if(init == FALSE){
+
+        amrex::Real K[5][5]; 
+        amrex::Real Ktot[13][13]; 
+        amrex::Real l = 0.1; 
+        const amrex::Real *dx = geom.CellSize(); 
+    
+        GetK(); 
+        GetKs(); 
+        GetKtoKs(); 
+        get_gamma(); 
+        get_eig(); 
+
+
+    }
 }
 
 CellGaussianProcess::~CellGaussianProcess () {}
@@ -869,15 +883,10 @@ CellGaussianProcess::sqrexp(const amrex::Real x[2],const amrex::Real y[2], const
 //Four K totals to make the gammas.  
 void
 CellGaussianProcess::GetK(amrex::Real &K[5][5], amrex::Real &Ktot[13][13],
-                          const amrex::Real dx*, const amrex::Real l)
+                          const amrex::Real *dx, const amrex::Real l)
 {
 
     int pnt[5][2];
-/*    pnt[0][0] = 0 , pnt[0][1] = -1; 
-    pnt[1][0] = -1, pnt[1][1] = 0; 
-    pnt[2][0] = 0 , pnt[2][1] = 0; 
-    pnt[3][0] = 1 , pnt[3][1] = 0; 
-    pnt[4][0] = 0 , pnt[4][1] = 1; */ 
     pnt[0] = { 0, -1}; 
     pnt[1] = {-1,  0}; 
     pnt[2] = { 0,  0}; 
@@ -889,7 +898,9 @@ CellGaussianProcess::GetK(amrex::Real &K[5][5], amrex::Real &Ktot[13][13],
     for(int i = 1; i < 5; ++i)
         for(int j = i; j < 5; ++j){
             K[i][j] = sqrexp(pnt[i], pnt[j], dx, l); 
+            K[j][i] = K[i][j]; 
         }
+    CholeskyDecomp<5>(K); //Turns K into LL*
 
     for(int i = 0; i < 13; ++i) Ktot[i][i] = 1.e0; 
 
@@ -911,7 +922,9 @@ CellGaussianProcess::GetK(amrex::Real &K[5][5], amrex::Real &Ktot[13][13],
     for(int i = 1; i < 13; ++i)
         for(int j = i; j <13; ++j){
             Ktot[i][j] = sqrexp(spnt[i], spnt[j], dx, l); 
+            Ktot[j][i] = Ktot[i][j]; 
         }
+    CholeskyDecomp<13>(Ktot); 
 }
 
 //Use a Cholesky Decomposition to solve for k*K^-1 
@@ -955,20 +968,21 @@ CellGaussianProcess::GetKs(amrex::Real ks[16][5][5], amrex::Real amrex::Real con
     //Build covariance vector between interpolant points and stencil 
      for(int i = 0; i < 16; ++i){
         for(int j = i; j < 5; ++j){
-            temp = {spnt[j][0], spnt[j][1] - 1.0}; 
+            temp = {spnt[j][0], spnt[j][1] - 1.0}; //sten_jm
             k1[i][j] = sqrexp(pnt[i], temp, dx, l);
 
-            temp = {spnt[j][0] - 1.0,  spnt[j][1]};
+            temp = {spnt[j][0] - 1.0,  spnt[j][1]}; //sten_im
             k2[i][j] = sqrexp(pnt[i], temp, dx, l);
 
-            k3[i][j] = sqrexp(pnt[i], spnt[j], dx, l);
+            k3[i][j] = sqrexp(pnt[i], spnt[j], dx, l); //sten_cen
     
             temp = {spnt[j][0] + 1.0, spnt[j][1]};
-            k4[i][j] = sqrexp(pnt[i], temp, dx, l); 
+            k4[i][j] = sqrexp(pnt[i], temp, dx, l); //sten_ip
 
             temp = {spnt[j][0], spnt[j][1] + 1.0}; 
-            k5[i][j] = sqrexp(pnt[i], temp, dx, l); 
+            k5[i][j] = sqrexp(pnt[i], temp, dx, l); //sten_jp
         }
+     //Backsubstitutes for k^TK^{-1} 
         cholesky<5>(k1[i], K, temp2); 
         for(int k = 0; k < 5; k++) ks[i][k][0] = temp2[k];
         cholesky<5>(k2[i], K, temp2); 
@@ -1238,7 +1252,17 @@ CellGaussianProcess::GetEigenPairs(const amrex::Real K[n][n])
 //Since K is symmetric the eigenvectors are converged. 
 }
 
+template<size_t n>
+inline
+amrex::Real inner_prod(const amrex::Real x[n], const amrex::Real y[n])
+{
+    amrex::Real inn = 0.e0; 
+    for(int i = 0; i < n; ++i) 
+        inn += x[i]*y[i]; 
+    return inn; 
+}
 
+AMREX_GPU_DEVICE
 void 
 CellGaussianProcess::amrex_cginterp(const int i, const int j, const int k, const int n,  
                               const int rx, const int ry, 
@@ -1257,19 +1281,19 @@ CellGaussianProcess::amrex_cginterp(const int i, const int j, const int k, const
     
     for(int ii = 0; ii < 4; ii++)
     {
-        inn = inner_prod(V[n], sten_jm); 
+        inn = inner_prod<5>(V[n], sten_jm); 
         beta[0] += 1.e0/lam[ii]*inn*inn; 
 
-        inn = inner_prod(V[n], sten_im); 
+        inn = inner_prod<5>(V[n], sten_im); 
         beta[1] += 1.e0/lam[ii]*inn*inn; 
 
-        inn = inner_prod(V[n], sten_cen); 
+        inn = inner_prod<5>(V[n], sten_cen); 
         beta[2] += 1.e0/lam[ii]*inn*inn; 
 
-        inn = inner_prod(V[n], sten_ip); 
+        inn = inner_prod<5>(V[n], sten_ip); 
         beta[3] += 1.e0/lam[ii]*inn*inn; 
 
-        inn = inner_prod(V[n], sten_jp); 
+        inn = inner_prod<5>(V[n], sten_jp); 
         beta[4] += 1.e0/lam[ii]*inn*inn; 
 
         sqrmean += sten_cen[ii]; 
@@ -1289,11 +1313,11 @@ CellGaussianProcess::amrex_cginterp(const int i, const int j, const int k, const
                     ws[m] = gam[id][m]/((1e-32 + beta[m])*(1e-32 + beta[m])); 
                     summ += ws[m]; 
                 }
-                fine(idx,idy,k,n) = (ws[0]/summ)*inner_prod(ks[id][0], sten_jm) 
-                                  + (ws[1]/summ)*inner_prod(ks[id][1], sten_im) 
-                                  + (ws[2]/summ)*inner_prod(ks[id][2], sten_cen) 
-                                  + (ws[3]/summ)*inner_prod(ks[id][3], sten_ip) 
-                                  + (ws[4]/summ)*inner_prod(ks[id][4], sten_jp);
+                fine(idx,idy,k,n) = (ws[0]/summ)*inner_prod<5>(ks[id][0], sten_jm) 
+                                  + (ws[1]/summ)*inner_prod<5>(ks[id][1], sten_im) 
+                                  + (ws[2]/summ)*inner_prod<5>(ks[id][2], sten_cen) 
+                                  + (ws[3]/summ)*inner_prod<5>(ks[id][3], sten_ip) 
+                                  + (ws[4]/summ)*inner_prod<5>(ks[id][4], sten_jp);
             }
         }
     }
@@ -1303,7 +1327,7 @@ CellGaussianProcess::amrex_cginterp(const int i, const int j, const int k, const
             for(int ii = 0; ii < rx; ++ii){
                 idx = i*rx + ii; 
                 id = ii + jj*rx; //TODO this assumes Rx = Ry. If this is not the case, we need to rethink. 
-                fine(idx,idy,k,n) = inner_prod(ks[id][2], sten_cen);
+                fine(idx,idy,k,n) = inner_prod<5>(ks[id][2], sten_cen);
             }
         }
     }
