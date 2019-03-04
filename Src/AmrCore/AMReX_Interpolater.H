@@ -665,20 +665,24 @@ public:
     //
     // Build K makes the Coviarance Kernel Matrices for each Samples 
     // And for Total Stencil
-    void GetK(amrex::Real *K, amrex::Real *Ktot); 
+    void GetK(amrex::Real &K[5][5], amrex::Real &Ktot[13][13], const amrex::Real *dx); 
     //
     // Get Weights builds k*Kinv for each stencil
     //
-    void GetWeights(const amrex::Real *K); 
+    void GetKs(const amrex::Real K[5][5], const amrex::Real *dx);
+    //
+    //  Get Weights for the LSQ RHS
+    //
+    void GetKtotks(const amrex::Real K1[13][13], amrex::Real &ks[16][13], const amrex::Real *dx); 
     //
     // Get Gamma by solving a LSQ problem only need this once. 
     //
-    void GetGamma(const amrex::Real *K, const amrex::Real *Ktot); 
+    void GetGamma(const amrex::Real ks[5][5], const amrex::Real kt[13], amrex::Real &gam[5]); 
     //
     //  Get EigenVecs and EigenValues for smoothness indicators. 
     //  Will use the Shifted QR algorithm with deflation 
     //
-    void GetEigenPairs(const amrex::Real *K); 
+    void GetEigenPairs(const amrex::Real K[5][5]); 
     //
     // Eigen Values of Covariance Matrix 
     //
@@ -686,15 +690,15 @@ public:
     //
     //  Eigen Vectors of Covariance Matrix
     //
-    amrex::Real Vec[5][5];
+    amrex::Real V[5][5];
     //
     //  Weights to be applied for interpolation
     //
-    amrex::Real w[16][5]; 
+    amrex::Real ks[16][5][5]; 
     //
     //  Gammas needed for smoothness indication
     //
-    amrex::Real gamma[5];
+    amrex::Real gamma[16][5];
     amrex::Real l; 
     bool init = false;  
 };

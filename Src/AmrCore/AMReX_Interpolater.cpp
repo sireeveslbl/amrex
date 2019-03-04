@@ -796,21 +796,6 @@ CellConservativeQuartic::interp (const FArrayBox&  crse,
 //Cell GP interp SR Dissertation Work 
 CellGaussianProcess::CellGaussianProcess ()
 {
-    if(init == FALSE){
-
-        amrex::Real K[5][5]; 
-        amrex::Real Ktot[13][13]; 
-        amrex::Real l = 0.1; 
-        const amrex::Real *dx = geom.CellSize(); 
-    
-        GetK(); 
-        GetKs(); 
-        GetKtoKs(); 
-        get_gamma(); 
-        get_eig(); 
-
-
-    }
 }
 
 CellGaussianProcess::~CellGaussianProcess () {}
@@ -883,7 +868,7 @@ CellGaussianProcess::sqrexp(const amrex::Real x[2],const amrex::Real y[2], const
 //Four K totals to make the gammas.  
 void
 CellGaussianProcess::GetK(amrex::Real &K[5][5], amrex::Real &Ktot[13][13],
-                          const amrex::Real *dx, const amrex::Real l)
+                          const amrex::Real *dx)
 {
 
     int pnt[5][2];
@@ -900,7 +885,6 @@ CellGaussianProcess::GetK(amrex::Real &K[5][5], amrex::Real &Ktot[13][13],
             K[i][j] = sqrexp(pnt[i], pnt[j], dx, l); 
             K[j][i] = K[i][j]; 
         }
-    CholeskyDecomp<5>(K); //Turns K into LL*
 
     for(int i = 0; i < 13; ++i) Ktot[i][i] = 1.e0; 
 
@@ -924,7 +908,16 @@ CellGaussianProcess::GetK(amrex::Real &K[5][5], amrex::Real &Ktot[13][13],
             Ktot[i][j] = sqrexp(spnt[i], spnt[j], dx, l); 
             Ktot[j][i] = Ktot[i][j]; 
         }
-    CholeskyDecomp<13>(Ktot); 
+}
+
+//We need to to the decomposition outside of the GetK routine so we can use K to get the 
+//EigenVectors and Values. 
+
+void
+CellGaussianProcess::Decomp(amrex::Real &K[5][5], amrex::Real &Kt[13][13])
+{
+    CholeskyDecomp<5>(K); 
+    CholeskyDecomp<13>(Kt); 
 }
 
 //Use a Cholesky Decomposition to solve for k*K^-1 
@@ -932,8 +925,7 @@ CellGaussianProcess::GetK(amrex::Real &K[5][5], amrex::Real &Ktot[13][13],
 //We need weights for each stencil. Therefore we'll have 5 arrays of 16 X 5 each. 
 
 void 
-CellGaussianProcess::GetKs(amrex::Real ks[16][5][5], amrex::Real amrex::Real const K[5][5], amrex::Real const *dx,
-                           const amrex::Real l)
+CellGaussianProcess::GetKs(const amrex::Real K[5][5], const amrex::Real *dx)
 {
 
     //Locations of new points relative to i,j 
@@ -1002,7 +994,7 @@ CellGaussianProcess::GetKs(amrex::Real ks[16][5][5], amrex::Real amrex::Real con
 // K1 is already Choleskied  
 void 
 CellGaussianProcess::GetKtotks(const amrex::Real K1[13][13], amrex::Real &ks[16][13], 
-                               const amrex::Real *dx, const amrex::Real l)
+                               const amrex::Real *dx)
 {
     //Locations of new points relative to i,j 
     amrex::Real pnt[16][2]; 
@@ -1163,14 +1155,13 @@ void
 CellGaussianProcess::q_appl_vec(amrex::Real (&A)[rows], 
                                 amrex::Real (&V)[rows][rows])
 {
-    for(int i = 0; i < rows; ++i) 
-        {
-            amrex::Real temp = 0; 
-            for(int j = 0; j < rows; ++j)
-                temp += A[i]*V[j][i]; 
-            for(int j = 0; j < rows; ++j) 
-                A[j] -= 2*V[j][i]*temp; 
-        }
+    for(int i = 0; i < rows; ++i)  {
+        amrex::Real temp = 0; 
+        for(int j = 0; j < rows; ++j)
+            temp += A[i]*V[j][i]; 
+        for(int j = 0; j < rows; ++j) 
+            A[j] -= 2*V[j][i]*temp; 
+    }
 }
 
 
@@ -1179,10 +1170,9 @@ CellGaussianProcess::q_appl_vec(amrex::Real (&A)[rows],
 //Use x = R^-1Q'b 
 void
 CellGaussianProcess::GetGamma(amrex::Real const ks[5][5],
-                              amrex::Real const Kt[13], 
+                              amrex::Real const kt[13], 
                               amrex::Real &gam[5])
 {
-
 //Extended matrix Each column contains the vector of coviarances corresponding 
 //to each sample (weno-like stencil)
     amrex::Real A[13][5] = {{ks[0][0], 0.e0    , 0.e0    , 0.e0    , 0.e0    }, 
@@ -1208,34 +1198,37 @@ CellGaussianProcess::GetGamma(amrex::Real const ks[5][5],
    //Q'*Kt 
    for(int i = 0; i < 5; i++)
       for(int j = 0; j < 13; j++)
-        temp[i] += Q[j][i]*Kt[j];
-    //gam = R^-1 Q'Kt 
-    Ux_solve<5>(R, gam, temp);         
+        temp[i] += Q[j][i]*kt[j]; //Q'kt 
+    //gam = R^-1 Q'kt 
+    Ux_solve<5>(R, gam, temp);
 }
 
-
-//Use Shifted QR with deflation to get eigen pairs. 
+//Use Shifted QR to get eigen pairs. 
 template<size_t n>
 void 
 CellGaussianProcess::GetEigenPairs(const amrex::Real K[n][n])
 {
 // lam and V are part of class definition! 
 
-    amrex::Real p[n][n], Q[n][n]; 
-    amrex::Real V_iter[n][n]; 
-    hessen(K, p); // Puts K into Hessenberg Form 
-    for(int j = n-1; j > 0; j--){
+    amrex::Real V_iter[n][n];
+    amrex::Real Q[n][n] = {{1.0, 0.0, 0.0, 0.0, 0.0},
+                           {0.0, 1.0, 0.0, 0.0, 0.0},
+                           {0.0, 0.0, 1.0, 0.0, 0.0},
+                           {0.0, 0.0, 0.0, 1.0, 0.0}, 
+                           {0.0, 0.0, 0.0, 0.0, 1.0}};
+    amrex::Real B[n][n]; 
+    for(int i =0; i < n; ++i) 
+        for(int j = 0; j <n; ++j) B[i][j] = K[i][j]; 
+
+    for(int j = n-1; j >= 0; j--){
         amrex::Real er = 1.e0; 
         while(er> 1.e-10){
             amrex::Real mu = K[j][j]; 
 #pragma unroll 
             for(int i = 0; i < n; i++)
-                p[i][i] -= mu;   
+                B[i][i] -= mu;   
             qr_decomp<n>(B, Q); 
             qr_appl<n>(B, Q); 
-            if(j < n){
-                qr_appl(P, q, j);                 
-            }
             for(int i = 0; i < j; i++)
 #pragma unroll
                 for(int k = 0; k < j; k++)
@@ -1244,9 +1237,8 @@ CellGaussianProcess::GetEigenPairs(const amrex::Real K[n][n])
             q_appl<n>(V,V_iter); 
 #pragma unroll
             for(int i = 0; i < n; i++)
-                B[i + n*i] += mu; 
-
-            er = fabs(B[j + n*(j-1)]); 
+                B[i][i] += mu; 
+            er = std::abs(B[j][j-1]]); 
         }
     }
 //Since K is symmetric the eigenvectors are converged. 
@@ -1336,6 +1328,27 @@ CellGaussianProcess::amrex_cginterp(const int i, const int j, const int k, const
 }
 
 void
+CellGaussianProcess::InitGP (const int rx, const int ry, const amrex::Real *dx)
+{
+    amrex::Real K[5][5]; 
+    amrex::Real Ktot[13][13];
+    amrex::Real kt[16][13]; 
+    GetK(K, Ktot, dx, l); // Builds Covariance Matrices of Base Sample and Extended Samples/stencils
+    GetEigenPairs(K); //Gets Eigenvalues and Vectors from K for use in the interpolation 
+    Decomp(K, Ktot); //Decomposes K and Ktot into their Cholesky Versions
+    GetKs(K, dx, l); 
+
+    // K and Ktot are not actually necessary for the rest of the GP interpolation 
+    // They are only used to construct the weights w = ks^T Kinv 
+    // and gam = Rinv Q^T kt; 
+    // ks, gam, lam and V are part of the class and will be used in the main interpolation routine. 
+        
+    GetKtotks(Ktot, kt, dx , l); 
+    for(int i = 0; i < rx*ry; ++i)
+        GetGamma(ks[i], kt[i], gam[i]); //Gets the gamma's for the 
+}
+
+void
 CellGaussianProcess::interp (const FArrayBox& crse,
                        int              crse_comp,
                        FArrayBox&       fine,
@@ -1357,7 +1370,11 @@ CellGaussianProcess::interp (const FArrayBox& crse,
     Box target_fine_region = fine_region & fine.box();
 
     Box crse_bx(amrex::coarsen(target_fine_region,ratio));
-    Vector<int> bc     = GetBCArray(bcr); //Assess if we need this. 
+    amrex::Real *dx = crse_geom.CellSize(); 
+    l = 0.1;
+    //TODO put a protection against building the same Weights. 
+    InitGP(ratio[0], ratio[1], dx, l);
+    Vector<int> bc = GetBCArray(bcr); //Assess if we need this. 
 
     AMREX_PARALLEL_FOR_4D(crse_bx, fine_comp, i, j, k, n, {
         amrex_cgpinterp(i,j,k,n, ratio[0], ratio[1], crse.array(), fine.array());
