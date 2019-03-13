@@ -360,6 +360,13 @@ Device::mem_advise_set_readonly (void* p, const std::size_t sz) {
 #if defined(AMREX_USE_CUDA)
 
 void
+Device::setNumThreadsMin(int nx, int ny, int nz) {
+    numThreadsMin.x = nx;
+    numThreadsMin.y = ny;
+    numThreadsMin.z = nz;
+}
+
+void
 Device::n_threads_and_blocks (const long N, dim3& numBlocks, dim3& numThreads)
 {
     numThreads = AMREX_CUDA_MAX_THREADS;
@@ -441,7 +448,6 @@ Device::grid_stride_threads_and_blocks (dim3& numBlocks, dim3& numThreads)
 
     if (num_SMs > 0) {
 
-
         numBlocks.x = 1;
         numBlocks.y = SM_mult_factor;
         numBlocks.z = num_SMs;
@@ -456,9 +462,32 @@ Device::grid_stride_threads_and_blocks (dim3& numBlocks, dim3& numThreads)
 
     }
 
-    numThreads.x = std::max((int) numThreadsMin.x, 16);
-    numThreads.y = std::max((int) numThreadsMin.y, 16);
-    numThreads.z = std::max((int) numThreadsMin.z, 1);
+#if (AMREX_SPACEDIM == 1)
+
+    numThreads.x = std::min(static_cast<unsigned>(device_prop.maxThreadsDim[0]), AMREX_CUDA_MAX_THREADS);
+    numThreads.x = std::max(numThreads.x, numThreadsMin.x);
+    numThreads.y = 1;
+    numThreads.z = 1;
+
+#elif (AMREX_SPACEDIM == 2)
+
+    numThreads.x = std::min(static_cast<unsigned>(device_prop.maxThreadsDim[0]), AMREX_CUDA_MAX_THREADS / numThreadsMin.y);
+    numThreads.y = std::min(static_cast<unsigned>(device_prop.maxThreadsDim[1]), AMREX_CUDA_MAX_THREADS / numThreads.x);
+    numThreads.x = std::max(numThreadsMin.x, numThreads.x);
+    numThreads.y = std::max(numThreadsMin.y, numThreads.y);
+    numThreads.z = 1;
+
+#else
+
+    numThreads.x = std::min(static_cast<unsigned>(device_prop.maxThreadsDim[0]), AMREX_CUDA_MAX_THREADS / (numThreadsMin.y * numThreadsMin.z));
+    numThreads.y = std::min(static_cast<unsigned>(device_prop.maxThreadsDim[1]), AMREX_CUDA_MAX_THREADS / (numThreads.x    * numThreadsMin.z));
+    numThreads.z = std::min(static_cast<unsigned>(device_prop.maxThreadsDim[2]), AMREX_CUDA_MAX_THREADS / (numThreads.x    * numThreads.y   ));
+
+    numThreads.x = std::max(numThreadsMin.x, numThreads.x);
+    numThreads.y = std::max(numThreadsMin.y, numThreads.y);
+    numThreads.z = std::max(numThreadsMin.z, numThreads.z);
+
+#endif
 
     // Allow the user to override these at runtime.
 
@@ -479,6 +508,18 @@ Device::grid_stride_threads_and_blocks (dim3& numBlocks, dim3& numThreads)
 }
 
 #endif
+
+std::size_t
+Device::freeMemAvailable ()
+{
+#ifdef AMREX_USE_CUDA
+    std::size_t f, t;
+    AMREX_GPU_SAFE_CALL(cudaMemGetInfo(&f,&t));
+    return f;
+#else
+    return 0;
+#endif
+}
 
 }}
 
