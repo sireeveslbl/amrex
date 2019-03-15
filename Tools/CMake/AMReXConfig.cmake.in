@@ -16,6 +16,11 @@ set(AMREX_BUILD_TYPE  @CMAKE_BUILD_TYPE@)
 # 
 set(AMREX_GIT_VERSION \"@AMREX_GIT_VERSION@\")
 
+#
+# Add AMReX modules to app code CMake
+#
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "@CMAKE_INSTALL_PREFIX@/Tools/CMake/")
+
 # 
 # Configuration options
 #
@@ -53,6 +58,10 @@ set(AMREX_ENABLE_COMM_PROFILE       @ENABLE_COMM_PROFILE@)
 set(AMREX_ENABLE_BACKTRACE          @ENABLE_BACKTRACE@)
 set(AMREX_ENABLE_PROFPARSER         @ENABLE_PROFPARSER@)
 
+# SUNDIALS support
+set(AMREX_ENABLE_SUNDIALS           @ENABLE_SUNDIALS@)
+
+# Find dependencies if needed
 if (AMREX_ENABLE_3D_NODAL_MLMG)
    # External libs
    set(BLITZ_INSTALL_PREFIX @BLITZ_INSTALL_PREFIX@)
@@ -72,6 +81,10 @@ if (AMREX_ENABLE_3D_NODAL_MLMG)
    endif ()
 endif ()
 
+if (AMREX_ENABLE_SUNDIALS)
+   include(CMakeFindDependencyMacro)
+   find_dependency(SUNDIALS COMPONENTS nvecserial cvode arkode REQUIRED )
+endif ()
 
 
 # This two lines are suggested on the internet

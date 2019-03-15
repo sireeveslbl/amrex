@@ -89,6 +89,10 @@ if (ENABLE_SENSEI_INSITU)
    include (Extern/SENSEI/CMakeLists.txt)
 endif ()
 
+if (ENABLE_SUNDIALS)
+   include(Extern/SUNDIALS3/CMakeLists.txt)   
+endif ()
+
 if (ENABLE_CONDUIT)
    include (Extern/Conduit/CMakeLists.txt)
 endif ()
