@@ -661,46 +661,6 @@ public:
                          Vector<BCRec>&    bcr,
                          int              actual_comp,
                          int              actual_state) override;
-    // Set up for the multi-sampled Weighted GP interpolation 
-    //
-    // Build K makes the Coviarance Kernel Matrices for each Samples 
-    // And for Total Stencil
-    void GetK(amrex::Real &K[5][5], amrex::Real &Ktot[13][13], const amrex::Real *dx); 
-    //
-    // Get Weights builds k*Kinv for each stencil
-    //
-    void GetKs(const amrex::Real K[5][5], const amrex::Real *dx);
-    //
-    //  Get Weights for the LSQ RHS
-    //
-    void GetKtotks(const amrex::Real K1[13][13], amrex::Real &ks[16][13], const amrex::Real *dx); 
-    //
-    // Get Gamma by solving a LSQ problem only need this once. 
-    //
-    void GetGamma(const amrex::Real ks[5][5], const amrex::Real kt[13], amrex::Real &gam[5]); 
-    //
-    //  Get EigenVecs and EigenValues for smoothness indicators. 
-    //  Will use the Shifted QR algorithm with deflation 
-    //
-    void GetEigenPairs(const amrex::Real K[5][5]); 
-    //
-    // Eigen Values of Covariance Matrix 
-    //
-    amrex::Real lambda[5]; 
-    //
-    //  Eigen Vectors of Covariance Matrix
-    //
-    amrex::Real V[5][5];
-    //
-    //  Weights to be applied for interpolation
-    //
-    amrex::Real ks[16][5][5]; 
-    //
-    //  Gammas needed for smoothness indication
-    //
-    amrex::Real gamma[16][5];
-    amrex::Real l; 
-    bool init = false;  
 };
 //
 // CONSTRUCT A GLOBAL OBJECT OF EACH VERSION.
