@@ -6,6 +6,7 @@
 
 class GP
 {
+    public: 
     GP(); 
     ~GP();
 
@@ -44,7 +45,7 @@ class GP
     //
     //  Get Weights for the LSQ RHS
     //
-    void GetKtotks(const amrex::Real K1[13][13], amrex::Real &ks[16][13], const amrex::Real *dx); 
+    void GetKtotks(const amrex::Real K1[13][13], amrex::Real (&ks)[16][13], const amrex::Real *dx); 
     //
     // Get Gamma by solving a LSQ problem only need this once. 
     //
@@ -53,6 +54,7 @@ class GP
     //  Get EigenVecs and EigenValues for smoothness indicators. 
     //  Will use the Shifted QR algorithm with deflation 
     //
+    template<size_t n> 
     void GetEigen(const std::vector<std::vector<amrex::Real>> K, std::vector<std::vector<amrex::Real>> &v, 
               amrex::Real (&la)[n]);
     //
@@ -70,7 +72,7 @@ class GP
     //
     //  Gammas needed for smoothness indication
     //
-    amrex::Real gamma[16][5];
+    amrex::Real gam[16][5];
     amrex::Real l; 
 };
 

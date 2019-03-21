@@ -632,6 +632,8 @@ class CellGaussianProcess
     public Interpolater
 {
 public:
+    CellGaussianProcess()
+    {}; 
     //
     // The destructor.
     //
@@ -661,6 +663,15 @@ public:
                          Vector<BCRec>&    bcr,
                          int              actual_comp,
                          int              actual_state) override;
+    //
+    // 
+    //
+    AMREX_GPU_DEVICE
+    void amrex_gpinterp(const int i, const int j, const int k, const int n,  
+                         const int rx, const int ry, 
+                         amrex::Array4<const amrex::Real> const& crse, 
+                         amrex::Array4<amrex::Real> const& fine);
+
 };
 //
 // CONSTRUCT A GLOBAL OBJECT OF EACH VERSION.

@@ -795,10 +795,6 @@ CellConservativeQuartic::interp (const FArrayBox&  crse,
 }
 
 //Cell GP interp SR Dissertation Work 
-CellGaussianProcess::CellGaussianProcess ()
-{
-}
-
 CellGaussianProcess::~CellGaussianProcess () {}
 
 Box
@@ -823,7 +819,7 @@ CellGaussianProcess::CoarseBox (const Box& fine,
 
 AMREX_GPU_DEVICE
 void 
-CellGaussianProcess::amrex_cginterp(const int i, const int j, const int k, const int n,  
+CellGaussianProcess::amrex_gpinterp(const int i, const int j, const int k, const int n,  
                               const int rx, const int ry, 
                               amrex::Array4<const amrex::Real> const& crse, 
                               amrex::Array4<amrex::Real> const& fine)
@@ -919,14 +915,14 @@ CellGaussianProcess::interp (const FArrayBox& crse,
 
     Box crse_bx(amrex::coarsen(target_fine_region,ratio));
     amrex::Real *dx = crse_geom.CellSize();
-    GP gp();  
+    GP gp;  
     gp.l = 0.1;
     gp.InitGP(ratio[0], ratio[1], dx); 
     
     Vector<int> bc = GetBCArray(bcr); //Assess if we need this. 
 
     AMREX_PARALLEL_FOR_4D(crse_bx, crse_comp, i, j, k, n, {
-        amrex_cgpinterp(i,j,k,n, ratio[0], ratio[1], crse.array(), fine.array(), gp.ks, 
+        amrex_gpinterp(i,j,k,n, ratio[0], ratio[1], crse.array(), fine.array(), gp.ks, 
                         gp.gam, gp.lam, gp.V);
     }); 
 
