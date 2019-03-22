@@ -818,37 +818,42 @@ CellGaussianProcess::CoarseBox (const Box& fine,
 
 
 AMREX_GPU_DEVICE
+inline
 void 
 CellGaussianProcess::amrex_gpinterp(const int i, const int j, const int k, const int n,  
                               const int rx, const int ry, 
                               amrex::Array4<const amrex::Real> const& crse, 
-                              amrex::Array4<amrex::Real> const& fine)
+                              amrex::Array4<amrex::Real> const& fine,
+                              const amrex::Real ks[16][5][5], 
+                              const amrex::Real V[5][5], 
+                              const amrex::Real lam[5], 
+                              const amrex::Real gam[16][5])
 {
 #if (AMREX_SPACEDIM==2)
     amrex::Real sten_cen[5] = {crse(i,j-1,k,n)  , crse(i-1,j,k,n)  , crse(i,j,k,n)  , crse(i+1,j,k,n)  , crse(i,j+1,k,n)  };
     amrex::Real sten_im[5]  = {crse(i-1,j-1,k,n), crse(i-2,j,k,n)  , crse(i-1,j,k,n), crse(i,j,k,n)    , crse(i-1,j+1,k,n)}; 
     amrex::Real sten_jm[5]  = {crse(i,j-2,k,n)  , crse(i-1,j-1,k,n), crse(i,j-1,k,n), crse(i+1,j-1,k,n), crse(i,j,k,n)    }; 
     amrex::Real sten_ip[5]  = {crse(i+1,j-1,k,n), crse(i,j,k,n)    , crse(i+1,j,k,n), crse(i+2,j,k,n)  , crse(i+1,j+1,k,n)}; 
-    amrex::Real sten_jp[5]  = {crse(i,j,k,n)    , crse(i-1,j+1,k,n), crse(i,j+1,k,n), crse(i+1,j+1,;), crse(i,j+2,k,n)  }; 
-    amrex::Real beta[5] = {0}, ws[5] = {0}, summ, test, sqrmean = 0;
+    amrex::Real sten_jp[5]  = {crse(i,j,k,n)    , crse(i-1,j+1,k,n), crse(i,j+1,k,n), crse(i+1,j+1,k,n), crse(i,j+2,k,n)  }; 
+    amrex::Real beta[5] = {0.}, ws[5] = {0.}, summ, test, sqrmean = 0.;
     amrex::Real inn;  
-    int idx, idy; 
+    int idx, idy, id; 
     
-    for(int ii = 0; ii < 4; ii++)
+    for(int ii = 0; ii < 5; ii++)
     {
-        inn = inner_prod<5>(V[n], sten_jm); 
+        inn = GP::inner_prod<5>(V[n], sten_jm); 
         beta[0] += 1.e0/lam[ii]*inn*inn; 
 
-        inn = inner_prod<5>(V[n], sten_im); 
+        inn = GP::inner_prod<5>(V[n], sten_im); 
         beta[1] += 1.e0/lam[ii]*inn*inn; 
 
-        inn = inner_prod<5>(V[n], sten_cen); 
+        inn = GP::inner_prod<5>(V[n], sten_cen); 
         beta[2] += 1.e0/lam[ii]*inn*inn; 
 
-        inn = inner_prod<5>(V[n], sten_ip); 
+        inn = GP::inner_prod<5>(V[n], sten_ip); 
         beta[3] += 1.e0/lam[ii]*inn*inn; 
 
-        inn = inner_prod<5>(V[n], sten_jp); 
+        inn = GP::inner_prod<5>(V[n], sten_jp); 
         beta[4] += 1.e0/lam[ii]*inn*inn; 
 
         sqrmean += sten_cen[ii]; 
@@ -868,11 +873,11 @@ CellGaussianProcess::amrex_gpinterp(const int i, const int j, const int k, const
                     ws[m] = gam[id][m]/((1e-32 + beta[m])*(1e-32 + beta[m])); 
                     summ += ws[m]; 
                 }
-                fine(idx,idy,k,n) = (ws[0]/summ)*inner_prod<5>(ks[id][0], sten_jm) 
-                                  + (ws[1]/summ)*inner_prod<5>(ks[id][1], sten_im) 
-                                  + (ws[2]/summ)*inner_prod<5>(ks[id][2], sten_cen) 
-                                  + (ws[3]/summ)*inner_prod<5>(ks[id][3], sten_ip) 
-                                  + (ws[4]/summ)*inner_prod<5>(ks[id][4], sten_jp);
+                fine(idx,idy,k,n) = (ws[0]/summ)*GP::inner_prod<5>(ks[id][0], sten_jm) 
+                                  + (ws[1]/summ)*GP::inner_prod<5>(ks[id][1], sten_im) 
+                                  + (ws[2]/summ)*GP::inner_prod<5>(ks[id][2], sten_cen) 
+                                  + (ws[3]/summ)*GP::inner_prod<5>(ks[id][3], sten_ip) 
+                                  + (ws[4]/summ)*GP::inner_prod<5>(ks[id][4], sten_jp);
             }
         }
     }
@@ -882,7 +887,7 @@ CellGaussianProcess::amrex_gpinterp(const int i, const int j, const int k, const
             for(int ii = 0; ii < rx; ++ii){
                 idx = i*rx + ii; 
                 id = ii + jj*rx; //TODO this assumes Rx = Ry. If this is not the case, we need to rethink. 
-                fine(idx,idy,k,n) = inner_prod<5>(ks[id][2], sten_cen);
+                fine(idx,idy,k,n) = GP::inner_prod<5>(ks[id][2], sten_cen);
             }
         }
     }
@@ -914,7 +919,7 @@ CellGaussianProcess::interp (const FArrayBox& crse,
     
 
     Box crse_bx(amrex::coarsen(target_fine_region,ratio));
-    amrex::Real *dx = crse_geom.CellSize();
+    const amrex::Real *dx = crse_geom.CellSize();
     GP gp;  
     gp.l = 0.1;
     gp.InitGP(ratio[0], ratio[1], dx); 
@@ -923,7 +928,7 @@ CellGaussianProcess::interp (const FArrayBox& crse,
 
     AMREX_PARALLEL_FOR_4D(crse_bx, crse_comp, i, j, k, n, {
         amrex_gpinterp(i,j,k,n, ratio[0], ratio[1], crse.array(), fine.array(), gp.ks, 
-                        gp.gam, gp.lam, gp.V);
+                        gp.V, gp.lam, gp.gam);
     }); 
 
 

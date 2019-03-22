@@ -1,17 +1,14 @@
 #include <AMReX_GP.H>
-#include <vector>
 
-
+template<class T>
 inline amrex::Real
-GP::sqrexp(const amrex::Real x[2],const amrex::Real y[2], const amrex::Real dx[2])
+GP::sqrexp(const T x[2],const T y[2], const amrex::Real *dx)
 {
     amrex::Real result = std::exp(-0.5*((x[0] - y[0])*(x[0] - y[0])*dx[0]*dx[0] + 
                                         (x[1] - y[1])*(x[1] - y[1])*dx[1]*dx[1])/(l*l));
     return result;    
 } 
 
-    GP::~GP();
-    
     //Perfroms Cholesky Decomposition on covariance matrix K
 void
 GP::InitGP (const int rx, const int ry, const amrex::Real *dx)
@@ -19,7 +16,7 @@ GP::InitGP (const int rx, const int ry, const amrex::Real *dx)
     amrex::Real K[5][5]; 
     amrex::Real Ktot[13][13];
     amrex::Real kt[16][13]; 
-    GetK(K, Ktot, dx); // Builds Covariance Matrices of Base Sample and Extended Samples/stencils
+    GetK(K, Ktot, dx); // Builds Covariance Matrices of Base Sample and Extended Samples/stencils    
     GetEigen(K); //Gets Eigenvalues and Vectors from K for use in the interpolation 
     Decomp(K, Ktot); //Decomposes K and Ktot into their Cholesky Versions
     GetKs(K, dx); 
@@ -29,12 +26,12 @@ GP::InitGP (const int rx, const int ry, const amrex::Real *dx)
     // and gam = Rinv Q^T kt; 
     // ks, gam, lam and V are part of the class and will be used in the main interpolation routine. 
         
-    GetKtotks(Ktot, kt, dx , l); 
+    GetKtotks(Ktot, kt, dx); 
     for(int i = 0; i < rx*ry; ++i)
         GetGamma(ks[i], kt[i], gam[i]); //Gets the gamma's for the 
 }
 
-template<size_t n>
+template<int n>
 void
 GP::CholeskyDecomp(amrex::Real (&K)[n][n])
 {
@@ -52,7 +49,7 @@ GP::CholeskyDecomp(amrex::Real (&K)[n][n])
     }
 }
 
-template<size_t n> 
+template<int n> 
 void 
 GP::matmul(const amrex::Real (&A)[n][n], const amrex::Real (&X)[n][n], 
             amrex::Real (&B)[n][n])
@@ -68,10 +65,27 @@ GP::matmul(const amrex::Real (&A)[n][n], const amrex::Real (&X)[n][n],
         }
 }
 
+template<int n> 
+void 
+GP::matmul(const std::vector<std::vector<amrex::Real>> &A, 
+           const std::vector<std::vector<amrex::Real>> &X, 
+            std::vector<std::vector<amrex::Real>> &B)
+{
+    amrex::Real temp; 
+    for(int i = 0; i < n; i++) 
+        for(int j = 0; j < n; j++){
+           temp = 0.0; 
+           for(int k = 0; k < n; k++){
+               temp += A[i][k]*X[k][j];             
+            }
+            B[i][j] = temp; 
+        }
+}
+
 //Performs Cholesky Backsubstitution
-template<size_t n> 
+template<int n> 
 void
-GP::cholesky(amrex::Real (&)[n], amrex::Real const K[n][n])
+GP::cholesky(amrex::Real (&b)[n], amrex::Real const K[n][n])
 {
     /* Forward sub Ly = b */
     for(int i = 0; i < n; ++i){
@@ -90,16 +104,15 @@ GP::cholesky(amrex::Real (&)[n], amrex::Real const K[n][n])
 //Builds the Covariance matrix K if uninitialized --> if(!init) GetK, weights etc.
 //Four K totals to make the gammas.  
 void
-GP::GetK(amrex::Real &K[5][5], amrex::Real &Ktot[13][13],
+GP::GetK(amrex::Real (&K)[5][5], amrex::Real (&Ktot)[13][13],
                           const amrex::Real *dx)
 {
 
-    int pnt[5][2];
-    pnt[0] = { 0, -1}; 
-    pnt[1] = {-1,  0}; 
-    pnt[2] = { 0,  0}; 
-    pnt[3] = { 1,  0}; 
-    pnt[4] = { 0,  1}; 
+    amrex::Real pnt[5][2] = {{ 0, -1}, 
+                             {-1,  0}, 
+                             { 0,  0}, 
+                             { 1,  0}, 
+                             { 0,  1}}; 
 
     for(int i = 0; i < 5; ++i) K[i][i] = 1.e0; 
 //Small K
@@ -111,20 +124,19 @@ GP::GetK(amrex::Real &K[5][5], amrex::Real &Ktot[13][13],
 
     for(int i = 0; i < 13; ++i) Ktot[i][i] = 1.e0; 
 
-    amrex::Real spnt[13][2]; 
-    spnt[0]  = { 0, -2}; 
-    spnt[1]  = {-1, -1}; 
-    spnt[2]  = { 0, -1};
-    spnt[3]  = { 1, -1}; 
-    spnt[4]  = {-2,  0}; 
-    spnt[5]  = {-1,  0}; 
-    spnt[6]  = { 0,  0}; 
-    spnt[7]  = { 1,  0}; 
-    spnt[8]  = { 2,  0}; 
-    spnt[9]  = {-1,  1}; 
-    spnt[10] = { 0,  1}; 
-    spnt[11] = { 1,  1}; 
-    spnt[12] = { 0,  2}; 
+    amrex::Real spnt[13][2] =  {{ 0, -2}, 
+                                {-1, -1}, 
+                                { 0, -1},
+                                { 1, -1}, 
+                                {-2,  0}, 
+                                {-1,  0}, 
+                                { 0,  0}, 
+                                { 1,  0}, 
+                                { 2,  0}, 
+                                {-1,  1}, 
+                                { 0,  1}, 
+                                { 1,  1}, 
+                                { 0,  2}}; 
 
     for(int i = 1; i < 13; ++i)
         for(int j = i; j <13; ++j){
@@ -170,7 +182,7 @@ GP::GetKs(const amrex::Real K[5][5], const amrex::Real *dx)
     pnt[14][0] = 0.125, pnt[14][1] = 0.375; 
     pnt[15][0] = 0.375, pnt[15][1] = 0.375; 
 
-    int spnt[5][2]; 
+    amrex::Real spnt[5][2]; 
     spnt[0][0] = 0 , spnt[0][1] = -1; 
     spnt[1][0] = -1, spnt[1][1] = 0; 
     spnt[2][0] = 0 , spnt[2][1] = 0; 
@@ -179,35 +191,34 @@ GP::GetKs(const amrex::Real K[5][5], const amrex::Real *dx)
 
     amrex::Real k1[16][5], k2[16][5], k3[16][5], k4[16][5], k5[16][5]; 
     amrex::Real temp[2]; 
-    amrex::Real temp2[5]; 
     //Build covariance vector between interpolant points and stencil 
      for(int i = 0; i < 16; ++i){
         for(int j = i; j < 5; ++j){
-            temp = {spnt[j][0], spnt[j][1] - 1.0}; //sten_jm
+            temp[0] = spnt[j][0], temp[1] = spnt[j][1] - 1.0; //sten_jm
             k1[i][j] = sqrexp(pnt[i], temp, dx);
 
-            temp = {spnt[j][0] - 1.0,  spnt[j][1]}; //sten_im
+            temp[0] = spnt[j][0] - 1.0, temp[1] =   spnt[j][1]; //sten_im
             k2[i][j] = sqrexp(pnt[i], temp, dx);
 
             k3[i][j] = sqrexp(pnt[i], spnt[j], dx); //sten_cen
     
-            temp = {spnt[j][0] + 1.0, spnt[j][1]};
+            temp[0] = spnt[j][0] + 1.0, temp[1] = spnt[j][1];
             k4[i][j] = sqrexp(pnt[i], temp, dx); //sten_ip
 
-            temp = {spnt[j][0], spnt[j][1] + 1.0}; 
+            temp[0] = spnt[j][0], temp[1] = spnt[j][1] + 1.0; 
             k5[i][j] = sqrexp(pnt[i], temp, dx); //sten_jp
         }
      //Backsubstitutes for k^TK^{-1} 
-        cholesky<5>(k1[i], K, temp2); 
-        for(int k = 0; k < 5; k++) ks[i][k][0] = temp2[k];
-        cholesky<5>(k2[i], K, temp2); 
-        for(int k = 0; k < 5; k++) ks[i][k][1] = temp2[k]; 
-        cholesky<5>(k3[i], K, temp2); 
-        for(int k = 0; k < 5; k++) ks[i][k][2] = temp2[k]; 
-        cholesky<5>(k4[i], K, temp2); 
-        for(int k = 0; k < 5; k++) ks[i][k][3] = temp2[k]; 
-        cholesky<5>(k5[i], K, temp2); 
-        for(int k = 0; k < 5; k++) ks[i][k][4] = temp2[k]; 
+        cholesky<5>(k1[i], K); 
+        for(int k = 0; k < 5; k++) ks[i][k][0] = k1[i][k];
+        cholesky<5>(k2[i], K); 
+        for(int k = 0; k < 5; k++) ks[i][k][1] = k2[i][k]; 
+        cholesky<5>(k3[i], K); 
+        for(int k = 0; k < 5; k++) ks[i][k][2] = k3[i][k]; 
+        cholesky<5>(k4[i], K); 
+        for(int k = 0; k < 5; k++) ks[i][k][3] = k4[i][k]; 
+        cholesky<5>(k5[i], K); 
+        for(int k = 0; k < 5; k++) ks[i][k][4] = k5[i][k]; 
     }
 }
 
@@ -216,7 +227,7 @@ GP::GetKs(const amrex::Real K[5][5], const amrex::Real *dx)
 // Therefore, we will need 16 b =  k*^T Ktot^(-1)
 // K1 is already Choleskied  
 void 
-GP::GetKtotks(const amrex::Real K1[13][13], amrex::Real &ks[16][13], 
+GP::GetKtotks(const amrex::Real K1[13][13], amrex::Real (&kt)[16][13], 
                                const amrex::Real *dx)
 {
     //Locations of new points relative to i,j 
@@ -239,44 +250,30 @@ GP::GetKtotks(const amrex::Real K1[13][13], amrex::Real &ks[16][13],
     pnt[15][0] = 0.375, pnt[15][1] = 0.375; 
 
     //Super K positions 
-    amrex::Real spnt[13][2]; 
-    spnt[0]  = { 0, -2}; 
-    spnt[1]  = {-1, -1}; 
-    spnt[2]  = { 0, -1};
-    spnt[3]  = { 1, -1}; 
-    spnt[4]  = {-2,  0}; 
-    spnt[5]  = {-1,  0}; 
-    spnt[6]  = { 0,  0}; 
-    spnt[7]  = { 1,  0}; 
-    spnt[8]  = { 2,  0}; 
-    spnt[9]  = {-1,  1}; 
-    spnt[10] = { 0,  1}; 
-    spnt[11] = { 1,  1}; 
-    spnt[12] = { 0,  2}; 
-/*
-    spnt[0][0] =  0, spnt[0][1] = -2; 
-    spnt[1][0] = -1, spnt[1][1] = -1; 
-    spnt[2][0] =  0, spnt[2][1] = -1; 
-    spnt[3][0] =  1, spnt[3][1] = -1; 
-    spnt[4][0] = -2, spnt[4][1] =  0; 
-    spnt[5][0] = -1, spnt[5][1] =  0; 
-    spnt[6][0] =  0, spnt[6][1] =  0; 
-    spnt[7][0] =  1, spnt[7][1] =  0; 
-    spnt[8][0] = -1, spnt[8][1] =  1;
-    spnt[9][0] =  0, spnt[9][1] =  1;
-*/ 
+    amrex::Real spnt[13][2] = {{ 0, -2},  
+                               {-1, -1}, 
+                               { 0, -1},
+                               { 1, -1}, 
+                               {-2,  0}, 
+                               {-1,  0}, 
+                               { 0,  0}, 
+                               { 1,  0}, 
+                               { 2,  0}, 
+                               {-1,  1}, 
+                               { 0,  1}, 
+                               { 1,  1}, 
+                               { 0,  2}}; 
 
-    amrex::Real temp[13];        
     for(int i = 0; i < 16; i++){
        for (int j = 0; j < 13; j++){
-            temp[j] = sqrexp(pnt[i], spnt[j], dx); 
+            kt[i][j] = sqrexp(pnt[i], spnt[j], dx); 
        }
-       cholesky<13>(temp, K1, ks[i]); 
+       cholesky<13>(kt[i], K1); 
     } 
 }
 
 //Solves Ux = b where U is upper triangular
-template<size_t n> 
+template<int n> 
 void 
 GP::Ux_solve(const amrex::Real R[n][n], amrex::Real (&x)[n], const amrex::Real b[n])
 {
@@ -372,7 +369,7 @@ GP::QR(amrex::Real (&A)[13][5], amrex::Real (&Q)[13][13],amrex::Real (&R)[5][5])
 //Applies V onto A -> VA 
 void
 GP::q_appl(std::vector<std::vector<amrex::Real>> &A, const std::vector<std::vector<amrex::Real>> V, const int rows, 
-       int upper=0, int mode=0)
+       int upper/*=0 */, int mode /*=0*/) //may remove these in the future 
 {
     if(upper == 0){
         if(mode == 0){ //Right Multiplication Q*A 
@@ -435,7 +432,7 @@ GP::q_appl(std::vector<std::vector<amrex::Real>> &A, const std::vector<std::vect
 void
 GP::GetGamma(amrex::Real const ks[5][5],
              amrex::Real const kt[13], 
-             amrex::Real &gam[5])
+             amrex::Real (&ga)[5])
 {
 //Extended matrix Each column contains the vector of coviarances corresponding 
 //to each sample (weno-like stencil)
@@ -464,19 +461,21 @@ GP::GetGamma(amrex::Real const ks[5][5],
       for(int j = 0; j < 13; j++)
         temp[i] += Q[j][i]*kt[j]; //Q'kt 
     //gam = R^-1 Q'kt 
-    Ux_solve<5>(R, gam, temp);
+    Ux_solve<5>(R, ga, temp);
 }
 
-template<size_t n> 
+template<int n> 
 void 
-GP::GetEigen(const std::vector<std::vector<amrex::Real>> K, std::vector<std::vector<amrex::Real>> &v, 
-              amrex::Real (&lam)[n])
+GP::GetEigen(const amrex::Real K[n][n])
 {
     std::vector<std::vector<amrex::Real>> Q(n, std::vector<amrex::Real>(n, 0.));
     std::vector<std::vector<amrex::Real>> temp(n, std::vector<amrex::Real>(n, 0.)); 
     std::vector<std::vector<amrex::Real>> vtemp(n, std::vector<amrex::Real>(n, 0.)); 
-    
-    std::vector<std::vector<amrex::Real>> B = K;
+    std::vector<std::vector<amrex::Real>> v = vtemp; 
+    std::vector<std::vector<amrex::Real>> B(n, std::vector<amrex::Real>(n, 0.));
+    for(int i = 0; i < n; ++i) 
+        for(int j = 0; i < n; ++j) B[i][j] = K[i][j];
+ 
     int iter;  
 
     for(int i = 0; i < n; i++){
@@ -502,16 +501,9 @@ GP::GetEigen(const std::vector<std::vector<amrex::Real>> K, std::vector<std::vec
             iter++;
         }
     }
-    for(int i = 0; i < n; i++) la[i] = B[i][i]; 
+    for(int i = 0; i < n; i++){
+         lam[i] = B[i][i]; 
+         for(int j = 0; j < n; j++) V[i][j] = v[i][j]; 
 }
-
-template<size_t n>
-inline
-amrex::Real 
-GP::inner_prod(const amrex::Real x[n], const amrex::Real y[n])
-{
-    amrex::Real inn = 0.e0; 
-    for(int i = 0; i < n; ++i) 
-        inn += x[i]*y[i]; 
-    return inn; 
-}  
+}
+  
