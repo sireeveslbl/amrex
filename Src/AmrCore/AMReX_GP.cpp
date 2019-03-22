@@ -474,7 +474,7 @@ GP::GetEigen(const amrex::Real K[n][n])
     std::vector<std::vector<amrex::Real>> v = vtemp; 
     std::vector<std::vector<amrex::Real>> B(n, std::vector<amrex::Real>(n, 0.));
     for(int i = 0; i < n; ++i) 
-        for(int j = 0; i < n; ++j) B[i][j] = K[i][j];
+        for(int j = 0; j < n; ++j) B[i][j] = K[i][j];
  
     int iter;  
 
@@ -486,7 +486,7 @@ GP::GetEigen(const amrex::Real K[n][n])
     for(int j = n-1; j > 0; j--){
         er = 1.e0; 
         iter =0; 
-        while(er > 1e-15){
+        while(er > 1e-12){
             mu = B[j][j]; 
             for(int i = 0; i < n; i++){ B[i][i] -= mu;
                 for(int j = 0; j < n; j++) Q[i][j] = (i == j) ? 1.0 : 0.0; 
@@ -499,6 +499,7 @@ GP::GetEigen(const amrex::Real K[n][n])
             for(int i = 0; i < n; i++) B[i][i] += mu;
             er = std::abs(B[j][j-1]);
             iter++;
+            if(iter>500) return; 
         }
     }
     for(int i = 0; i < n; i++){
