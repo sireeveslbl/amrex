@@ -921,7 +921,7 @@ CellGaussianProcess::interp (const FArrayBox& crse,
     Box crse_bx(amrex::coarsen(target_fine_region,ratio));
     const amrex::Real *dx = crse_geom.CellSize();
     GP gp;  
-    gp.l = 0.1;
+    gp.l = 12*std::sqrt(dx[0]*dx[0] + dx[1]*dx[1]);
     gp.InitGP(ratio[0], ratio[1], dx); 
     
     Vector<int> bc = GetBCArray(bcr); //Assess if we need this. 

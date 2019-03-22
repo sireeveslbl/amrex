@@ -1,4 +1,5 @@
 #include <AMReX_GP.H>
+#include <iostream> 
 
 template<class T>
 inline amrex::Real
@@ -116,12 +117,17 @@ GP::GetK(amrex::Real (&K)[5][5], amrex::Real (&Ktot)[13][13],
 
     for(int i = 0; i < 5; ++i) K[i][i] = 1.e0; 
 //Small K
-    for(int i = 1; i < 5; ++i)
-        for(int j = i; j < 5; ++j){
+    for(int i = 0; i < 5; ++i)
+        for(int j = i+1; j < 5; ++j){
             K[i][j] = sqrexp(pnt[i], pnt[j], dx); 
             K[j][i] = K[i][j]; 
         }
-
+/*    for(int i = 0; i < 5; ++i){
+        for(int j = 0; j < 5; ++j) std::cout<< K[i][j] << "   "; 
+        std::cout<<std::endl; 
+    }
+    std::cin.get(); 
+*/ 
     for(int i = 0; i < 13; ++i) Ktot[i][i] = 1.e0; 
 
     amrex::Real spnt[13][2] =  {{ 0, -2}, 
@@ -138,8 +144,8 @@ GP::GetK(amrex::Real (&K)[5][5], amrex::Real (&Ktot)[13][13],
                                 { 1,  1}, 
                                 { 0,  2}}; 
 
-    for(int i = 1; i < 13; ++i)
-        for(int j = i; j <13; ++j){
+    for(int i = 0; i < 13; ++i)
+        for(int j = i+1; j <13; ++j){
             Ktot[i][j] = sqrexp(spnt[i], spnt[j], dx); 
             Ktot[j][i] = Ktot[i][j]; 
         }
@@ -499,7 +505,13 @@ GP::GetEigen(const amrex::Real K[n][n])
             for(int i = 0; i < n; i++) B[i][i] += mu;
             er = std::abs(B[j][j-1]);
             iter++;
-            if(iter>500) return; 
+            if(iter>500){
+                 for(int ii = 0; ii < n; ii++)
+                    { for(int jj = 0; jj < n; jj++) std::cout<< K[ii][jj] << '\t';
+                    }
+                    std::cout<< std::endl;  
+                 std::cin.get(); 
+                }
         }
     }
     for(int i = 0; i < n; i++){
