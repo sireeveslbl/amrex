@@ -667,10 +667,10 @@ public:
     // 
     //
     AMREX_GPU_DEVICE
-    void amrex_gpinterp(const int i, const int j, const int k, const int n,  
-                        const int rx, const int ry, 
-                        amrex::Array4<const amrex::Real> const& crse, 
-                        amrex::Array4<amrex::Real> const& fine,
+    void amrex_gpinterp(Box const& bx, FArrayBox& finefab,
+                        const int fcomp, const int ncomp, 
+                        FArrayBox const& crsefab, const int ccomp, 
+                        IntVect ratio,   
                         const amrex::Real ks[16][5][5], 
                         const amrex::Real V[5][5], 
                         const amrex::Real lam[5], 

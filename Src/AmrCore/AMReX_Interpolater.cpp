@@ -820,118 +820,146 @@ CellGaussianProcess::CoarseBox (const Box& fine,
 AMREX_GPU_DEVICE
 inline
 void 
-CellGaussianProcess::amrex_gpinterp(const int i, const int j, const int k, const int n,  
-                              const int rx, const int ry, 
-                              amrex::Array4<const amrex::Real> const& crse, 
-                              amrex::Array4<amrex::Real> const& fine,
-                              const amrex::Real ks[16][5][5], 
-                              const amrex::Real V[5][5], 
-                              const amrex::Real lam[5], 
-                              const amrex::Real gam[16][5])
+CellGaussianProcess::amrex_gpinterp(Box const& bx, FArrayBox& finefab,
+                                    const int fcomp, const int ncomp, 
+                                    FArrayBox const& crsefab, const int ccomp, 
+                                    IntVect ratio,   
+                                    const amrex::Real ks[16][5][5], 
+                                    const amrex::Real V[5][5], 
+                                    const amrex::Real lam[5], 
+                                    const amrex::Real gam[16][5])
 {
-#if (AMREX_SPACEDIM==2)
-    amrex::Real sten_cen[5] = {crse(i,j-1,k,n)  , crse(i-1,j,k,n)  , crse(i,j,k,n)  , crse(i+1,j,k,n)  , crse(i,j+1,k,n)  };
-    amrex::Real sten_im[5]  = {crse(i-1,j-1,k,n), crse(i-2,j,k,n)  , crse(i-1,j,k,n), crse(i,j,k,n)    , crse(i-1,j+1,k,n)}; 
-    amrex::Real sten_jm[5]  = {crse(i,j-2,k,n)  , crse(i-1,j-1,k,n), crse(i,j-1,k,n), crse(i+1,j-1,k,n), crse(i,j,k,n)    }; 
-    amrex::Real sten_ip[5]  = {crse(i+1,j-1,k,n), crse(i,j,k,n)    , crse(i+1,j,k,n), crse(i+2,j,k,n)  , crse(i+1,j+1,k,n)}; 
-    amrex::Real sten_jp[5]  = {crse(i,j,k,n)    , crse(i-1,j+1,k,n), crse(i,j+1,k,n), crse(i+1,j+1,k,n), crse(i,j+2,k,n)  }; 
-    amrex::Real beta[5] = {0.}, ws[5] = {0.}, summ, test, sqrmean = 0.;
-    amrex::Real inn;  
-    int idx, idy, id; 
+#if (AMREX_SPACEDIM!=2)
+    Abort("Not completed for ND, only 2D!"); 
+#endif    
+    const auto len = amrex::length(bx);
+    const auto lo  = amrex::lbound(bx);
+    const auto fine = finefab.view(lo,fcomp);
+
+    const auto clo = amrex::coarsen(lo,ratio);
+    const auto crse = crsefab.view(clo,ccomp);
+
+    for(int n = 0; n < ncomp; ++n) { 
+        for (int j = 0; j < len.y; ++j){ 
+            const int jc = amrex::coarsen(j+lo.y, ratio[1]) - clo.y; 
+            AMREX_PRAGMA_SIMD
+            for(int i = 0; i < len.x; ++i){
+                std::cout<< " i = " << i << " j = " << j << std::endl; 
+
+                const int ic = amrex::coarsen(i+lo.x, ratio[0]) - clo.x; 
+                amrex::Real sten_cen[5] = {crse(ic,jc-1,0,n)  , 
+                                           crse(ic-1,jc,0,n)  , crse(ic,jc,0,n)  ,
+                                           crse(ic+1,jc,0,n)  , crse(ic,jc+1,0,n)  };
     
-    for(int ii = 0; ii < 5; ii++)
-    {
-        inn = GP::inner_prod<5>(V[n], sten_jm); 
-        beta[0] += 1.e0/lam[ii]*inn*inn; 
+                amrex::Real beta[5] = {0.}, ws[5] = {0.}, summ, test, sqrmean = 0.;
+                amrex::Real vtemp[5]; 
+                amrex::Real inn;  
+                int  id; 
+                for(int ii = 0; ii < 5; ii++)
+                {
+                    for(int jj = 0; jj < 5; jj++) vtemp[jj] = V[jj][ii]; 
+                    inn = GP::inner_prod<5>(vtemp, sten_cen); 
+                    beta[2] += 1.e0/lam[ii]*(inn*inn);
+                    sqrmean += sten_cen[ii]; 
+                } 
+                sqrmean /= 5; 
 
-        inn = GP::inner_prod<5>(V[n], sten_im); 
-        beta[1] += 1.e0/lam[ii]*inn*inn; 
+                sqrmean *= sqrmean; 
+                test = beta[2]/sqrmean;
+                std::cout<< " test = " << test << std::endl; 
+                if(test > 100){
 
-        inn = GP::inner_prod<5>(V[n], sten_cen); 
-        beta[2] += 1.e0/lam[ii]*inn*inn; 
+                    amrex::Real sten_im[5]  = {crse(ic-1,jc-1,0,n), crse(ic-2,jc,0,n)  ,
+                                               crse(ic-1,jc,0,n), crse(ic,jc,0,n)    , crse(ic-1,jc+1,0,n)}; 
+                    amrex::Real sten_jm[5]  = {crse(ic,jc-2,0,n)  , crse(i-1,jc-1,0,n), 
+                                               crse(ic,jc-1,0,n), crse(i+1,jc-1,0,n), crse(ic,jc,0,n)    }; 
+                    amrex::Real sten_ip[5]  = {crse(ic+1,jc-1,0,n), crse(ic,jc,0,n)    ,
+                                               crse(ic+1,jc,0,n), crse(ic+2,jc,0,n)  , crse(ic+1,jc+1,0,n)}; 
+                    amrex::Real sten_jp[5]  = {crse(ic,jc,0,n)    , crse(i-1,jc+1,0,n),
+                                               crse(ic,jc+1,0,n), crse(i+1,jc+1,0,n), crse(ic,jc+2,0,n)  }; 
+    
+                    for(int ii = 0; ii < 5; ii++)
+                    {
+                        for(int jj = 0; jj < 5; jj++) vtemp[jj] = V[jj][ii]; 
+                        inn = GP::inner_prod<5>(vtemp, sten_jm); 
+                        beta[0] += 1.e0/lam[ii]*(inn*inn); 
 
-        inn = GP::inner_prod<5>(V[n], sten_ip); 
-        beta[3] += 1.e0/lam[ii]*inn*inn; 
+                        inn = GP::inner_prod<5>(vtemp, sten_im); 
+                        beta[1] += 1.e0/lam[ii]*(inn*inn); 
 
-        inn = GP::inner_prod<5>(V[n], sten_jp); 
-        beta[4] += 1.e0/lam[ii]*inn*inn; 
+                        inn = GP::inner_prod<5>(vtemp, sten_cen); 
+                        beta[2] += 1.e0/lam[ii]*(inn*inn); 
 
-        sqrmean += sten_cen[ii]; 
-    } 
+                        inn = GP::inner_prod<5>(vtemp, sten_ip);
+                        beta[3] += 1.e0/lam[ii]*(inn*inn); 
 
-    sqrmean /= 5; 
-    sqrmean *= sqrmean; 
-    test = beta[2]/sqrmean; 
-    if(test > 100){
-        for(int jj = 0; jj < ry; ++jj){
-            idy = j*ry + jj; 
-            for(int ii = 0; ii < rx; ++ii){
-                idx = i*rx + ii; 
-                id = ii + jj*rx; //TODO this assumes Rx = Ry. If this is not the case, we need to rethink. 
-                summ = 0.e0; 
-                for(int m = 0; m < 5; ++m){
-                    ws[m] = gam[id][m]/((1e-32 + beta[m])*(1e-32 + beta[m])); 
-                    summ += ws[m]; 
-                }
-                fine(idx,idy,k,n) = (ws[0]/summ)*GP::inner_prod<5>(ks[id][0], sten_jm) 
+                        inn = GP::inner_prod<5>(vtemp, sten_jp); 
+                        beta[4] += 1.e0/lam[ii]*(inn*inn); 
+                    } 
+
+                    summ = 0.e0; 
+                    for(int m = 0; m < 5; ++m){
+                        ws[m] = gam[id][m]/((1e-32 + beta[m])*(1e-32 + beta[m])); 
+                        summ += ws[m]; 
+                    }
+                    id = (i- ic*ratio[0] + 1) + (j - jc*ratio[1])*ratio[0]; 
+                    
+                    fine(i,j,0,n) = (ws[0]/summ)*GP::inner_prod<5>(ks[id][0], sten_jm) 
                                   + (ws[1]/summ)*GP::inner_prod<5>(ks[id][1], sten_im) 
                                   + (ws[2]/summ)*GP::inner_prod<5>(ks[id][2], sten_cen) 
                                   + (ws[3]/summ)*GP::inner_prod<5>(ks[id][3], sten_ip) 
                                   + (ws[4]/summ)*GP::inner_prod<5>(ks[id][4], sten_jp);
+                }
+                else{
+                 id = (i- ic*ratio[0] + 1) + (j - jc*ratio[1])*ratio[0]; 
+                 std::cout<< " id " <<  id << " i "  << i << " j " << j << " ic " << ic << " jc " << jc  << std::endl;
+                 /*std::cin.get();  */
+                 fine(i,j,0,n) = GP::inner_prod<5>(ks[id][2], sten_cen);
+                }
             }
         }
     }
-    else{
-        for(int jj = 0; jj < ry; ++jj){
-            idy = j*ry + jj; 
-            for(int ii = 0; ii < rx; ++ii){
-                idx = i*rx + ii; 
-                id = ii + jj*rx; //TODO this assumes Rx = Ry. If this is not the case, we need to rethink. 
-                fine(idx,idy,k,n) = GP::inner_prod<5>(ks[id][2], sten_cen);
-            }
-        }
-    }
-
-#endif    
 }
 
 
 void
 CellGaussianProcess::interp (const FArrayBox& crse,
-                       int              crse_comp,
-                       FArrayBox&       fine,
-                       int              fine_comp,
-                       int              ncomp,
-                       const Box&       fine_region,
-                       const IntVect&   ratio,
-                       const Geometry&  crse_geom,
-                       const Geometry&  fine_geom,
-                       Vector<BCRec>&    bcr,
-                       int              actual_comp,
-                       int              actual_state)
+                             int              crse_comp,
+                             FArrayBox&       fine,
+                             int              fine_comp,
+                             int              ncomp,
+                             const Box&       fine_region,
+                             const IntVect&   ratio,
+                             const Geometry&  crse_geom,
+                             const Geometry&  fine_geom,
+                             Vector<BCRec>&    bcr,
+                             int              actual_comp,
+                             int              actual_state)
 {
     BL_PROFILE("CellGaussianProcess::interp()");
     BL_ASSERT(bcr.size() >= ncomp);
     //
     // Make box which is intersection of fine_region and domain of fine.
     //
-    Box target_fine_region = fine_region & fine.box();
-    
+    Box target_fine_region = fine.box();//fine_region & fine.box();
+    FArrayBox const* crsep = &crse; 
+    FArrayBox *finep = &fine; 
 
-    Box crse_bx(amrex::coarsen(target_fine_region,ratio));
+    Gpu::LaunchSafeGuard lg(Gpu::isGpuPtr(crsep) && Gpu::isGpuPtr(finep)); 
+    
+    const Box& crse_region = CoarseBox(fine_region,ratio); 
     const amrex::Real *dx = crse_geom.CellSize();
     GP gp;  
     gp.l = 12*std::sqrt(dx[0]*dx[0] + dx[1]*dx[1]);
     gp.InitGP(ratio[0], ratio[1], dx); 
     
     Vector<int> bc = GetBCArray(bcr); //Assess if we need this. 
+    std::cout<< " fine box " << fine_region << " crse_region " << crse_region << std::endl;  
 
-    AMREX_PARALLEL_FOR_4D(crse_bx, crse_comp, i, j, k, n, {
-        amrex_gpinterp(i,j,k,n, ratio[0], ratio[1], crse.array(), fine.array(), gp.ks, 
-                        gp.V, gp.lam, gp.gam);
-    }); 
-
-
+    AMREX_LAUNCH_HOST_DEVICE_LAMBDA (fine_region, tbx,{
+        amrex_gpinterp(tbx, *finep, fine_comp, ncomp, *crsep, crse_comp,
+                      ratio, gp.ks, gp.V, gp.lam, gp.gam);
+    });
 }
 
 }
