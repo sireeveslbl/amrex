@@ -16,19 +16,19 @@ class GP
     //
     // Eigen Values of Covariance Matrix 
     //
-    amrex::Real lam[5]; 
+    amrex::Real lam[5] = {}; 
     //
     //  Eigen Vectors of Covariance Matrix
     //
-    amrex::Real V[5][5];
+    amrex::Real V[5][5] = {};
     //
     //  Weights to be applied for interpolation
     //
-    amrex::Real ks[16][5][5]; 
+    amrex::Real ks[16][5][5] = {}; 
     //
     //  Gammas needed for smoothness indication
     //
-    amrex::Real gam[16][5];
+    amrex::Real gam[16][5] = {};
     amrex::Real l; 
 
 // Linear Algebra Functions

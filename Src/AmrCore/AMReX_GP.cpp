@@ -14,22 +14,23 @@ GP::sqrexp(const T x[2],const T y[2], const amrex::Real *dx)
 void
 GP::InitGP (const int rx, const int ry, const amrex::Real *dx)
 {
-    amrex::Real K[5][5]; 
-    amrex::Real Ktot[13][13];
-    amrex::Real kt[16][13]; 
-    GetK(K, Ktot, dx); // Builds Covariance Matrices of Base Sample and Extended Samples/stencils    
+    amrex::Real K[5][5] = {}; 
+    amrex::Real Ktot[13][13] = {};
+    amrex::Real kt[16][13] = {} ; 
+    GetK(K, Ktot, dx); // Builds Covariance Matrices of Base Sample and Extended Samples/stencils   
     GetEigen(K); //Gets Eigenvalues and Vectors from K for use in the interpolation 
     Decomp(K, Ktot); //Decomposes K and Ktot into their Cholesky Versions
     GetKs(K, dx); 
-
     // K and Ktot are not actually necessary for the rest of the GP interpolation 
     // They are only used to construct the weights w = ks^T Kinv 
     // and gam = Rinv Q^T kt; 
     // ks, gam, lam and V are part of the class and will be used in the main interpolation routine. 
         
     GetKtotks(Ktot, kt, dx); 
-    for(int i = 0; i < rx*ry; ++i)
+    for(int i = 0; i < rx*ry; ++i){
         GetGamma(ks[i], kt[i], gam[i]); //Gets the gamma's for the 
+    }
+
 }
 
 template<int n>
@@ -122,12 +123,6 @@ GP::GetK(amrex::Real (&K)[5][5], amrex::Real (&Ktot)[13][13],
             K[i][j] = sqrexp(pnt[i], pnt[j], dx); 
             K[j][i] = K[i][j]; 
         }
-/*    for(int i = 0; i < 5; ++i){
-        for(int j = 0; j < 5; ++j) std::cout<< K[i][j] << "   "; 
-        std::cout<<std::endl; 
-    }
-    std::cin.get(); 
-*/ 
     for(int i = 0; i < 13; ++i) Ktot[i][i] = 1.e0; 
 
     amrex::Real spnt[13][2] =  {{ 0, -2}, 
@@ -199,7 +194,7 @@ GP::GetKs(const amrex::Real K[5][5], const amrex::Real *dx)
     amrex::Real temp[2]; 
     //Build covariance vector between interpolant points and stencil 
      for(int i = 0; i < 16; ++i){
-        for(int j = i; j < 5; ++j){
+        for(int j = 0; j < 5; ++j){
             temp[0] = spnt[j][0], temp[1] = spnt[j][1] - 1.0; //sten_jm
             k1[i][j] = sqrexp(pnt[i], temp, dx);
 
@@ -216,15 +211,15 @@ GP::GetKs(const amrex::Real K[5][5], const amrex::Real *dx)
         }
      //Backsubstitutes for k^TK^{-1} 
         cholesky<5>(k1[i], K); 
-        for(int k = 0; k < 5; k++) ks[i][k][0] = k1[i][k];
+        for(int k = 0; k < 5; k++) ks[i][0][k] = k1[i][k];
         cholesky<5>(k2[i], K); 
-        for(int k = 0; k < 5; k++) ks[i][k][1] = k2[i][k]; 
+        for(int k = 0; k < 5; k++) ks[i][1][k] = k2[i][k]; 
         cholesky<5>(k3[i], K); 
-        for(int k = 0; k < 5; k++) ks[i][k][2] = k3[i][k]; 
+        for(int k = 0; k < 5; k++) ks[i][2][k] = k3[i][k]; 
         cholesky<5>(k4[i], K); 
-        for(int k = 0; k < 5; k++) ks[i][k][3] = k4[i][k]; 
+        for(int k = 0; k < 5; k++) ks[i][3][k] = k4[i][k]; 
         cholesky<5>(k5[i], K); 
-        for(int k = 0; k < 5; k++) ks[i][k][4] = k5[i][k]; 
+        for(int k = 0; k < 5; k++) ks[i][4][k] = k5[i][k]; 
     }
 }
 
@@ -283,7 +278,8 @@ template<int n>
 void 
 GP::Ux_solve(const amrex::Real R[n][n], amrex::Real (&x)[n], const amrex::Real b[n])
 {
-        double summ; 
+        double summ;
+ 
         for(int k = n-1; k>=0; --k){
             summ = 0.e0; 
             for(int i = k+1; i < n; i++){
@@ -374,7 +370,7 @@ GP::QR(amrex::Real (&A)[13][5], amrex::Real (&Q)[13][13],amrex::Real (&R)[5][5])
 
 //Applies V onto A -> VA 
 void
-GP::q_appl(std::vector<std::vector<amrex::Real>> &A, const std::vector<std::vector<amrex::Real>> V, const int rows, 
+GP::q_appl(std::vector<std::vector<amrex::Real>> &A, const std::vector<std::vector<amrex::Real>> v, const int rows, 
        int upper/*=0 */, int mode /*=0*/) //may remove these in the future 
 {
     if(upper == 0){
@@ -400,9 +396,9 @@ GP::q_appl(std::vector<std::vector<amrex::Real>> &A, const std::vector<std::vect
                 for(int i = rows-1; i >=0; --i){
                     amrex::Real temp = 0.0;
                     for(int j = 0; j < rows; ++j)
-                        temp += temp1[j][k]*V[j][i];
+                        temp += temp1[j][k]*v[j][i];
                     for(int j = 0; j < rows; ++j)
-                        temp1[j][k] -= 2.0*V[j][i]*temp;
+                        temp1[j][k] -= 2.0*v[j][i]*temp;
                 }
             }
             for(int k = 0; k < rows; ++k)
@@ -420,9 +416,9 @@ GP::q_appl(std::vector<std::vector<amrex::Real>> &A, const std::vector<std::vect
             for(int i = rows-1; i >=0; --i){
                 amrex::Real temp = 0;
                 for(int j = 0; j < rows; ++j)
-                    temp += temp1[j][k]*V[j][i];
+                    temp += temp1[j][k]*v[j][i];
                 for(int j = 0; j < rows; ++j)
-                    temp1[j][k] -= 2.0*V[j][i]*temp;
+                    temp1[j][k] -= 2.0*v[j][i]*temp;
             }
         }
         for(int k = 0; k < rows; k++)
@@ -436,29 +432,29 @@ GP::q_appl(std::vector<std::vector<amrex::Real>> &A, const std::vector<std::vect
 //own set of gammas. 
 //Use x = R^-1Q'b 
 void
-GP::GetGamma(amrex::Real const ks[5][5],
+GP::GetGamma(amrex::Real const k[5][5],
              amrex::Real const kt[13], 
              amrex::Real (&ga)[5])
 {
 //Extended matrix Each column contains the vector of coviarances corresponding 
 //to each sample (weno-like stencil)
-    amrex::Real A[13][5] = {{ks[0][0], 0.e0    , 0.e0    , 0.e0    , 0.e0    }, 
-                            {0.e0    , ks[0][1], 0.e0    , 0.e0    , 0.e0    }, 
-                            {ks[1][0], 0.e0    , ks[0][2], 0.e0    , 0.e0    }, 
-                            {ks[2][0], ks[1][1], 0.e0    , ks[0][3], 0.e0    }, 
-                            {ks[3][0], ks[2][1], ks[1][2], 0.e0    , ks[0][4]}, 
-                            {0.e0    , ks[3][1], ks[2][2], ks[1][3], 0.e0    }, 
-                            {0.e0    , 0.e0    , ks[3][2], ks[2][3], ks[1][4]}, 
-                            {0.e0    , 0.e0    , 0.e0    , ks[3][3], ks[2][4]}, 
-                            {ks[4][0], 0.e0    , 0.e0    , 0.e0    , ks[3][4]}, 
-                            {0.e0    , ks[4][1], 0.e0    , 0.e0    , 0.e0    }, 
-                            {0.e0    , 0.e0    , ks[4][2], 0.e0    , 0.e0    }, 
-                            {0.e0    , 0.e0    , 0.e0    , ks[4][3], 0.e0    }, 
-                            {0.e0    , 0.e0    , 0.e0    , 0.e0    , ks[4][4]}};
+    amrex::Real A[13][5] = {{k[0][0], 0.e0    , 0.e0    , 0.e0    , 0.e0    }, 
+                            {0.e0    , k[0][1], 0.e0    , 0.e0    , 0.e0    }, 
+                            {k[1][0], 0.e0    , k[0][2], 0.e0    , 0.e0    }, 
+                            {k[2][0], k[1][1], 0.e0    , k[0][3], 0.e0    }, 
+                            {k[3][0], k[2][1], k[1][2], 0.e0    , k[0][4]}, 
+                            {0.e0    , k[3][1], k[2][2], k[1][3], 0.e0    }, 
+                            {0.e0    , 0.e0    , k[3][2], k[2][3], k[1][4]}, 
+                            {0.e0    , 0.e0    , 0.e0    , k[3][3], k[2][4]}, 
+                            {k[4][0], 0.e0    , 0.e0    , 0.e0    , k[3][4]}, 
+                            {0.e0    , k[4][1], 0.e0    , 0.e0    , 0.e0    }, 
+                            {0.e0    , 0.e0    , k[4][2], 0.e0    , 0.e0    }, 
+                            {0.e0    , 0.e0    , 0.e0    , k[4][3], 0.e0    }, 
+                            {0.e0    , 0.e0    , 0.e0    , 0.e0    , k[4][4]}};
 
 
    amrex::Real Q[13][13]; 
-   amrex::Real R[5][5]; 
+   amrex::Real R[5][5];
    QR(A, Q, R); // This one is for non-square matrices
    amrex::Real temp[5] ={0};
 
@@ -467,6 +463,7 @@ GP::GetGamma(amrex::Real const ks[5][5],
       for(int j = 0; j < 13; j++)
         temp[i] += Q[j][i]*kt[j]; //Q'kt 
     //gam = R^-1 Q'kt 
+    
     Ux_solve<5>(R, ga, temp);
 }
 
@@ -488,14 +485,14 @@ GP::GetEigen(const amrex::Real K[n][n])
         v[i][i] = 1.0; 
     }
 
-    amrex::Real mu, er, lamt = 0.0; 
+    amrex::Real mu, er; 
     for(int j = n-1; j > 0; j--){
         er = 1.e0; 
         iter =0; 
         while(er > 1e-12){
             mu = B[j][j]; 
             for(int i = 0; i < n; i++){ B[i][i] -= mu;
-                for(int j = 0; j < n; j++) Q[i][j] = (i == j) ? 1.0 : 0.0; 
+                for(int jj = 0; jj < n; jj++) Q[i][jj] = (i == jj) ? 1.0 : 0.0; 
             }
             qr_decomp(B, Q, n);
             matmul<n>(B, Q, temp); 
