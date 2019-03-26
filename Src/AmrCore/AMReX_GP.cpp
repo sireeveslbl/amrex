@@ -1,5 +1,7 @@
 #include <AMReX_GP.H>
 #include <iostream> 
+#include <fstream> 
+#include <iomanip>
 
 template<class T>
 inline amrex::Real
@@ -17,7 +19,7 @@ GP::InitGP (const int rx, const int ry, const amrex::Real *dx)
     amrex::Real K[5][5] = {}; 
     amrex::Real Ktot[13][13] = {};
     amrex::Real kt[16][13] = {} ; 
-    GetK(K, Ktot, dx); // Builds Covariance Matrices of Base Sample and Extended Samples/stencils   
+    GetK(K, Ktot, dx); // Builds Covariance Matrices of Base Sample and Extended Samples/stencils  
     GetEigen(K); //Gets Eigenvalues and Vectors from K for use in the interpolation 
     Decomp(K, Ktot); //Decomposes K and Ktot into their Cholesky Versions
     GetKs(K, dx); 
@@ -30,7 +32,14 @@ GP::InitGP (const int rx, const int ry, const amrex::Real *dx)
     for(int i = 0; i < rx*ry; ++i){
         GetGamma(ks[i], kt[i], gam[i]); //Gets the gamma's for the 
     }
-
+/*    std::ofstream myfile;
+    myfile.precision(16); 
+    myfile.open("kt.txt"); */
+/*    for(int i = 0; i < 16; i++){
+        for(int j = 0; j < 13; j++) myfile<< kt[i][j] << '\t'; 
+        myfile << std::endl; 
+    }
+    std::cin.get(); */
 }
 
 template<int n>
@@ -184,43 +193,34 @@ GP::GetKs(const amrex::Real K[5][5], const amrex::Real *dx)
     pnt[15][0] = 0.375, pnt[15][1] = 0.375; 
 
     amrex::Real spnt[5][2]; 
-    spnt[0][0] = 0 , spnt[0][1] = -1; 
-    spnt[1][0] = -1, spnt[1][1] = 0; 
-    spnt[2][0] = 0 , spnt[2][1] = 0; 
-    spnt[3][0] = 1 , spnt[3][1] = 0; 
-    spnt[4][0] = 0 , spnt[4][1] = 1; 
+    spnt[0][0] =  0 , spnt[0][1] = -1; 
+    spnt[1][0] = -1,  spnt[1][1] = 0; 
+    spnt[2][0] =  0 , spnt[2][1] = 0; 
+    spnt[3][0] =  1 , spnt[3][1] = 0; 
+    spnt[4][0] =  0 , spnt[4][1] = 1; 
 
-    amrex::Real k1[16][5], k2[16][5], k3[16][5], k4[16][5], k5[16][5]; 
     amrex::Real temp[2]; 
     //Build covariance vector between interpolant points and stencil 
      for(int i = 0; i < 16; ++i){
         for(int j = 0; j < 5; ++j){
             temp[0] = spnt[j][0], temp[1] = spnt[j][1] - 1.0; //sten_jm
-            k1[i][j] = sqrexp(pnt[i], temp, dx);
+            ks[i][0][j] = sqrexp(pnt[i], temp, dx);
 
             temp[0] = spnt[j][0] - 1.0, temp[1] =   spnt[j][1]; //sten_im
-            k2[i][j] = sqrexp(pnt[i], temp, dx);
+            ks[i][1][j] = sqrexp(pnt[i], temp, dx);
 
-            k3[i][j] = sqrexp(pnt[i], spnt[j], dx); //sten_cen
+            ks[i][2][j] = sqrexp(pnt[i], spnt[j], dx); //sten_cen
     
             temp[0] = spnt[j][0] + 1.0, temp[1] = spnt[j][1];
-            k4[i][j] = sqrexp(pnt[i], temp, dx); //sten_ip
+            ks[i][3][j] = sqrexp(pnt[i], temp, dx); //sten_ip
 
             temp[0] = spnt[j][0], temp[1] = spnt[j][1] + 1.0; 
-            k5[i][j] = sqrexp(pnt[i], temp, dx); //sten_jp
+            ks[i][4][j] = sqrexp(pnt[i], temp, dx); //sten_jp
         }
      //Backsubstitutes for k^TK^{-1} 
-        cholesky<5>(k1[i], K); 
-        for(int k = 0; k < 5; k++) ks[i][0][k] = k1[i][k];
-        cholesky<5>(k2[i], K); 
-        for(int k = 0; k < 5; k++) ks[i][1][k] = k2[i][k]; 
-        cholesky<5>(k3[i], K); 
-        for(int k = 0; k < 5; k++) ks[i][2][k] = k3[i][k]; 
-        cholesky<5>(k4[i], K); 
-        for(int k = 0; k < 5; k++) ks[i][3][k] = k4[i][k]; 
-        cholesky<5>(k5[i], K); 
-        for(int k = 0; k < 5; k++) ks[i][4][k] = k5[i][k]; 
-    }
+        for(int k = 0; k < 5; ++k)
+            cholesky<5>(ks[i][k], K); 
+   }
 }
 
 // Here we are using Kt to get the weights for the overdetermined  
@@ -320,7 +320,7 @@ GP::qr_decomp(std::vector<std::vector<amrex::Real>> &R, std::vector<std::vector<
             for(int i = 0; i < n; i++) R[i][k] -= 2.e0*v[i][j]*innerprod;
         }
     }
-    q_appl(Q, v, n); 
+    q_appl(Q, v, n);
 }
 
 //QR decomp for the non-square matrix 
@@ -379,9 +379,10 @@ GP::q_appl(std::vector<std::vector<amrex::Real>> &A, const std::vector<std::vect
                 for(int i = rows-1; i >=0; --i){
                     amrex::Real temp = 0.0;
                     for(int j = 0; j < rows; ++j)
-                        temp += A[j][k]*V[j][i];
-                    for(int j = 0; j < rows; ++j)
-                        A[j][k] -= 2.0*V[j][i]*temp;
+                        temp += A[j][k]*v[j][i];
+                    for(int j = 0; j < rows; ++j){
+                        A[j][k] -= 2.0*v[j][i]*temp;
+                    }
                 }
             }
         }
@@ -438,20 +439,42 @@ GP::GetGamma(amrex::Real const k[5][5],
 {
 //Extended matrix Each column contains the vector of coviarances corresponding 
 //to each sample (weno-like stencil)
-    amrex::Real A[13][5] = {{k[0][0], 0.e0    , 0.e0    , 0.e0    , 0.e0    }, 
-                            {0.e0    , k[0][1], 0.e0    , 0.e0    , 0.e0    }, 
-                            {k[1][0], 0.e0    , k[0][2], 0.e0    , 0.e0    }, 
-                            {k[2][0], k[1][1], 0.e0    , k[0][3], 0.e0    }, 
-                            {k[3][0], k[2][1], k[1][2], 0.e0    , k[0][4]}, 
-                            {0.e0    , k[3][1], k[2][2], k[1][3], 0.e0    }, 
-                            {0.e0    , 0.e0    , k[3][2], k[2][3], k[1][4]}, 
-                            {0.e0    , 0.e0    , 0.e0    , k[3][3], k[2][4]}, 
-                            {k[4][0], 0.e0    , 0.e0    , 0.e0    , k[3][4]}, 
-                            {0.e0    , k[4][1], 0.e0    , 0.e0    , 0.e0    }, 
-                            {0.e0    , 0.e0    , k[4][2], 0.e0    , 0.e0    }, 
-                            {0.e0    , 0.e0    , 0.e0    , k[4][3], 0.e0    }, 
-                            {0.e0    , 0.e0    , 0.e0    , 0.e0    , k[4][4]}};
+/*    amrex::Real A[13][5] = {{k[0][0], 0.e0   , 0.e0   , 0.e0   , 0.e0   }, 
+                            {0.e0   , k[0][1], 0.e0   , 0.e0   , 0.e0   }, 
+                            {k[1][0], 0.e0   , k[0][2], 0.e0   , 0.e0   }, 
+                            {k[2][0], k[1][1], 0.e0   , k[0][3], 0.e0   }, 
+                            {k[3][0], k[2][1], k[1][2], 0.e0   , k[0][4]}, 
+                            {0.e0   , k[3][1], k[2][2], k[1][3], 0.e0   }, 
+                            {0.e0   , 0.e0   , k[3][2], k[2][3], k[1][4]}, 
+                            {0.e0   , 0.e0   , 0.e0   , k[3][3], k[2][4]}, 
+                            {k[4][0], 0.e0   , 0.e0   , 0.e0   , k[3][4]}, 
+                            {0.e0   , k[4][1], 0.e0   , 0.e0   , 0.e0   }, 
+                            {0.e0   , 0.e0   , k[4][2], 0.e0   , 0.e0   }, 
+                            {0.e0   , 0.e0   , 0.e0   , k[4][3], 0.e0   }, 
+                            {0.e0   , 0.e0   , 0.e0   , 0.e0   , k[4][4]}}; // */ 
 
+    amrex::Real A[13][5] = {{k[0][0], 0.e0   , 0.e0   , 0.e0   , 0.e0   }, 
+                            {0.e0   , k[1][0], 0.e0   , 0.e0   , 0.e0   }, 
+                            {k[0][2], 0.e0   , k[2][0], 0.e0   , 0.e0   }, 
+                            {k[0][3], k[1][1], 0.e0   , k[3][0], 0.e0   }, 
+                            {k[0][3], k[1][2], k[2][1], 0.e0   , k[4][0]}, 
+                            {0.e0   , k[1][3], k[2][2], k[3][1], 0.e0   }, 
+                            {0.e0   , 0.e0   , k[2][3], k[3][2], k[4][1]}, 
+                            {0.e0   , 0.e0   , 0.e0   , k[3][3], k[4][2]}, 
+                            {k[0][4], 0.e0   , 0.e0   , 0.e0   , k[4][3]}, 
+                            {0.e0   , k[1][4], 0.e0   , 0.e0   , 0.e0   }, 
+                            {0.e0   , 0.e0   , k[2][4], 0.e0   , 0.e0   }, 
+                            {0.e0   , 0.e0   , 0.e0   , k[3][4], 0.e0   }, 
+                            {0.e0   , 0.e0   , 0.e0   , 0.e0   , k[4][4]}};// */
+    std::ofstream myfile;
+    myfile.precision(16); 
+    myfile.open("kt.txt");
+
+    for(int i = 0; i < 13; i++){
+        for(int j = 0; j < 5; j++) myfile<< A[i][j] << '\t'; 
+        myfile << std::endl; 
+    }
+    std::cin.get(); 
 
    amrex::Real Q[13][13]; 
    amrex::Real R[5][5];
@@ -465,6 +488,7 @@ GP::GetGamma(amrex::Real const k[5][5],
     //gam = R^-1 Q'kt 
     
     Ux_solve<5>(R, ga, temp);
+
 }
 
 template<int n> 
@@ -474,7 +498,7 @@ GP::GetEigen(const amrex::Real K[n][n])
     std::vector<std::vector<amrex::Real>> Q(n, std::vector<amrex::Real>(n, 0.));
     std::vector<std::vector<amrex::Real>> temp(n, std::vector<amrex::Real>(n, 0.)); 
     std::vector<std::vector<amrex::Real>> vtemp(n, std::vector<amrex::Real>(n, 0.)); 
-    std::vector<std::vector<amrex::Real>> v = vtemp; 
+    std::vector<std::vector<amrex::Real>> v(n, std::vector<amrex::Real>(n,0.)); 
     std::vector<std::vector<amrex::Real>> B(n, std::vector<amrex::Real>(n, 0.));
     for(int i = 0; i < n; ++i) 
         for(int j = 0; j < n; ++j) B[i][j] = K[i][j];
@@ -499,6 +523,7 @@ GP::GetEigen(const amrex::Real K[n][n])
             matmul<n>(v, Q, vtemp);
             B = temp; 
             v = vtemp;
+
             for(int i = 0; i < n; i++) B[i][i] += mu;
             er = std::abs(B[j][j-1]);
             iter++;
@@ -513,7 +538,10 @@ GP::GetEigen(const amrex::Real K[n][n])
     }
     for(int i = 0; i < n; i++){
          lam[i] = B[i][i]; 
-         for(int j = 0; j < n; j++) V[i][j] = v[i][j]; 
-}
+         for(int j = 0; j < n; j++){
+                 V[i][j] = v[i][j]; 
+         }
+         
+    }
 }
   
