@@ -839,30 +839,36 @@ CellGaussianProcess::amrex_gpinterp(Box const& bx, FArrayBox& finefab,
     
     const auto flo = amrex::refine(lo, ratio); 
     const auto fine = finefab.view(flo,fcomp);
-
+    amrex::Real beta[5], ws[5];
     for(int n = 0; n < ncomp; ++n) { 
         for (int jc = 0; jc < len.y; ++jc){ 
             AMREX_PRAGMA_SIMD
             for(int ic = 0; ic < len.x; ++ic){
-                amrex::Real sten_cen[5] = {crse(ic,jc-1,0,n)  , 
-                                           crse(ic-1,jc,0,n)  , crse(ic,jc,0,n)  ,
-                                           crse(ic+1,jc,0,n)  , crse(ic,jc+1,0,n)  };
+                amrex::Real sten_cen[5] = {crse(ic,jc-1,0,n), 
+                                           crse(ic-1,jc,0,n), crse(ic,jc,0,n),
+                                           crse(ic+1,jc,0,n), crse(ic,jc+1,0,n)};
     
-                amrex::Real beta[5] = {0.}, ws[5] = {0.}, summ, test, sqrmean = 0.;
+                amrex::Real summ, test, sqrmean = 0.e0;
+                for(int ii = 0; ii < 5; ii++){ 
+                    beta[ii] = 0.e0; 
+                } 
                 amrex::Real vtemp[5]; 
                 amrex::Real inn;  
                 for(int ii = 0; ii < 5; ii++)
                 {
-                    for(int jj = 0; jj < 5; jj++) vtemp[jj] = V[jj][ii]; 
+                    for(int jj = 0; jj < 5; jj++){
+                         vtemp[jj] = V[jj][ii];
+                    }
+                    
                     inn = GP::inner_prod<5>(vtemp, sten_cen); 
-                    beta[2] += 1.e0/lam[ii]*(inn*inn);
+
                     sqrmean += sten_cen[ii]; 
                 } 
                 sqrmean /= 5; 
 
                 sqrmean *= sqrmean; 
-//                test = beta[2]/sqrmean;
-                test = 101; 
+                test = beta[2]/sqrmean;
+//                test = 101; 
                 if(test > 100){
                     
                     amrex::Real sten_im[5]  = {crse(ic-1,jc-1,0,n), crse(ic-2,jc,0,n),
@@ -876,8 +882,10 @@ CellGaussianProcess::amrex_gpinterp(Box const& bx, FArrayBox& finefab,
     
                     for(int ii = 0; ii < 5; ii++)
                     {
-                        for(int jj = 0; jj < 5; jj++) vtemp[jj] = V[jj][ii]; 
-                        inn = GP::inner_prod<5>(vtemp, sten_jm); 
+                        for(int jj = 0; jj < 5; jj++){
+                         vtemp[jj] = V[jj][ii];                       
+                        } 
+                        inn = GP::inner_prod<5>(vtemp, sten_jm);
                         beta[0] += 1.e0/lam[ii]*(inn*inn); 
 
                         inn = GP::inner_prod<5>(vtemp, sten_im); 
@@ -888,16 +896,17 @@ CellGaussianProcess::amrex_gpinterp(Box const& bx, FArrayBox& finefab,
 
                         inn = GP::inner_prod<5>(vtemp, sten_jp); 
                         beta[4] += 1.e0/lam[ii]*(inn*inn); 
-                    } 
 
+                   } 
                     for(int ry = 0; ry < ratio[1]; ry++){
                         const int j = jc*ratio[1] + ry; 
                         for(int rx = 0; rx< ratio[0]; rx++){ 
                             const int i = ic*ratio[0] + rx;
                             const int id = rx + ry*ratio[0]; 
-                            summ = 0.e0; 
+                            summ = 0.e0;
+
                             for(int m = 0; m < 5; ++m){
-                                amrex::Real denom = (1.e-32 + beta[m])*(1.e-32 + beta[m]); 
+                                amrex::Real denom = (1.e-36 + beta[m])*(1.e-36 + beta[m]); 
                                 ws[m] = gam[id][m]/denom; 
                                 summ += ws[m]; 
                             } 
@@ -906,8 +915,7 @@ CellGaussianProcess::amrex_gpinterp(Box const& bx, FArrayBox& finefab,
                                           + (ws[2]/summ)*GP::inner_prod<5>(ks[id][2], sten_cen) 
                                           + (ws[3]/summ)*GP::inner_prod<5>(ks[id][3], sten_ip) 
                                           + (ws[4]/summ)*GP::inner_prod<5>(ks[id][4], sten_jp);
-//                            std::cout<< fine(i,j,0,n) << std::endl;
-                            if(fine(i,j,0,n)<0){
+/*                            if(fine(i,j,0,n)<0){
                                 std::cout<< fine(i,j,0,n) << std::endl;
                                 std::cout<< " id = " << id << std::endl; 
                                 std::cout<< " i, j " << i << '\t' << j << std::endl;  
@@ -996,7 +1004,7 @@ CellGaussianProcess::amrex_gpinterp(Box const& bx, FArrayBox& finefab,
                                  std::cout<<std::endl; 
                                 std::cin.get();
                             }
-//                            std::cin.get();                          
+//                            std::cin.get();                          */
                         }
                     }
                 }

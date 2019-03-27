@@ -466,16 +466,6 @@ GP::GetGamma(amrex::Real const k[5][5],
                             {0.e0   , 0.e0   , k[2][4], 0.e0   , 0.e0   }, 
                             {0.e0   , 0.e0   , 0.e0   , k[3][4], 0.e0   }, 
                             {0.e0   , 0.e0   , 0.e0   , 0.e0   , k[4][4]}};// */
-    std::ofstream myfile;
-    myfile.precision(16); 
-    myfile.open("kt.txt");
-
-    for(int i = 0; i < 13; i++){
-        for(int j = 0; j < 5; j++) myfile<< A[i][j] << '\t'; 
-        myfile << std::endl; 
-    }
-    std::cin.get(); 
-
    amrex::Real Q[13][13]; 
    amrex::Real R[5][5];
    QR(A, Q, R); // This one is for non-square matrices
@@ -513,7 +503,7 @@ GP::GetEigen(const amrex::Real K[n][n])
     for(int j = n-1; j > 0; j--){
         er = 1.e0; 
         iter =0; 
-        while(er > 1e-12){
+        while(er > 1e-16){
             mu = B[j][j]; 
             for(int i = 0; i < n; i++){ B[i][i] -= mu;
                 for(int jj = 0; jj < n; jj++) Q[i][jj] = (i == jj) ? 1.0 : 0.0; 
@@ -526,6 +516,7 @@ GP::GetEigen(const amrex::Real K[n][n])
 
             for(int i = 0; i < n; i++) B[i][i] += mu;
             er = std::abs(B[j][j-1]);
+//            er = std::abs(lamt - B[j][j]); 
             iter++;
             if(iter>500){
                  for(int ii = 0; ii < n; ii++)
