@@ -1057,11 +1057,11 @@ CellGaussianProcess::interp (const FArrayBox& crse,
     auto fparr = ftemp.array(); 
     FArrayBox *fp = &ftemp; 
 
-    const amrex::Real *dx = crse_geom.CellSize();
     if(!innit){
+        const amrex::Real *dx = crse_geom.CellSize();
         gp.l = 12*std::sqrt(dx[0]*dx[0] + dx[1]*dx[1]);
         gp.InitGP(ratio[0], ratio[1], dx);
-        innit = true;  
+        innit = true; 
     }
     Vector<int> bc = GetBCArray(bcr); //Assess if we need this. 
 
