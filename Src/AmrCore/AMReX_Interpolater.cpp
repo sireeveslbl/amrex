@@ -6,7 +6,6 @@
 #include <AMReX_Interpolater.H>
 #include <AMReX_INTERP_F.H>
 #include <AMReX_Interp_C.H>
-#include <AMReX_GP.H>
 
 namespace amrex {
 
@@ -1059,9 +1058,11 @@ CellGaussianProcess::interp (const FArrayBox& crse,
     FArrayBox *fp = &ftemp; 
 
     const amrex::Real *dx = crse_geom.CellSize();
-    GP gp;  
-    gp.l = 12*std::sqrt(dx[0]*dx[0] + dx[1]*dx[1]);
-    gp.InitGP(ratio[0], ratio[1], dx); 
+    if(!innit){
+        gp.l = 12*std::sqrt(dx[0]*dx[0] + dx[1]*dx[1]);
+        gp.InitGP(ratio[0], ratio[1], dx);
+        innit = true;  
+    }
     Vector<int> bc = GetBCArray(bcr); //Assess if we need this. 
 
     AMREX_LAUNCH_HOST_DEVICE_LAMBDA (cb1, tbx,{

@@ -4,7 +4,7 @@
 #include <AMReX_Box.H>
 #include <AMReX_BCRec.H>
 #include <AMReX_REAL.H>
-
+#include <AMReX_GP.H>
 namespace amrex {
 
 class Geometry;
@@ -675,6 +675,10 @@ public:
                         const amrex::Real V[5][5], 
                         const amrex::Real lam[5], 
                         const amrex::Real gam[16][5]); 
+
+    //GP Class 
+    bool innit = false; 
+    GP gp; 
 
 };
 //
