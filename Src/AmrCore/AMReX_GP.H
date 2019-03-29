@@ -1,7 +1,8 @@
 #ifndef AMREX_GP_H
 #define AMREX_GP_H
 #include <AMReX_REAL.H> 
-#include <vector> 
+#include <vector>
+#include <array> 
 #include <cmath> 
 
 // Contains the GP class for Steven Reeves' research into Gaussian Process based Models for AMR prolongation 
@@ -24,11 +25,15 @@ class GP
     //
     //  Weights to be applied for interpolation
     //
-    amrex::Real ks[16][5][5] = {}; 
+//    amrex::Real ks[16][5][5] = {}; //Needs rx*ryin the first dimension
+    std::vector<std::array<std::array<amrex::Real, 5>, 5>> ks; 
+    AMREX_GPU_DEVICE_MANAGED amrex::Real (*ktd)[5][5]; 
     //
     //  Gammas needed for smoothness indication
     //
-    amrex::Real gam[16][5] = {};
+//    amrex::Real gam[16][5] = {};  //Needs rx*ry in the first dimension
+    std::vector<std::array<amrex::Real, 5>> gam;
+    AMREX_GPU_DEVICE_MANAGED amrex::Real (*gamd)[5]; 
     amrex::Real l; 
 
 // Linear Algebra Functions
@@ -52,6 +57,10 @@ class GP
     template<int n> 
     void
     cholesky(amrex::Real (&b)[n], amrex::Real const K[n][n]); 
+    
+    template<int n> 
+    void
+    cholesky(std::array<amrex::Real, n> const& b, amrex::Real const K[n][n]);
 
     template<int n> 
     void 
@@ -85,11 +94,11 @@ class GP
     //
     //  Get Weights for the LSQ RHS
     //
-    void GetKtotks(const amrex::Real K1[13][13], amrex::Real (&kt)[16][13], const amrex::Real *dx); 
+    void GetKtotks(const amrex::Real K1[13][13], std::vector<std::array<amrex::Real, 13>> const& kt, const amrex::Real *dx); 
     //
     // Get Gamma by solving a LSQ problem only need this once. 
     //
-    void GetGamma(const amrex::Real ks[5][5], const amrex::Real kt[13], amrex::Real (&ga)[5]); 
+    void GetGamma(const amrex::Real ks[5][5], std::array<const amrex::Real,13> const kt, std::array<amrex::Real,5> const& ga); 
     //
     //  Get EigenVecs and EigenValues for smoothness indicators. 
     //  Will use the Shifted QR algorithm with deflation 
