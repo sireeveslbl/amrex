@@ -4,8 +4,16 @@
 #include <iomanip>
 
 template<class T>
-inline amrex::Real
+amrex::Real
 GP::sqrexp(const T x[2],const T y[2], const amrex::Real *dx)
+{
+    amrex::Real result = std::exp(-0.5*((x[0] - y[0])*(x[0] - y[0])*dx[0]*dx[0] + 
+                                        (x[1] - y[1])*(x[1] - y[1])*dx[1]*dx[1])/(l*l));
+    return result;    
+}
+ 
+amrex::Real
+GP::sqrexp(const std::array<amrex::Real, 2> x, const amrex::Real y[2], const amrex::Real *dx)
 {
     amrex::Real result = std::exp(-0.5*((x[0] - y[0])*(x[0] - y[0])*dx[0]*dx[0] + 
                                         (x[1] - y[1])*(x[1] - y[1])*dx[1]*dx[1])/(l*l));
@@ -22,12 +30,13 @@ GP::InitGP (const int rx, const int ry, const amrex::Real *dx)
     GetK(K, Ktot, dx); // Builds Covariance Matrices of Base Sample and Extended Samples/stencils  
     GetEigen(K); //Gets Eigenvalues and Vectors from K for use in the interpolation 
     Decomp(K, Ktot); //Decomposes K and Ktot into their Cholesky Versions
+    ks.resize(rx*ry, std::array<std::array<amrex::Real, 5>, 5>() ); 
     GetKs(K, dx, rx, ry); 
     // K and Ktot are not actually necessary for the rest of the GP interpolation 
     // They are only used to construct the weights w = ks^T Kinv 
     // and gam = Rinv Q^T kt; 
     // ks, gam, lam and V are part of the class and will be used in the main interpolation routine. 
-        
+    gam.resize(rx*ry, std::array<amrex::Real, 5>()); 
     GetKtotks(Ktot, kt, dx, rx, ry); 
     for(int i = 0; i < rx*ry; ++i){
         GetGamma(ks[i], kt[i], gam[i]); //Gets the gamma's for the 
@@ -191,7 +200,7 @@ GP::GetKs(const amrex::Real K[5][5],
           const amrex::Real *dx, const int rx, const int ry)
 {
     //Locations of new points relative to i,j 
-    std::vector<std::vector<amrex::Real>> pnt(rx*ry, std::vector<amrex::Real>(2, 0)); 
+    std::vector<std::array<amrex::Real,2>> pnt(rx*ry, std::array<amrex::Real, 2>()); 
 //    amrex::Real pnt[16][2]; 
     if(rx == 2 && ry == 2){
         pnt[0][0] = -0.25,  pnt[0][1] = -0.25; 
@@ -254,11 +263,11 @@ GP::GetKs(const amrex::Real K[5][5],
 // Therefore, we will need 16 b =  k*^T Ktot^(-1)
 // K1 is already Choleskied  
 void 
-GP::GetKtotks(const amrex::Real K1[13][13], std::vector<std::array<amrex::Real, 13>> const& kt, 
+GP::GetKtotks(const amrex::Real K1[13][13], std::vector<std::array<amrex::Real, 13>> &kt, 
                                const amrex::Real *dx, const int rx, const int ry)
 {
     //Locations of new points relative to i,j 
-    std::vector<std::vector<amrex::Real>> pnt(rx*ry, std::vector<amrex::Real>(2, 0)); 
+    std::vector<std::array<amrex::Real,2>> pnt(rx*ry, std::array<amrex::Real,2>()); 
 //    amrex::Real pnt[16][2]; 
     if(rx == 2 && ry == 2){
         pnt[0][0] = -0.25,  pnt[0][1] = -0.25; 
@@ -310,7 +319,7 @@ GP::GetKtotks(const amrex::Real K1[13][13], std::vector<std::array<amrex::Real, 
 //Solves Ux = b where U is upper triangular
 template<int n> 
 void 
-GP::Ux_solve(const amrex::Real R[n][n], std::array<amrex::Real,n> const& x, const amrex::Real b[n])
+GP::Ux_solve(const amrex::Real R[n][n], std::array<amrex::Real,n> &x, const amrex::Real b[n])
 {
         double summ;
  
@@ -467,9 +476,9 @@ GP::q_appl(std::vector<std::vector<amrex::Real>> &A, const std::vector<std::vect
 //own set of gammas. 
 //Use x = R^-1Q'b 
 void
-GP::GetGamma(amrex::Real const k[5][5],
-             std::array<const amrex::Real, 13> const& kt, 
-             std::array<amrex::Real,5> const& ga)
+GP::GetGamma(std::array<std::array<amrex::Real, 5>, 5> const& k,
+             std::array<amrex::Real, 13> const& kt, 
+             std::array<amrex::Real,5> &ga)
 {
 //Extended matrix Each column contains the vector of coviarances corresponding 
 //to each sample (weno-like stencil)
