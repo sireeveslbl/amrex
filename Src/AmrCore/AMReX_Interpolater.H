@@ -671,10 +671,10 @@ public:
                         const int fcomp, const int ncomp, 
                         FArrayBox const& crsefab, const int ccomp, 
                         IntVect ratio,   
-                        const amrex::Real ks[16][5][5], 
+                        std::vector<std::array<std::array<amrex::Real, 5>, 5>> k, 
                         const amrex::Real V[5][5], 
                         const amrex::Real lam[5], 
-                        const amrex::Real gam[16][5]); 
+                        std::vector<std::array<amrex::Real, 5>> gam); 
 
     //GP Class 
     bool innit = false; 

@@ -823,11 +823,10 @@ CellGaussianProcess::amrex_gpinterp(Box const& bx, FArrayBox& finefab,
                                     const int fcomp, const int ncomp, 
                                     FArrayBox const& crsefab, const int ccomp, 
                                     IntVect ratio,   
-                                    const amrex::Real ks[16][5][5], 
+                                    std::vector<std::array<std::array<amrex::Real, 5>, 5>> ks, 
                                     const amrex::Real V[5][5], 
                                     const amrex::Real lam[5], 
-                                    const amrex::Real gam[16][5])
-{
+                                    std::vector<std::array<amrex::Real, 5>> gam){
 #if (AMREX_SPACEDIM!=2)
     Abort("Not completed for ND, only 2D!"); 
 #endif   
