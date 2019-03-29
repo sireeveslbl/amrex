@@ -675,10 +675,10 @@ public:
                         const amrex::Real V[5][5], 
                         const amrex::Real lam[5], 
                         std::vector<std::array<amrex::Real, 5>> gam); 
-
-    //GP Class 
-    bool innit = false; 
-    GP gp; 
+    
+    GP get_GP(const IntVect ratio, const amrex::Real *dx); 
+    //GP Class inside and unordered_set  
+    std::vector<GP> gp;  
 
 };
 //

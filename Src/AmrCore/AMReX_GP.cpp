@@ -22,33 +22,28 @@ GP::sqrexp(const std::array<amrex::Real, 2> x, const amrex::Real y[2], const amr
 
     //Perfroms Cholesky Decomposition on covariance matrix K
 void
-GP::InitGP (const int rx, const int ry, const amrex::Real *dx)
+GP::InitGP (const amrex::IntVect Ratio, const amrex::Real *dx)
 {
+    r = Ratio;
+    l = 12*std::sqrt(dx[0]*dx[0] + dx[1]*dx[1]);  
     amrex::Real K[5][5] = {}; //The same for every ratio;  
     amrex::Real Ktot[13][13] = {}; // The same for every ratio; 
-    std::vector<std::array<amrex::Real, 13>> kt(rx*ry, std::array<amrex::Real, 13>{{0}}); // First dim is rx*ry; 
+    std::vector<std::array<amrex::Real, 13>> kt(r[0]*r[1], std::array<amrex::Real, 13>{{0}});
+         // First dim is rx*ry; 
     GetK(K, Ktot, dx); // Builds Covariance Matrices of Base Sample and Extended Samples/stencils  
     GetEigen(K); //Gets Eigenvalues and Vectors from K for use in the interpolation 
     Decomp(K, Ktot); //Decomposes K and Ktot into their Cholesky Versions
-    ks.resize(rx*ry, std::array<std::array<amrex::Real, 5>, 5>() ); 
-    GetKs(K, dx, rx, ry); 
+    ks.resize(r[0]*r[1], std::array<std::array<amrex::Real, 5>, 5>() ); 
+    GetKs(K, dx); 
     // K and Ktot are not actually necessary for the rest of the GP interpolation 
     // They are only used to construct the weights w = ks^T Kinv 
     // and gam = Rinv Q^T kt; 
     // ks, gam, lam and V are part of the class and will be used in the main interpolation routine. 
-    gam.resize(rx*ry, std::array<amrex::Real, 5>()); 
-    GetKtotks(Ktot, kt, dx, rx, ry); 
-    for(int i = 0; i < rx*ry; ++i){
+    gam.resize(r[0]*r[1], std::array<amrex::Real, 5>()); 
+    GetKtotks(Ktot, kt, dx); 
+    for(int i = 0; i < r[0]*r[1]; ++i){
         GetGamma(ks[i], kt[i], gam[i]); //Gets the gamma's for the 
     }
-/*    std::ofstream myfile;
-    myfile.precision(16); 
-    myfile.open("kt.txt"); */
-/*    for(int i = 0; i < 16; i++){
-        for(int j = 0; j < 13; j++) myfile<< kt[i][j] << '\t'; 
-        myfile << std::endl; 
-    }
-    std::cin.get(); */
 }
 
 template<int n>
@@ -197,18 +192,18 @@ GP::Decomp(amrex::Real (&K)[5][5], amrex::Real (&Kt)[13][13])
 
 void 
 GP::GetKs(const amrex::Real K[5][5],
-          const amrex::Real *dx, const int rx, const int ry)
+          const amrex::Real *dx)
 {
     //Locations of new points relative to i,j 
-    std::vector<std::array<amrex::Real,2>> pnt(rx*ry, std::array<amrex::Real, 2>()); 
+    std::vector<std::array<amrex::Real,2>> pnt(r[0]*r[1], std::array<amrex::Real, 2>()); 
 //    amrex::Real pnt[16][2]; 
-    if(rx == 2 && ry == 2){
+    if(r[0] == 2 && r[1] == 2){
         pnt[0][0] = -0.25,  pnt[0][1] = -0.25; 
         pnt[1][0] =  0.25,  pnt[1][1] = -0.25; 
         pnt[2][0] = -0.25,  pnt[2][1] =  0.25; 
         pnt[3][0] =  0.25,  pnt[3][1] =  0.25; 
     }
-    else if(rx == 4 && ry==4){
+    else if(r[0] == 4 && r[1]==4){
         pnt[0][0] = -.375,  pnt[0][1] = -.375; 
         pnt[1][0] = -.125,  pnt[1][1] = -.375; 
         pnt[2][0] = 0.125,  pnt[2][1] = -.375; 
@@ -236,7 +231,7 @@ GP::GetKs(const amrex::Real K[5][5],
 
     amrex::Real temp[2]; 
     //Build covariance vector between interpolant points and stencil 
-     for(int i = 0; i < rx*ry; ++i){
+     for(int i = 0; i < r[0]*r[1]; ++i){
         for(int j = 0; j < 5; ++j){
             temp[0] = spnt[j][0], temp[1] = spnt[j][1] - 1.0; //sten_jm
             ks[i][0][j] = sqrexp(pnt[i], temp, dx);
@@ -264,18 +259,18 @@ GP::GetKs(const amrex::Real K[5][5],
 // K1 is already Choleskied  
 void 
 GP::GetKtotks(const amrex::Real K1[13][13], std::vector<std::array<amrex::Real, 13>> &kt, 
-                               const amrex::Real *dx, const int rx, const int ry)
+                               const amrex::Real *dx)
 {
     //Locations of new points relative to i,j 
-    std::vector<std::array<amrex::Real,2>> pnt(rx*ry, std::array<amrex::Real,2>()); 
+    std::vector<std::array<amrex::Real,2>> pnt(r[0]*r[1], std::array<amrex::Real,2>()); 
 //    amrex::Real pnt[16][2]; 
-    if(rx == 2 && ry == 2){
+    if(r[0] == 2 && r[1] == 2){
         pnt[0][0] = -0.25,  pnt[0][1] = -0.25; 
         pnt[1][0] =  0.25,  pnt[1][1] = -0.25; 
         pnt[2][0] = -0.25,  pnt[2][1] =  0.25; 
         pnt[3][0] =  0.25,  pnt[3][1] =  0.25; 
     }
-    else if(rx == 4 && ry==4){
+    else if(r[0] == 4 && r[1]==4){
         pnt[0][0] = -.375,  pnt[0][1] = -.375; 
         pnt[1][0] = -.125,  pnt[1][1] = -.375; 
         pnt[2][0] = 0.125,  pnt[2][1] = -.375; 
@@ -308,7 +303,7 @@ GP::GetKtotks(const amrex::Real K1[13][13], std::vector<std::array<amrex::Real, 
                                { 1,  1}, 
                                { 0,  2}}; 
 
-    for(int i = 0; i < rx*ry; i++){
+    for(int i = 0; i < r[0]*r[1]; i++){
        for (int j = 0; j < 13; j++){
             kt[i][j] = sqrexp(pnt[i], spnt[j], dx); 
        }

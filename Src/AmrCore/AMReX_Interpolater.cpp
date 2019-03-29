@@ -814,7 +814,30 @@ CellGaussianProcess::CoarseBox (const Box& fine,
     return crse;
 } 
 
-
+GP CellGaussianProcess::get_GP(const amrex::IntVect ratio, const amrex::Real *dx)
+{
+    if(ratio[0]!=2 && ratio[0]!=4){
+        amrex::Abort("GP not implemented for refinement ratios other than 2 or 4!"); 
+    }
+    if(ratio[1]!=2 && ratio[1]!=4){
+        amrex::Abort("GP not implemented for refinement ratios other than 2 or 4!"); 
+    }
+#if AMREX_SPACEDIM==3
+     if(ratio[2]!=2 && ratio[2]!=4){
+        amrex::Abort("GP not implemented for refinement ratios other than 2 or 4!"); 
+    }
+   
+#endif
+    for(auto& it:gp){
+        if(it.r == ratio){
+            return it; 
+        }
+    }
+    GP Gaus; 
+    Gaus.InitGP(ratio, dx); 
+    gp.push_back(Gaus);
+    return Gaus; 
+}
 
 AMREX_GPU_DEVICE
 inline
@@ -822,7 +845,7 @@ void
 CellGaussianProcess::amrex_gpinterp(Box const& bx, FArrayBox& finefab,
                                     const int fcomp, const int ncomp, 
                                     FArrayBox const& crsefab, const int ccomp, 
-                                    IntVect ratio,   
+                                    amrex::IntVect ratio,   
                                     std::vector<std::array<std::array<amrex::Real, 5>, 5>> ks, 
                                     const amrex::Real V[5][5], 
                                     const amrex::Real lam[5], 
@@ -866,7 +889,6 @@ CellGaussianProcess::amrex_gpinterp(Box const& bx, FArrayBox& finefab,
 
                 sqrmean *= sqrmean; 
                 test = beta[2]/sqrmean;
-//                test = 101; 
                 if(test > 100){
                     
                     amrex::Real sten_im[5]  = {crse(ic-1,jc-1,0,n), crse(ic-2,jc,0,n),
@@ -913,96 +935,6 @@ CellGaussianProcess::amrex_gpinterp(Box const& bx, FArrayBox& finefab,
                                           + (ws[2]/summ)*GP::inner_prod<5>(ks[id][2], sten_cen) 
                                           + (ws[3]/summ)*GP::inner_prod<5>(ks[id][3], sten_ip) 
                                           + (ws[4]/summ)*GP::inner_prod<5>(ks[id][4], sten_jp);
-/*                            if(fine(i,j,0,n)<0){
-                                std::cout<< fine(i,j,0,n) << std::endl;
-                                std::cout<< " id = " << id << std::endl; 
-                                std::cout<< " i, j " << i << '\t' << j << std::endl;  
-                                std::cout<< " terms = " << std::endl; 
-                                std::cout<< (ws[0]/summ)*GP::inner_prod<5>(ks[id][0], sten_jm) << std::endl;  
-                                std::cout<< (ws[1]/summ)*GP::inner_prod<5>(ks[id][1], sten_im) << std::endl; 
-                                std::cout<< (ws[2]/summ)*GP::inner_prod<5>(ks[id][2], sten_cen)<< std::endl;  
-                                std::cout<< (ws[3]/summ)*GP::inner_prod<5>(ks[id][3], sten_ip) << std::endl; 
-                                std::cout<< (ws[4]/summ)*GP::inner_prod<5>(ks[id][4], sten_jp) << std::endl; 
-
-                                std::cout<<" beta = " << std::endl; 
-                                for(int k = 0; k < 5; ++k){ 
-                                    std::cout<< beta[k] << '\t';                                 
-                                }
-                                std::cout<<std::endl; 
-
-                                std::cout<<" gam = " << std::endl; 
-                                for(int k = 0; k < 5; ++k){ 
-                                    std::cout<< gam[id][k] << '\t';                                 
-                                }
-                                std::cout<<std::endl; 
-                                std::cout << "sum = " << summ << std::endl;
-                                std::cout << std::endl;  
-                                std::cout<< "wm = " << std::endl; 
-                                for(int k = 0; k < 5; ++k){ 
-                                    std::cout<< ws[k] << '\t';                                 
-                                }
-                                amrex::Real sum1 = 0e0; 
-                                for(int k = 0; k < 5; ++k) sum1 += ws[k]/summ; 
-                                std::cout<< " sum(ws) = " << sum1 << std::endl ;  
-                                std::cout<< "ws = " << std::endl; 
-                                for(int k = 0; k < 5; ++k){ 
-                                    std::cout<< ws[k]/summ << '\t';                                 
-                                }
-                                std::cout<<std::endl; 
-                                std::cout<< "k*" << std::endl; 
-
-                                 for(int k = 0; k < 5; ++k){ 
-                                    std::cout<< ks[id][0][k] << '\t';                                 
-                                 }
-                                 std::cout<<std::endl; 
-                                 for(int k = 0; k < 5; ++k){ 
-                                    std::cout<< ks[id][1][k] << '\t';                                 
-                                 }
-                                 std::cout<<std::endl; 
-
-                                 for(int k = 0; k < 5; ++k){ 
-                                    std::cout<< ks[id][2][k] << '\t';                                 
-                                 }
-                                 std::cout<<std::endl; 
-
-                                 for(int k = 0; k < 5; ++k){ 
-                                    std::cout<< ks[id][3][k] << '\t';                                 
-                                 }
-                                 std::cout<<std::endl; 
-
-                                 for(int k = 0; k < 5; ++k){ 
-                                    std::cout<< ks[id][4][k] << '\t';                                 
-                                 }
-                                 std::cout<<std::endl; 
-
-                                std::cout<< "stencil " << std::endl; 
-                                 for(int k = 0; k < 5; ++k){ 
-                                    std::cout<< sten_jm[k] << '\t';                                 
-                                 }
-                                 std::cout<<std::endl; 
-
-                                 for(int k = 0; k < 5; ++k){ 
-                                    std::cout<< sten_im[k] << '\t';                                 
-                                 }
-                                 std::cout<<std::endl; 
-
-                                 for(int k = 0; k < 5; ++k){ 
-                                    std::cout<< sten_cen[k] << '\t';                                 
-                                 }
-                                 std::cout<<std::endl; 
-
-                                 for(int k = 0; k < 5; ++k){ 
-                                    std::cout<< sten_ip[k] << '\t';                                 
-                                 }
-                                 std::cout<<std::endl; 
-
-                                 for(int k = 0; k < 5; ++k){ 
-                                    std::cout<< sten_jp[k] << '\t';                                 
-                                 }
-                                 std::cout<<std::endl; 
-                                std::cin.get();
-                            }
-//                            std::cin.get();                          */
                         }
                     }
                 }
@@ -1012,8 +944,6 @@ CellGaussianProcess::amrex_gpinterp(Box const& bx, FArrayBox& finefab,
                         for(int rx = 0; rx< ratio[0]; rx++){ 
                             const int i = ic*ratio[0] + rx; 
                             const int id = rx + ry*ratio[1]; 
-/*                std::cout<< " id " <<  id << " i "  << i << " j " << j << " ic " << ic << " jc " << jc  << std::endl;
-                 std::cin.get(); // */
                             fine(i,j,0,n) = GP::inner_prod<5>(ks[id][2], sten_cen);
                         }
                     }
@@ -1056,17 +986,13 @@ CellGaussianProcess::interp (const FArrayBox& crse,
     auto fparr = ftemp.array(); 
     FArrayBox *fp = &ftemp; 
 
-    if(!innit){
-        const amrex::Real *dx = crse_geom.CellSize();
-        gp.l = 12*std::sqrt(dx[0]*dx[0] + dx[1]*dx[1]);
-        gp.InitGP(ratio[0], ratio[1], dx);
-        innit = true; 
-    }
+    const amrex::Real *dx = crse_geom.CellSize();
+    GP mygp = get_GP(ratio, dx); 
     Vector<int> bc = GetBCArray(bcr); //Assess if we need this. 
 
     AMREX_LAUNCH_HOST_DEVICE_LAMBDA (cb1, tbx,{
         amrex_gpinterp(tbx, *fp, fine_comp, ncomp, *crsep, crse_comp,
-                      ratio, gp.ks, gp.V, gp.lam, gp.gam);
+                      ratio, mygp.ks, mygp.V, mygp.lam, mygp.gam);
     });
 
     AMREX_PARALLEL_FOR_4D (target_fine_region, ncomp, i, j, k, n, {

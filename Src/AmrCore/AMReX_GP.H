@@ -1,7 +1,8 @@
 #ifndef AMREX_GP_H
 #define AMREX_GP_H
 #include <AMReX_REAL.H>
-#include <AMReX_GpuQualifiers.H> 
+#include <AMReX_GpuQualifiers.H>
+#include <AMReX_IntVect.H> 
 #include <vector>
 #include <array> 
 #include <cmath> 
@@ -11,10 +12,12 @@
 class GP
 {
     public: 
-    GP(){}; 
-    ~GP(){};
-
-// Member data 
+    GP()
+    {}; 
+    ~GP(){};      
+    
+    // Member data
+    amrex::IntVect r;  
     //
     // Eigen Values of Covariance Matrix 
     //
@@ -97,18 +100,19 @@ class GP
     amrex::Real sqrexp(const std::array<amrex::Real, 2> x, const amrex::Real y[2], const amrex::Real *dx); 
 
     // Set up for the multi-sampled Weighted GP interpolation 
-    void InitGP(const int rx, const int ry, const amrex::Real *dx); 
+    void InitGP(amrex::IntVect ratio, const amrex::Real *dx); 
     // Build K makes the Coviarance Kernel Matrices for each Samples 
     // And for Total Stencil
     void GetK(amrex::Real (&K)[5][5], amrex::Real (&Ktot)[13][13], const amrex::Real *dx); 
     //
     // Get Weights builds k*Kinv for each stencil
     //
-    void GetKs(const amrex::Real K[5][5], const amrex::Real *dx, const int rx, const int ry);
+    void GetKs(const amrex::Real K[5][5], const amrex::Real *dx);
     //
     //  Get Weights for the LSQ RHS
     //
-    void GetKtotks(const amrex::Real K1[13][13], std::vector<std::array<amrex::Real, 13>> &kt, const amrex::Real *dx, const int rx, const int ry); 
+    void GetKtotks(const amrex::Real K1[13][13], std::vector<std::array<amrex::Real, 13>> &kt,
+                   const amrex::Real *dx); 
     //
     // Get Gamma by solving a LSQ problem only need this once. 
     //
