@@ -4,6 +4,7 @@
 #include <AMReX_FArrayBox.H>
 #include <AMReX_BCRec.H>
 #include <AMReX_Vector.H>
+#include <AMReX_GP_2D.H>
 #include <cmath>
 
 namespace amrex {
@@ -451,6 +452,149 @@ nodebilin_interp (Box const& bx, FArrayBox& finefab, const int fcomp, const int 
         }
     }
 }
+
+AMREX_GPU_DEVICE
+inline
+void 
+amrex_gpinterp(Box const& bx, FArrayBox& finefab,
+                                    const int fcomp, const int ncomp, 
+                                    FArrayBox const& crsefab, const int ccomp, 
+                                    amrex::IntVect ratio,   
+                                    std::vector<std::array<std::array<amrex::Real, 5>, 5>> ks, 
+                                    const amrex::Real V[5][5], 
+                                    const amrex::Real lam[5], 
+                                    std::vector<std::array<amrex::Real, 5>> gam){
+    const auto len  = amrex::length(bx);
+    const auto lo   = amrex::lbound(bx);
+    const auto crse = crsefab.view(lo, ccomp); 
+    
+    const auto flo = amrex::refine(lo, ratio); 
+    const auto fine = finefab.view(flo,fcomp);
+    amrex::Real beta[5], ws[5];
+    for(int n = 0; n < ncomp; ++n) { 
+        for (int jc = 0; jc < len.y; ++jc){ 
+            AMREX_PRAGMA_SIMD
+            for(int ic = 0; ic < len.x; ++ic){
+                amrex::Real sten_cen[5] = {crse(ic,jc-1,0,n), 
+                                           crse(ic-1,jc,0,n), crse(ic,jc,0,n),
+                                           crse(ic+1,jc,0,n), crse(ic,jc+1,0,n)};
+    
+                amrex::Real summ, test, sqrmean = 0.e0;
+                for(int ii = 0; ii < 5; ii++){ 
+                    beta[ii] = 0.e0; 
+                } 
+                amrex::Real vtemp[5]; 
+                amrex::Real inn;  
+                for(int ii = 0; ii < 5; ii++)
+                {
+                    for(int jj = 0; jj < 5; jj++){
+                         vtemp[jj] = V[jj][ii];
+                    }
+                    inn = GP::inner_prod<5>(vtemp, sten_cen); 
+                    beta[2] += 1.0/lam[ii]*(inn*inn);
+                    sqrmean += sten_cen[ii]; 
+                }             
+                sqrmean /= 5; 
+
+                sqrmean *= sqrmean; 
+                test =beta[2]/sqrmean;
+                test = 101; 
+                if(test > 100){
+                    
+                    amrex::Real sten_im[5]  = {crse(ic-1,jc-1,0,n), crse(ic-2,jc,0,n),
+                                               crse(ic-1,jc,0,n), crse(ic,jc,0,n), crse(ic-1,jc+1,0,n)};
+                    amrex::Real sten_jm[5]  = {crse(ic,jc-2,0,n), crse(ic-1,jc-1,0,n), 
+                                               crse(ic,jc-1,0,n), crse(ic+1,jc-1,0,n), crse(ic,jc,0,n)}; 
+                    amrex::Real sten_ip[5]  = {crse(ic+1,jc-1,0,n), crse(ic,jc,0,n),
+                                               crse(ic+1,jc,0,n), crse(ic+2,jc,0,n), crse(ic+1,jc+1,0,n)}; 
+                    amrex::Real sten_jp[5]  = {crse(ic,jc,0,n), crse(ic-1,jc+1,0,n),
+                                               crse(ic,jc+1,0,n), crse(ic+1,jc+1,0,n), crse(ic,jc+2,0,n)}; 
+    
+                    for(int ii = 0; ii < 5; ii++)
+                    {
+                        for(int jj = 0; jj < 5; jj++){
+                         vtemp[jj] = V[jj][ii];                       
+                        }
+//                        std::cout<<"beta0 = " <<beta[0] << std::endl;  
+                        inn = GP::inner_prod<5>(vtemp, sten_jm);
+                        beta[0] += 1.0/lam[ii]*(inn*inn); 
+                        inn = GP::inner_prod<5>(vtemp, sten_im); 
+                        beta[1] += 1.0/lam[ii]*(inn*inn); 
+                        inn = GP::inner_prod<5>(vtemp, sten_ip);
+                        beta[3] += 1.0/lam[ii]*(inn*inn); 
+                        inn = GP::inner_prod<5>(vtemp, sten_jp); 
+                        beta[4] += 1.0/lam[ii]*(inn*inn); 
+                   }
+/*                         std::cout<<"beta0 = " <<beta[0] << std::endl; 
+                         std::cout<< " sten_jm = " << std::endl; 
+                         for(int ii = 0; ii < 5; ii++) std::cout<< sten_jm[ii] << '\t'; 
+                         std::cout<<std::endl;  
+                         std::cout<< " V = " << std::endl; 
+                         for(int ii = 0; ii < 5; ii++) std::cout<< vtemp[ii] << '\t'; 
+                         std::cout<<std::endl;  
+                         std::cout<< " lam " <<std::endl; 
+                         std::cout<< 1.0/lam[4] << std::endl;
+                         std::cout << "inner prod = " << GP::inner_prod<5>(vtemp, sten_jm)<< std:: endl;
+                         std::cout<< "term = " << 1.e0/lam[4]*( GP::inner_prod<5>(vtemp, sten_jm)* 
+                                                    GP::inner_prod<5>(vtemp, sten_jm))<< std::endl; */
+                    for(int ry = 0; ry < ratio[1]; ry++){
+                        const int j = jc*ratio[1] + ry; 
+                        for(int rx = 0; rx< ratio[0]; rx++){ 
+                            const int i = ic*ratio[0] + rx;
+                            const int id = rx + ry*ratio[0]; 
+                            summ = 0.e0;
+
+                            for(int m = 0; m < 5; ++m){
+                                amrex::Real denom = (1.e-36 + beta[m])*(1.e-36 + beta[m]);
+//                                std::cout<< "beta " << beta[m] << std::endl; 
+//                                std::cout<< "denom " <<denom<<std::endl;  
+                                ws[m] = gam[id][m]/denom;
+                                summ += ws[m];
+                            }
+                            for(int m = 0; m < 5; ++m) ws[m] /= summ; 
+
+                            fine(i,j,0,n) = ws[0]*GP::inner_prod<5>(ks[id][0], sten_jm) 
+                                          + ws[1]*GP::inner_prod<5>(ks[id][1], sten_im) 
+                                          + ws[2]*GP::inner_prod<5>(ks[id][2], sten_cen) 
+                                          + ws[3]*GP::inner_prod<5>(ks[id][3], sten_ip) 
+                                          + ws[4]*GP::inner_prod<5>(ks[id][4], sten_jp);
+/*                            if(fine(i,j,0,n) > 2){
+                            std::cout<< " fine = " << fine(i,j,0,n) << std::endl; 
+                            std::cout<< "terms = " << std::endl; 
+                
+                                std::cout<<(ws[0])*GP::inner_prod<5>(ks[id][0], sten_jm) << std::endl; 
+                                std::cout<<(ws[1])*GP::inner_prod<5>(ks[id][1], sten_im) << std::endl; 
+                                std::cout<<(ws[2])*GP::inner_prod<5>(ks[id][2], sten_cen)  << std::endl; 
+                                std::cout<<(ws[3])*GP::inner_prod<5>(ks[id][3], sten_ip)  << std::endl; 
+                                std::cout<<(ws[4])*GP::inner_prod<5>(ks[id][4], sten_jp) << std::endl;
+                            std::cout<< " inner products " << std::endl;
+                                std::cout<<GP::inner_prod<5>(ks[id][0], sten_jm) << std::endl; 
+                                std::cout<<GP::inner_prod<5>(ks[id][1], sten_im) << std::endl; 
+                                std::cout<<GP::inner_prod<5>(ks[id][2], sten_cen)  << std::endl; 
+                                std::cout<<GP::inner_prod<5>(ks[id][3], sten_ip)  << std::endl; 
+                                std::cout<<GP::inner_prod<5>(ks[id][4], sten_jp) << std::endl;
+                    
+                                std::cin.get();
+                          } */ 
+
+                        }
+                    }
+                }
+                else{
+                    for(int ry = 0; ry < ratio[1]; ry++){
+                        const int j = jc*ratio[1] + ry; 
+                        for(int rx = 0; rx< ratio[0]; rx++){ 
+                            const int i = ic*ratio[0] + rx; 
+                            const int id = rx + ry*ratio[1]; 
+                            fine(i,j,0,n) = GP::inner_prod<5>(ks[id][2], sten_cen);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 
 }
 

@@ -4,7 +4,12 @@
 #include <AMReX_Box.H>
 #include <AMReX_BCRec.H>
 #include <AMReX_REAL.H>
-#include <AMReX_GP.H>
+#if AMREX_SPACEDIM==2
+#include <AMReX_GP_2D.H>
+#elif AMREX_SPACEDIM==3
+#include <AMReX_GP_3D.H>
+#endif
+
 namespace amrex {
 
 class Geometry;
@@ -666,15 +671,6 @@ public:
     //
     // 
     //
-    AMREX_GPU_DEVICE
-    void amrex_gpinterp(Box const& bx, FArrayBox& finefab,
-                        const int fcomp, const int ncomp, 
-                        FArrayBox const& crsefab, const int ccomp, 
-                        IntVect ratio,   
-                        std::vector<std::array<std::array<amrex::Real, 5>, 5>> k, 
-                        const amrex::Real V[5][5], 
-                        const amrex::Real lam[5], 
-                        std::vector<std::array<amrex::Real, 5>> gam); 
     
     GP get_GP(const IntVect ratio, const amrex::Real *dx); 
     //GP Class inside and unordered_set  
