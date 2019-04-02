@@ -48,7 +48,7 @@ else
   CFLAGS_FROM_HOST := $(CXXFLAGS_FROM_HOST)
 endif
 
-NVCC_FLAGS = -Wno-deprecated-gpu-targets -m64 -arch=compute_$(CUDA_ARCH) -code=sm_$(CUDA_ARCH) -maxrregcount=$(CUDA_MAXREGCOUNT)
+NVCC_FLAGS = -Wno-deprecated-gpu-targets -m64 -arch=compute_$(CUDA_ARCH) -code=sm_$(CUDA_ARCH) -maxrregcount=$(CUDA_MAXREGCOUNT) --Werror=cross-execution-space-call
 
 ifeq ($(DEBUG),TRUE)
   NVCC_FLAGS += -g -G
@@ -65,10 +65,12 @@ CFLAGS   =   $(CFLAGS_FROM_HOST) $(NVCC_FLAGS) -dc -x cu
 
 ifeq ($(nvcc_version),9.2)
   # relaxed constexpr not supported
-  CXXFLAGS += --expt-extended-lambda
-else
-  CXXFLAGS += --expt-relaxed-constexpr --expt-extended-lambda
+  ifeq ($(USE_EB),TRUE)
+    $(error Cuda 9.2 is not supported with USE_EB=TRUE. Use 9.1 or 10.0 instead.)
+  endif
 endif
+
+CXXFLAGS += --expt-relaxed-constexpr --expt-extended-lambda
 
 CXX = nvcc
 CC  = nvcc
