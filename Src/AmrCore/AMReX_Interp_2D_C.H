@@ -498,25 +498,29 @@ amrex_gpinterp(Box const& bx, FArrayBox& finefab,
 
                 sqrmean *= sqrmean; 
                 test =beta[2]/sqrmean;
-//                test = 0.0; 
+                test = 0.0; 
 //                test = 101; 
-                if(test > 2000){
+                if(test > 10000){
                     
-                    amrex::Real sten_im[5]  = {crse(ic-1,jc-1,0,n), crse(ic-2,jc,0,n),
-                                               crse(ic-1,jc,0,n), crse(ic,jc,0,n), crse(ic-1,jc+1,0,n)};
-                    amrex::Real sten_jm[5]  = {crse(ic,jc-2,0,n), crse(ic-1,jc-1,0,n), 
-                                               crse(ic,jc-1,0,n), crse(ic+1,jc-1,0,n), crse(ic,jc,0,n)}; 
-                    amrex::Real sten_ip[5]  = {crse(ic+1,jc-1,0,n), crse(ic,jc,0,n),
-                                               crse(ic+1,jc,0,n), crse(ic+2,jc,0,n), crse(ic+1,jc+1,0,n)}; 
-                    amrex::Real sten_jp[5]  = {crse(ic,jc,0,n), crse(ic-1,jc+1,0,n),
-                                               crse(ic,jc+1,0,n), crse(ic+1,jc+1,0,n), crse(ic,jc+2,0,n)}; 
+                    amrex::Real sten_jm[5]  = {crse(ic,jc-2,0,n),
+                         crse(ic-1,jc-1,0,n), crse(ic,jc-1,0,n), crse(ic+1,jc-1,0,n),
+                                               crse(ic,jc,0,n)};
+
+                    amrex::Real sten_im[5]  = {crse(ic-1,jc-1,0,n),
+                         crse(ic-2,jc,0,n), crse(ic-1,jc,0,n),  crse(ic,jc,0,n), 
+                                            crse(ic-1,jc+1,0,n)};
+                    amrex::Real sten_ip[5]  = {crse(ic+1,jc-1,0,n),
+                             crse(ic,jc,0,n),  crse(ic+1,jc,0,n), crse(ic+2,jc,0,n), 
+                                               crse(ic+1,jc+1,0,n)}; 
+                    amrex::Real sten_jp[5]  = {crse(ic,jc,0,n), 
+                          crse(ic-1,jc+1,0,n), crse(ic,jc+1,0,n), crse(ic+1,jc+1,0,n),
+                                               crse(ic,jc+2,0,n)}; 
     
                     for(int ii = 0; ii < 5; ii++)
                     {
                         for(int jj = 0; jj < 5; jj++){
                          vtemp[jj] = V[jj][ii];                       
                         }
-//                        std::cout<<"beta0 = " <<beta[0] << std::endl;  
                         inn = GP::inner_prod<5>(vtemp, sten_jm);
                         beta[0] += 1.0/lam[ii]*(inn*inn); 
                         inn = GP::inner_prod<5>(vtemp, sten_im); 
@@ -526,18 +530,6 @@ amrex_gpinterp(Box const& bx, FArrayBox& finefab,
                         inn = GP::inner_prod<5>(vtemp, sten_jp); 
                         beta[4] += 1.0/lam[ii]*(inn*inn); 
                    }
-/*                         std::cout<<"beta0 = " <<beta[0] << std::endl; 
-                         std::cout<< " sten_jm = " << std::endl; 
-                         for(int ii = 0; ii < 5; ii++) std::cout<< sten_jm[ii] << '\t'; 
-                         std::cout<<std::endl;  
-                         std::cout<< " V = " << std::endl; 
-                         for(int ii = 0; ii < 5; ii++) std::cout<< vtemp[ii] << '\t'; 
-                         std::cout<<std::endl;  
-                         std::cout<< " lam " <<std::endl; 
-                         std::cout<< 1.0/lam[4] << std::endl;
-                         std::cout << "inner prod = " << GP::inner_prod<5>(vtemp, sten_jm)<< std:: endl;
-                         std::cout<< "term = " << 1.e0/lam[4]*( GP::inner_prod<5>(vtemp, sten_jm)* 
-                                                    GP::inner_prod<5>(vtemp, sten_jm))<< std::endl; */
                     for(int ry = 0; ry < ratio[1]; ry++){
                         const int j = jc*ratio[1] + ry; 
                         for(int rx = 0; rx< ratio[0]; rx++){ 
@@ -548,8 +540,6 @@ amrex_gpinterp(Box const& bx, FArrayBox& finefab,
                             for(int m = 0; m < 5; ++m){
                                 ws[m] = 0.e0; 
                                 amrex::Real denom = (1.e-32 + beta[m]);
-//                                std::cout<< "beta " << beta[m] << std::endl; 
-//                                std::cout<< "denom " <<denom<<std::endl;  
                                 ws[m] = gam[id][m]/(denom*denom);
                                 summ += ws[m];
                             }
@@ -560,7 +550,7 @@ amrex_gpinterp(Box const& bx, FArrayBox& finefab,
                                           + ws[2]*GP::inner_prod<5>(ks[id][2], sten_cen) 
                                           + ws[3]*GP::inner_prod<5>(ks[id][3], sten_ip) 
                                           + ws[4]*GP::inner_prod<5>(ks[id][4], sten_jp);
-/*                            f(fine(i,j,0,n) > 2){
+/*                            if(fine(i,j,0,n) > 2){
                             std::cout<< " fine = " << fine(i,j,0,n) << std::endl; 
                             std::cout<< "terms = " << std::endl; 
                 
@@ -594,7 +584,7 @@ amrex_gpinterp(Box const& bx, FArrayBox& finefab,
                         const int j = jc*ratio[1] + ry; 
                         for(int rx = 0; rx< ratio[0]; rx++){ 
                             const int i = ic*ratio[0] + rx; 
-                            const int id = rx + ry*ratio[1]; 
+                            const int id = rx + ry*ratio[0]; 
                             fine(i,j,0,n) = GP::inner_prod<5>(ks[id][2], sten_cen);
                         }
                     }
