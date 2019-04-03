@@ -498,8 +498,9 @@ amrex_gpinterp(Box const& bx, FArrayBox& finefab,
 
                 sqrmean *= sqrmean; 
                 test =beta[2]/sqrmean;
-                test = 101; 
-                if(test > 100){
+//                test = 0.0; 
+//                test = 101; 
+                if(test > 2000){
                     
                     amrex::Real sten_im[5]  = {crse(ic-1,jc-1,0,n), crse(ic-2,jc,0,n),
                                                crse(ic-1,jc,0,n), crse(ic,jc,0,n), crse(ic-1,jc+1,0,n)};
@@ -545,10 +546,11 @@ amrex_gpinterp(Box const& bx, FArrayBox& finefab,
                             summ = 0.e0;
 
                             for(int m = 0; m < 5; ++m){
-                                amrex::Real denom = (1.e-36 + beta[m])*(1.e-36 + beta[m]);
+                                ws[m] = 0.e0; 
+                                amrex::Real denom = (1.e-32 + beta[m]);
 //                                std::cout<< "beta " << beta[m] << std::endl; 
 //                                std::cout<< "denom " <<denom<<std::endl;  
-                                ws[m] = gam[id][m]/denom;
+                                ws[m] = gam[id][m]/(denom*denom);
                                 summ += ws[m];
                             }
                             for(int m = 0; m < 5; ++m) ws[m] /= summ; 
@@ -558,7 +560,7 @@ amrex_gpinterp(Box const& bx, FArrayBox& finefab,
                                           + ws[2]*GP::inner_prod<5>(ks[id][2], sten_cen) 
                                           + ws[3]*GP::inner_prod<5>(ks[id][3], sten_ip) 
                                           + ws[4]*GP::inner_prod<5>(ks[id][4], sten_jp);
-/*                            if(fine(i,j,0,n) > 2){
+/*                            f(fine(i,j,0,n) > 2){
                             std::cout<< " fine = " << fine(i,j,0,n) << std::endl; 
                             std::cout<< "terms = " << std::endl; 
                 
@@ -567,15 +569,22 @@ amrex_gpinterp(Box const& bx, FArrayBox& finefab,
                                 std::cout<<(ws[2])*GP::inner_prod<5>(ks[id][2], sten_cen)  << std::endl; 
                                 std::cout<<(ws[3])*GP::inner_prod<5>(ks[id][3], sten_ip)  << std::endl; 
                                 std::cout<<(ws[4])*GP::inner_prod<5>(ks[id][4], sten_jp) << std::endl;
-                            std::cout<< " inner products " << std::endl;
+                                std::cout<< " inner products " << std::endl;
                                 std::cout<<GP::inner_prod<5>(ks[id][0], sten_jm) << std::endl; 
                                 std::cout<<GP::inner_prod<5>(ks[id][1], sten_im) << std::endl; 
                                 std::cout<<GP::inner_prod<5>(ks[id][2], sten_cen)  << std::endl; 
                                 std::cout<<GP::inner_prod<5>(ks[id][3], sten_ip)  << std::endl; 
                                 std::cout<<GP::inner_prod<5>(ks[id][4], sten_jp) << std::endl;
-                    
+                                std::cout<< " V = " << std::endl; 
+                                for(int jj = 0; jj < 5; jj++){
+                                    for(int ii = 0; ii < 5; ii++) std::cout<< V[jj][ii] << '\t'; 
+                                    std::cout<<std::endl;  
+                                }
+                                std::cout<< " lam " <<std::endl;
+                                for(int ii = 0; ii < 5; ii++) std::cout<< lam[ii] << '\t'; 
+ 
                                 std::cin.get();
-                          } */ 
+                          } // */ 
 
                         }
                     }

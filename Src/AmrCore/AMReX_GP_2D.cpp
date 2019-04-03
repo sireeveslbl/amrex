@@ -2,6 +2,7 @@
 #include <iostream> 
 #include <fstream> 
 #include <iomanip>
+#include <lapacke.h> 
 
 template<class T>
 amrex::Real
@@ -43,12 +44,7 @@ GP::InitGP (const amrex::IntVect Ratio, const amrex::Real *dx)
     GetKtotks(Ktot, kt, dx); 
     for(int i = 0; i < r[0]*r[1]; ++i){
         GetGamma(ks[i], kt[i], gam[i]); //Gets the gamma's 
-        for(int j = 0; j < 5; j++) std::cout<< gam[i][j] << '\t';  
-        std::cout<<std::endl; 
     }
-    std::cin.get(); 
-
-    
 }
 
 template<int n>
@@ -482,37 +478,24 @@ GP::GetGamma(std::array<std::array<amrex::Real, 5>, 5> const& k,
 {
 //Extended matrix Each column contains the vector of coviarances corresponding 
 //to each sample (weno-like stencil)
-/*    amrex::Real A[13][5] = {{k[0][0], 0.e0   , 0.e0   , 0.e0   , 0.e0   }, 
-                            {0.e0   , k[0][1], 0.e0   , 0.e0   , 0.e0   }, 
-                            {k[1][0], 0.e0   , k[0][2], 0.e0   , 0.e0   }, 
-                            {k[2][0], k[1][1], 0.e0   , k[0][3], 0.e0   }, 
-                            {k[3][0], k[2][1], k[1][2], 0.e0   , k[0][4]}, 
-                            {0.e0   , k[3][1], k[2][2], k[1][3], 0.e0   }, 
-                            {0.e0   , 0.e0   , k[3][2], k[2][3], k[1][4]}, 
-                            {0.e0   , 0.e0   , 0.e0   , k[3][3], k[2][4]}, 
-                            {k[4][0], 0.e0   , 0.e0   , 0.e0   , k[3][4]}, 
-                            {0.e0   , k[4][1], 0.e0   , 0.e0   , 0.e0   }, 
-                            {0.e0   , 0.e0   , k[4][2], 0.e0   , 0.e0   }, 
-                            {0.e0   , 0.e0   , 0.e0   , k[4][3], 0.e0   }, 
-                            {0.e0   , 0.e0   , 0.e0   , 0.e0   , k[4][4]}}; // */ 
 
-    amrex::Real A[13][5] = {{k[0][0], 0.e0   , 0.e0   , 0.e0   , 0.e0   }, 
-                            {0.e0   , k[1][0], 0.e0   , 0.e0   , 0.e0   }, 
-                            {k[0][2], 0.e0   , k[2][0], 0.e0   , 0.e0   }, 
-                            {k[0][3], k[1][1], 0.e0   , k[3][0], 0.e0   }, 
-                            {k[0][3], k[1][2], k[2][1], 0.e0   , k[4][0]}, 
-                            {0.e0   , k[1][3], k[2][2], k[3][1], 0.e0   }, 
-                            {0.e0   , 0.e0   , k[2][3], k[3][2], k[4][1]}, 
-                            {0.e0   , 0.e0   , 0.e0   , k[3][3], k[4][2]}, 
-                            {k[0][4], 0.e0   , 0.e0   , 0.e0   , k[4][3]}, 
-                            {0.e0   , k[1][4], 0.e0   , 0.e0   , 0.e0   }, 
-                            {0.e0   , 0.e0   , k[2][4], 0.e0   , 0.e0   }, 
-                            {0.e0   , 0.e0   , 0.e0   , k[3][4], 0.e0   }, 
-                            {0.e0   , 0.e0   , 0.e0   , 0.e0   , k[4][4]}};// */
-   amrex::Real Q[13][13]; 
+    amrex::Real A[13*5] = { k[0][0], 0.e0   , 0.e0   , 0.e0   , 0.e0   , // i   j-2 
+                            k[0][1], k[1][0], 0.e0   , 0.e0   , 0.e0   , // i-1 j-1
+                            k[0][2], 0.e0   , k[2][0], 0.e0   , 0.e0   , // i   j-1
+                            k[0][3], 0.e0   , 0.e0   , k[3][0], 0.e0   , // i+1 j-1
+                            0.e0   , k[1][1], 0.e0   , 0.e0   , 0.e0   , // i-2 j
+                            0.e0   , k[1][2], k[2][1], 0.e0   , 0.e0   , // i-1 j 
+                            k[0][4], k[1][3], k[2][2], k[3][1], k[4][0], // i   j 
+                            0.e0   , 0.e0   , k[2][3], k[3][2], 0.e0   , // i+1 j
+                            0.e0   , 0.e0   , 0.e0   , k[3][3], 0.e0   , // i+2 j
+                            0.e0   , k[1][4], 0.e0   , 0.e0   , k[4][1], // i-1 j+1
+                            0.e0   , 0.e0   , k[2][4], 0.e0   , k[4][2], // i   j+1
+                            0.e0   , 0.e0   , 0.e0   , k[3][4], k[4][3], // i+1 j+1
+                            0.e0   , 0.e0   , 0.e0   , 0.e0   , k[4][4]};// i   j+2 
+/*   amrex::Real Q[13][13]; 
    amrex::Real R[5][5];
    QR(A, Q, R); // This one is for non-square matrices
-   amrex::Real temp[5] ={0};
+
 
    //Q'*Kt 
    for(int i = 0; i < 5; i++)
@@ -520,7 +503,14 @@ GP::GetGamma(std::array<std::array<amrex::Real, 5>, 5> const& k,
         temp[i] += Q[j][i]*kt[j]; //Q'kt 
     //gam = R^-1 Q'kt 
     
-    Ux_solve<5>(R, ga, temp);
+    Ux_solve<5>(R, ga, temp); */
+    int m = 13, n = 5, nrhs = 1; 
+    int lda = 5, ldb = 1, lwork = -1, info; 
+    double temp[13]; 
+    for(int i = 0; i < 13; i++) temp[i] = kt[i]; 
+    double workt;
+    info = LAPACKE_dgels(LAPACK_ROW_MAJOR, 'N', m, n, nrhs, A, lda, temp, ldb);
+    for(int i = 0; i < 5; ++i) ga[i] = temp[i];
 
 }
  
