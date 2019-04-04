@@ -39,7 +39,8 @@ class GP
 //    amrex::Real gam[16][5] = {};  //Needs rx*ry in the first dimension
     std::vector<std::array<amrex::Real, 5>> gam;
     AMREX_GPU_DEVICE_MANAGED amrex::Real (*gamd)[5]; 
-    amrex::Real l; 
+    amrex::Real l;
+    amrex::Real sig;  
 
 // Linear Algebra Functions
     template<int n>
@@ -99,6 +100,7 @@ class GP
     amrex::Real sqrexp(const T x[2],const T y[2]);
 
     amrex::Real sqrexp(const std::array<amrex::Real, 2> x, const amrex::Real y[2]); 
+    amrex::Real sqrexp2(const amrex::Real x[2], const amrex::Real y[2]); 
 
     // Set up for the multi-sampled Weighted GP interpolation 
     void InitGP(amrex::IntVect ratio,const amrex::Real *del); 
@@ -122,8 +124,7 @@ class GP
     //  Get EigenVecs and EigenValues for smoothness indicators. 
     //  Will use the Shifted QR algorithm with deflation 
     //
-    template<int n> 
-    void GetEigen(const amrex::Real K[n][n]);
+    void GetEigen();
 };
 
 

@@ -21,19 +21,29 @@ GP::sqrexp(const std::array<amrex::Real, 2> x, const amrex::Real y[2])
     return result;    
 } 
 
+amrex::Real
+GP::sqrexp2(const amrex::Real x[2], const amrex::Real y[2])
+{
+    amrex::Real result = std::exp(-0.5*((x[0] - y[0])*(x[0] - y[0])*dx[0]*dx[0] + 
+                                        (x[1] - y[1])*(x[1] - y[1])*dx[1]*dx[1])/(sig*sig));
+    return result;    
+} 
+
     //Perfroms Cholesky Decomposition on covariance matrix K
 void
 GP::InitGP (const amrex::IntVect Ratio, const amrex::Real *del)
 {
     D_DECL(dx[0] = del[0], dx[1] = del[1], dx[2] = del[2]); 
     r = Ratio;
-    l = 12*std::sqrt(dx[0]*dx[0] + dx[1]*dx[1]);  
+    l = 12*std::sqrt(dx[0]*dx[0] + dx[1]*dx[1]); 
+    sig = 1.5*std::sqrt(dx[0]*dx[0] + dx[1]*dx[1]); 
+
     amrex::Real K[5][5] = {}; //The same for every ratio;  
     amrex::Real Ktot[13][13] = {}; // The same for every ratio; 
     std::vector<std::array<amrex::Real, 13>> kt(r[0]*r[1], std::array<amrex::Real, 13>{{0}});
          // First dim is rx*ry; 
     GetK(K, Ktot); // Builds Covariance Matrices of Base Sample and Extended Samples/stencils  
-    GetEigen(K); //Gets Eigenvalues and Vectors from K for use in the interpolation 
+    GetEigen(); //Gets Eigenvalues and Vectors from K for use in the interpolation 
     Decomp(K, Ktot); //Decomposes K and Ktot into their Cholesky Versions
     ks.resize(r[0]*r[1], std::array<std::array<amrex::Real, 5>, 5>() ); 
     GetKs(K); 
@@ -519,71 +529,25 @@ extern "C"
 }
  
 
-template<int n> 
 void 
-GP::GetEigen(const amrex::Real K[n][n])
+GP::GetEigen()
 {
-/*    std::vector<std::vector<amrex::Real>> Q(n, std::vector<amrex::Real>(n, 0.));
-    std::vector<std::vector<amrex::Real>> temp(n, std::vector<amrex::Real>(n, 0.)); 
-    std::vector<std::vector<amrex::Real>> vtemp(n, std::vector<amrex::Real>(n, 0.)); 
-    std::vector<std::vector<amrex::Real>> v(n, std::vector<amrex::Real>(n,0.)); 
-    std::vector<std::vector<amrex::Real>> B(n, std::vector<amrex::Real>(n, 0.));
-    for(int i = 0; i < n; ++i) 
-        for(int j = 0; j < n; ++j) B[i][j] = K[i][j];
- 
-    int iter;  
+    double A[25];
+    amrex::Real pnt[5][2] = {{ 0, -1}, 
+                             {-1,  0}, 
+                             { 0,  0}, 
+                             { 1,  0}, 
+                             { 0,  1}}; 
 
-    for(int i = 0; i < n; i++){
-        v[i][i] = 1.0; 
-    }
-
-    amrex::Real mu, er, lamt; 
-    for(int j = n-1; j > 0; j--){
-        er = 1.e0; 
-        lamt = 0.0; 
-        iter =0; 
-        while(er > 1e-16){
-            amrex::Real b = B[j][j]; 
-            amrex::Real a = B[j-1][j-1]; 
-            amrex::Real c = B[j-1][j]; 
-            amrex::Real delta = 0.5*(a - b);             
-            mu = B[j][j] - std::copysign(1.e0, delta)*c*c/(std::abs(delta) + std::sqrt(delta*delta + c*c));
-            for(int i = 0; i < n; i++){ B[i][i] -= mu;
-                for(int jj = 0; jj < n; jj++) Q[i][jj] = (i == jj) ? 1.0 : 0.0; 
-            }
-            qr_decomp(B, Q, n);
-            matmul<n>(B, Q, temp); 
-            matmul<n>(v, Q, vtemp);
-            B = temp; 
-            v = vtemp;
-
-            for(int i = 0; i < n; i++) B[i][i] += mu;
-            er = std::abs(B[j][j-1]);
-            lamt = B[j][j]; 
-//            er = std::abs(lamt - B[j][j]); 
-            iter++;
-            if(iter>500){
-                 for(int ii = 0; ii < n; ii++)
-                    { for(int jj = 0; jj < n; jj++) std::cout<< K[ii][jj] << '\t';
-                    }
-                    std::cout<< std::endl;  
-                 std::cin.get(); 
-                }
+    for (int j = 0; j < 5; ++j){
+        A[j + 5*j] = 1.e0;  
+        for(int i = j; i < 5; ++i){
+             A[i + j*5] = sqrexp2(pnt[i], pnt[j]); //this is K_sig
+             A[j + 5*i] = A[i + j*5]; 
         }
     }
-    for(int i = 0; i < n; i++){
-         lam[i] = B[i][i]; 
-         for(int j = 0; j < n; j++){
-                 V[i][j] = v[i][j]; 
-         }
-         
-    } */ 
-    double A[25];
-    for (int j = 0; j < 5; ++j){
-        for(int i = 0; i < 5; ++i) A[i + j*5] = K[i][j];
-    }
 
-    int N = n, lda = 5, info, lwork;
+    int N = 5, lda = 5, info, lwork;
     double wkopt;
     double* work;
     lwork = -1;
