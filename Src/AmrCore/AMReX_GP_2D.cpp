@@ -35,8 +35,8 @@ GP::InitGP (const amrex::IntVect Ratio, const amrex::Real *del)
 {
     D_DECL(dx[0] = del[0], dx[1] = del[1], dx[2] = del[2]); 
     r = Ratio;
-    l = 12*std::sqrt(dx[0]*dx[0] + dx[1]*dx[1]); 
-    sig = 1.5*std::sqrt(dx[0]*dx[0] + dx[1]*dx[1]); 
+    l = 12*std::min(dx[0], dx[1]);  //std::sqrt(dx[0]*dx[0] + dx[1]*dx[1]); 
+    sig = 1.5*std::min(dx[0],dx[1]); //std::sqrt(dx[0]*dx[0] + dx[1]*dx[1]); 
 
     amrex::Real K[5][5] = {}; //The same for every ratio;  
     amrex::Real Ktot[13][13] = {}; // The same for every ratio; 

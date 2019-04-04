@@ -499,7 +499,7 @@ amrex_gpinterp(Box const& bx, FArrayBox& finefab,
                 sqrmean *= sqrmean; 
                 test =beta[2]/sqrmean;
 //                test = 0.0; 
-                test = 101; 
+//                test = 101; 
                 if(test > 100){
                     
                     amrex::Real sten_jm[5]  = {crse(ic,jc-2,0,n),
