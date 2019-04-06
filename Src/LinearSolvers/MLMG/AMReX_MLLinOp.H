@@ -73,6 +73,7 @@ public:
                  const LPInfo& a_info,
                  const Vector<FabFactory<FArrayBox> const*>& a_factory);
 
+    virtual std::string name () const { return std::string("Unspecified"); }
 
     /**
     * \brief Boundary of the whole domain. This functions must be called,
@@ -198,7 +199,11 @@ public:
 protected:
 
     static constexpr int mg_coarsen_ratio = 2;
+#ifdef AMREX_USE_EB
+    static constexpr int mg_box_min_width = 4;
+#else
     static constexpr int mg_box_min_width = 2;
+#endif
 
     LPInfo info;
 
@@ -305,6 +310,10 @@ private:
                                       int ratio, int strategy);
     MPI_Comm makeSubCommunicator (const DistributionMapping& dm);
     void remapNeighborhoods (Vector<DistributionMapping> & dms);
+
+    virtual void checkPoint (std::string const& file_name) const {
+        amrex::Abort("MLLinOp:checkPoint: not implemented");
+    }
 };
 
 }

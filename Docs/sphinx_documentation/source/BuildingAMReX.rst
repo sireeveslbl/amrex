@@ -170,7 +170,8 @@ them to your make file as follows,
 
 To link to an additional library say ``foo`` with headers located at
 ``foopath/include`` and library at ``foopath/lib``, you can add the
-following to your make file,
+following to your make file before the line that includes AMReX's
+``Make.defs``,
 
 ::
 
@@ -332,7 +333,7 @@ below.
    +------------------------------+-------------------------------------------------+-------------+-----------------+
    | Option Name                  | Description                                     | Default     | Possible values |
    +==============================+=================================================+=============+=================+
-   | DIM                          |  Dimension of AMReX build                       | 3           | 2, 3            |
+   | DIM                          |  Dimension of AMReX build                       | 3           | 1, 2, 3         |
    +------------------------------+-------------------------------------------------+-------------+-----------------+
    | ENABLE_DP                    |  Build with double-precision reals              | ON          | ON, OFF         |
    +------------------------------+-------------------------------------------------+-------------+-----------------+
