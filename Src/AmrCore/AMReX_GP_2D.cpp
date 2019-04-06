@@ -30,8 +30,8 @@ GP::sqrexp2(const amrex::Real x[2], const amrex::Real y[2])
 } 
 
     //Perfroms Cholesky Decomposition on covariance matrix K
-void
-GP::InitGP (const amrex::IntVect Ratio, const amrex::Real *del)
+
+GP::GP (const amrex::IntVect Ratio, const amrex::Real *del)
 {
     D_DECL(dx[0] = del[0], dx[1] = del[1], dx[2] = del[2]); 
     r = Ratio;
@@ -74,39 +74,6 @@ GP::CholeskyDecomp(amrex::Real (&K)[n][n])
             K[i][j] /= K[j][j];
         }
     }
-}
-
-template<int n> 
-void 
-GP::matmul(const amrex::Real (&A)[n][n], const amrex::Real (&X)[n][n], 
-            amrex::Real (&B)[n][n])
-{
-    amrex::Real temp; 
-    for(int i = 0; i < n; i++) 
-        for(int j = 0; j < n; j++){
-           temp = 0.0; 
-           for(int k = 0; k < n; k++){
-               temp += A[i][k]*X[k][j];             
-            }
-            B[i][j] = temp; 
-        }
-}
-
-template<int n> 
-void 
-GP::matmul(const std::vector<std::vector<amrex::Real>> &A, 
-           const std::vector<std::vector<amrex::Real>> &X, 
-            std::vector<std::vector<amrex::Real>> &B)
-{
-    amrex::Real temp; 
-    for(int i = 0; i < n; i++) 
-        for(int j = 0; j < n; j++){
-           temp = 0.0; 
-           for(int k = 0; k < n; k++){
-               temp += A[i][k]*X[k][j];             
-            }
-            B[i][j] = temp; 
-        }
 }
 
 //Performs Cholesky Backsubstitution
@@ -320,162 +287,6 @@ GP::GetKtotks(const amrex::Real K1[13][13], std::vector<std::array<amrex::Real, 
     } 
 }
 
-//Solves Ux = b where U is upper triangular
-template<int n> 
-void 
-GP::Ux_solve(const amrex::Real R[n][n], std::array<amrex::Real,n> &x, const amrex::Real b[n])
-{
-        double summ;
- 
-        for(int k = n-1; k>=0; --k){
-            summ = 0.e0; 
-            for(int i = k+1; i < n; i++){
-                 summ += x[i]*(R[k][i]);
-            }
-            x[k] = (b[k] - summ)/R[k][k];
-            
-        }
-}
-
-// QR Decomposition routines! 
-// In qr_decomp A is decomposed into R and V contains Q. 
-void
-GP::qr_decomp(std::vector<std::vector<amrex::Real>> &R, std::vector<std::vector<amrex::Real>> &Q, const int n)
-{
-
-    amrex::Real s, anorm, vnorm, innerprod;    
-    std::vector<std::vector<amrex::Real>> v(n, std::vector<amrex::Real>(n,0)); 
-    for(int j = 0; j < n; j++){
-        anorm = 0.e0;
-        vnorm = 0.e0;
-
-        for(int i = j; i < n; i++) anorm += R[i][j]*R[i][j];
-        anorm = std::sqrt(anorm);
-        s = std::copysign(anorm, R[j][j]);         
-        for(int i = j; i < n; i++){
-            v[i][j] = R[i][j];
-        }
-        v[j][j] += s;
-        for(int i = 0; i < n; i++) vnorm += v[i][j]*v[i][j];
-        vnorm = std::sqrt(vnorm);
-        if(vnorm>0) for(int i =0; i < n; i++) v[i][j] /= vnorm;
-
-        for(int k = 0; k < n; k++){
-            innerprod = 0.e0;
-            for(int i = 0; i < n; i++) innerprod += v[i][j]*R[i][k];
-
-            for(int i = 0; i < n; i++) R[i][k] -= 2.e0*v[i][j]*innerprod;
-        }
-    }
-    q_appl(Q, v, n);
-}
-
-//QR decomp for the non-square matrix 
-void 
-GP::QR(amrex::Real (&A)[13][5], amrex::Real (&Q)[13][13],amrex::Real (&R)[5][5])
-{
-    //Q = I 
-    double v[13] = {};  
-    double norm, inner, s; 
-    for(int i = 0; i < 13; ++i){
-        for(int j = 0; j < 13; ++j)
-            Q[i][j] = 0.e0;
-        Q[i][i] = 1.e0;
-    }
-
-    for(int j = 0; j < 5; ++j){
-       norm = 0.0; 
-       for(int i = 0; i < j; ++i) v[i] = 0;
-       for(int i = j; i < 13; ++i){
-             v[i] = A[i][j]; 
-             norm += v[i]*v[i];
-        }
-        norm = std::sqrt(norm); 
-        s = std::copysign(norm, A[j][j]);
-        v[j] += s; 
-        norm = 0.e0; 
-        for(int i = j; i < 13; i++) norm += v[i]*v[i];
-        norm = std::sqrt(norm); 
-        if(norm > 1e-14)
-        {
-            for(int i = j; i < 13; ++i) v[i] /= norm; //Normalize vector v
-            for(int k = j; k < 5; ++k){
-                inner = 0.e0;  
-                for(int i = 0; i < 13; ++i) inner += v[i]*A[i][k]; 
-                for(int i = 0; i < 13; ++i) A[i][k] -= 2.e0*inner*v[i];
-            }
-            for(int k = 0; k < 13; ++k){
-                inner = 0.e0;  
-                for(int i = 0; i < 13; ++i) inner += v[i]*Q[k][i]; 
-                for(int i = 0; i < 13; ++i) Q[k][i] -= 2.e0*inner*v[i];
-            }
-        }
-    }
-    for(int i = 0; i < 5; i++) 
-        for( int j = 0; j <5; j++) R[i][j] = A[i][j]; 
-}
-
-//Applies V onto A -> VA 
-void
-GP::q_appl(std::vector<std::vector<amrex::Real>> &A, const std::vector<std::vector<amrex::Real>> v, const int rows, 
-       int upper/*=0 */, int mode /*=0*/) //may remove these in the future 
-{
-    if(upper == 0){
-        if(mode == 0){ //Right Multiplication Q*A 
-            for(int k = rows-1; k >= 0; --k){
-                for(int i = rows-1; i >=0; --i){
-                    amrex::Real temp = 0.0;
-                    for(int j = 0; j < rows; ++j)
-                        temp += A[j][k]*v[j][i];
-                    for(int j = 0; j < rows; ++j){
-                        A[j][k] -= 2.0*v[j][i]*temp;
-                    }
-                }
-            }
-        }
-        else{ // Left Multiplication A*Q
-            std::vector<std::vector<amrex::Real>> temp1(rows, std::vector<amrex::Real>(rows,0));
-            //T =  
-            for(int k = 0; k < rows; ++k)
-                for(int j = 0; j < rows; ++j) 
-                    temp1[k][j] = A[j][k]; 
-
-            for(int k = 0; k < rows; k++){
-                for(int i = rows-1; i >=0; --i){
-                    amrex::Real temp = 0.0;
-                    for(int j = 0; j < rows; ++j)
-                        temp += temp1[j][k]*v[j][i];
-                    for(int j = 0; j < rows; ++j)
-                        temp1[j][k] -= 2.0*v[j][i]*temp;
-                }
-            }
-            for(int k = 0; k < rows; ++k)
-                for(int j = 0; j < rows; ++j) 
-                   A[k][j] = temp1[j][k]; 
-        }
-    }
-
-    else{
-        std::vector<std::vector<amrex::Real>> temp1(rows, std::vector<amrex::Real>(rows, 0)); 
-        for(int k = 0; k < rows; k++)
-            for(int j = 0; j < upper - rows; j++) 
-                temp1[k][j] = A[k][rows+j]; 
-         for(int k = rows-1; k >= 0; --k){
-            for(int i = rows-1; i >=0; --i){
-                amrex::Real temp = 0;
-                for(int j = 0; j < rows; ++j)
-                    temp += temp1[j][k]*v[j][i];
-                for(int j = 0; j < rows; ++j)
-                    temp1[j][k] -= 2.0*v[j][i]*temp;
-            }
-        }
-        for(int k = 0; k < rows; k++)
-            for(int j = 0; j < upper - rows; j++){
-                A[k][rows+j] = temp1[k][j]; 
-        }
-    }
-}
-
 //Each point will have its
 //own set of gammas. 
 //Use x = R^-1Q'b 
@@ -499,19 +310,8 @@ GP::GetGamma(std::array<std::array<amrex::Real, 5>, 5> const& k,
                             0.e0   , k[1][4], 0.e0   , 0.e0   , k[4][1], // i-1 j+1
                             0.e0   , 0.e0   , k[2][4], 0.e0   , k[4][2], // i   j+1
                             0.e0   , 0.e0   , 0.e0   , k[3][4], k[4][3], // i+1 j+1
-                            0.e0   , 0.e0   , 0.e0   , 0.e0   , k[4][4]};// i   j+2 
-/*   amrex::Real Q[13][13]; 
-   amrex::Real R[5][5];
-   QR(A, Q, R); // This one is for non-square matrices
-
-
-   //Q'*Kt 
-   for(int i = 0; i < 5; i++)
-      for(int j = 0; j < 13; j++)
-        temp[i] += Q[j][i]*kt[j]; //Q'kt 
-    //gam = R^-1 Q'kt 
-    
-    Ux_solve<5>(R, ga, temp); */
+                            0.e0   , 0.e0   , 0.e0   , 0.e0   , k[4][4]};// i   j+2
+ 
     int m = 13, n = 5, nrhs = 1; 
     int lda = 5, ldb = 1, lwork = -1, info; 
     double temp[13]; 
@@ -558,15 +358,6 @@ GP::GetEigen()
     for (int j = 0; j < 5; ++j){
         for(int i = 0; i < 5; ++i) V[i][j] =  A[i + j*5];
     }
-    
-/*     std::cout<< "V = " << std::endl;
-     for(int j = 0; j < 5; j++){
-        for(int i = 0;i < 5; i++) std::cout<< A[j + i*5] << "       ";
-        std::cout<<std::endl;
-     }//                    / 
-    std::cout << "lam = " << std::endl;
-    for(int i = 0; i < 5; i++) std::cout<< lam[i] << '\t';
-    std::cout<<std::endl; */
     free(work);
 
 

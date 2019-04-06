@@ -12,34 +12,32 @@
 class GP
 {
     public: 
-    GP()
-    {}; 
+    GP(const amrex::IntVect Ratio, const amrex::Real *del);
     ~GP(){};      
     
     // Member data
-    amrex::IntVect r;  
+    amrex::IntVect r;
+    amrex::Real dx[3]; 
     //
     // Eigen Values of Covariance Matrix 
     //
-    amrex::Real lam[5] = {}; 
+    amrex::Real lam[7] = {}; 
     //
     //  Eigen Vectors of Covariance Matrix
     //
-    amrex::Real V[5][5] = {};
+    amrex::Real V[7][7] = {};
     //
     //  Weights to be applied for interpolation
     //
-//    amrex::Real ks[16][5][5] = {}; //Needs rx*ryin the first dimension
-    std::vector<std::array<std::array<amrex::Real, 5>, 5>> ks; 
-    AMREX_GPU_DEVICE_MANAGED amrex::Real (*ktd)[5][5]; 
+    std::vector<std::array<std::array<amrex::Real, 7>, 7>> ks; 
+    AMREX_GPU_DEVICE_MANAGED amrex::Real (*ktd)[7][7]; 
     //
     //  Gammas needed for smoothness indication
     //
-//    amrex::Real gam[16][5] = {};  //Needs rx*ry in the first dimension
-    std::vector<std::array<amrex::Real, 5>> gam;
-    AMREX_GPU_DEVICE_MANAGED amrex::Real (*gamd)[5]; 
+    std::vector<std::array<amrex::Real, 7>> gam;
+    AMREX_GPU_DEVICE_MANAGED amrex::Real (*gamd)[7]; 
     amrex::Real l; 
-
+    amrex::IntVect r; 
 // Linear Algebra Functions
     template<int n>
     inline
@@ -85,13 +83,13 @@ class GP
     qr_decomp(std::vector<std::vector<amrex::Real>> &R, std::vector<std::vector<amrex::Real>> &Q, const int n);
 
     void 
-    QR(amrex::Real (&A)[13][5], amrex::Real (&Q)[13][13],amrex::Real (&R)[5][5]);
+    QR(amrex::Real (&A)[25][5], amrex::Real (&Q)[25][25],amrex::Real (&R)[7][7]);
 
     void
     q_appl(std::vector<std::vector<amrex::Real>> &A, const std::vector<std::vector<amrex::Real>> V, const int rows, 
            int upper=0, int mode=0);
     void
-    Decomp(amrex::Real (&K)[5][5], amrex::Real (&Kt)[13][13]); 
+    Decomp(amrex::Real (&K)[7][7], amrex::Real (&Kt)[25][25]); 
 
 //GP functions! 
     template<class T> 
@@ -103,11 +101,11 @@ class GP
     void InitGP(amrex::IntVect ratio, const amrex::Real *dx); 
     // Build K makes the Coviarance Kernel Matrices for each Samples 
     // And for Total Stencil
-    void GetK(amrex::Real (&K)[5][5], amrex::Real (&Ktot)[13][13], const amrex::Real *dx); 
+    void GetK(amrex::Real (&K)[7][7], amrex::Real (&Ktot)[25][25], const amrex::Real *dx); 
     //
     // Get Weights builds k*Kinv for each stencil
     //
-    void GetKs(const amrex::Real K[5][5], const amrex::Real *dx);
+    void GetKs(const amrex::Real K[7][7], const amrex::Real *dx);
     //
     //  Get Weights for the LSQ RHS
     //
@@ -116,8 +114,8 @@ class GP
     //
     // Get Gamma by solving a LSQ problem only need this once. 
     //
-    void GetGamma(std::array<std::array<amrex::Real, 5>, 5> const& k,
-                  std::array<amrex::Real,13> const &kt, std::array<amrex::Real,5> &ga); 
+    void GetGamma(std::array<std::array<amrex::Real, 7>, 7> const& k,
+                  std::array<amrex::Real,25> const &kt, std::array<amrex::Real,7> &ga); 
     //
     //  Get EigenVecs and EigenValues for smoothness indicators. 
     //  Will use the Shifted QR algorithm with deflation 

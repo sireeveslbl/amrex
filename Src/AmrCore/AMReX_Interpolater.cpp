@@ -830,18 +830,11 @@ GP CellGaussianProcess::get_GP(const amrex::IntVect ratio, const amrex::Real *dx
     }   
 #endif
     for(auto& it:gp){
-#if AMREX_SPACEDIM==2
-        if(it.dx[0] == dx[0] && it.dx[1] == dx[1]){
+        if(it.r == ratio){
             return it; 
         }
-#elif AMREX_SPACEDIM==3 
-        if(it.dx[0] == dx[0] && it.dx[1] == dx[1] && it.dx[2] == dx[2]){
-            return it; 
-        }
-#endif
     }
-    GP Gaus; 
-    Gaus.InitGP(ratio, dx); 
+    GP Gaus(ratio, dx); 
     gp.push_back(Gaus);
     return Gaus; 
 }

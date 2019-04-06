@@ -12,8 +12,7 @@
 class GP
 {
     public: 
-    GP()
-    {}; 
+    GP(const amrex::IntVect Ratio, const amrex::Real *del); 
     ~GP(){};      
     
     // Member data
@@ -64,13 +63,6 @@ class GP
 
     template<int n> void CholeskyDecomp(amrex::Real (&K)[n][n]);
  
-    template<int n> void matmul(const amrex::Real (&A)[n][n], const amrex::Real (&X)[n][n], 
-                                   amrex::Real (&B)[n][n]); 
-
-    template<int n> void matmul(const std::vector<std::vector<amrex::Real>> &A, 
-                                const std::vector<std::vector<amrex::Real>> &X, 
-                                std::vector<std::vector<amrex::Real>> &B); 
-
     template<int n> 
     void
     cholesky(amrex::Real (&b)[n], amrex::Real const K[n][n]); 
@@ -79,19 +71,6 @@ class GP
     void
     cholesky(std::array<amrex::Real, n> &b, amrex::Real const K[n][n]);
 
-    template<int n> 
-    void 
-    Ux_solve(const amrex::Real R[n][n], std::array<amrex::Real, n> &x, const amrex::Real b[n]); 
-
-    void
-    qr_decomp(std::vector<std::vector<amrex::Real>> &R, std::vector<std::vector<amrex::Real>> &Q, const int n);
-
-    void 
-    QR(amrex::Real (&A)[13][5], amrex::Real (&Q)[13][13],amrex::Real (&R)[5][5]);
-
-    void
-    q_appl(std::vector<std::vector<amrex::Real>> &A, const std::vector<std::vector<amrex::Real>> V, const int rows, 
-           int upper=0, int mode=0);
     void
     Decomp(amrex::Real (&K)[5][5], amrex::Real (&Kt)[13][13]); 
 
@@ -103,7 +82,6 @@ class GP
     amrex::Real sqrexp2(const amrex::Real x[2], const amrex::Real y[2]); 
 
     // Set up for the multi-sampled Weighted GP interpolation 
-    void InitGP(amrex::IntVect ratio,const amrex::Real *del); 
     // Build K makes the Coviarance Kernel Matrices for each Samples 
     // And for Total Stencil
     void GetK(amrex::Real (&K)[5][5], amrex::Real (&Ktot)[13][13]); 
