@@ -641,6 +641,7 @@ amrex_gpinterp(Box const& bx, FArrayBox& finefab,
 
                     sqrmean *= sqrmean; 
                     test = beta[4]/sqrmean;
+//                    test = 101; 
                     if(test > 100){
                         
                         amrex::Real sten_km[7]  = {crse(ic  ,jc  ,kc-2,n), crse(ic  ,jc-1,kc-1,n), crse(ic-1,jc  ,kc-1,n), 
@@ -697,7 +698,7 @@ amrex_gpinterp(Box const& bx, FArrayBox& finefab,
                                 const int j = jc*ratio[1] + ry; 
                                 for(int rx = 0; rx< ratio[0]; rx++){ 
                                     const int i = ic*ratio[0] + rx;
-                                    const int id = rx + ratio[0]*(ry + ratio[1]*rz); 
+                                    const int id = rx + ratio[0]*(ry + ratio[1]*rz);
                                     summ = 0.e0;
                                     for(int m = 0; m < 7; ++m){
                                         amrex::Real denom = (1.e-36 + beta[m])*(1.e-36 + beta[m]); 
@@ -723,7 +724,7 @@ amrex_gpinterp(Box const& bx, FArrayBox& finefab,
                                 for(int rx = 0; rx< ratio[0]; rx++){ 
                                     const int i = ic*ratio[0] + rx; 
                                     const int id = rx + ratio[0]*(ry + ratio[1]*rz); 
-                                    fine(i,j,k,n) = GP::inner_prod<7>(ks[id][2], sten_cen);
+                                    fine(i,j,k,n) = GP::inner_prod<7>(ks[id][3], sten_cen);
                                 }
                             }
                         }
