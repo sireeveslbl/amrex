@@ -1,5 +1,5 @@
-#ifndef AMREX_GP_H
-#define AMREX_GP_H
+#ifndef AMREX_GP_3D_H
+#define AMREX_GP_3D_H
 #include <AMReX_REAL.H>
 #include <AMReX_GpuQualifiers.H>
 #include <AMReX_IntVect.H> 
@@ -36,8 +36,8 @@ class GP
     //
     std::vector<std::array<amrex::Real, 7>> gam;
     AMREX_GPU_DEVICE_MANAGED amrex::Real (*gamd)[7]; 
-    amrex::Real l; 
-    amrex::IntVect r; 
+    amrex::Real l;
+    amrex::Real sig;  
 // Linear Algebra Functions
     template<int n>
     inline
@@ -60,12 +60,6 @@ class GP
 
     template<int n> void CholeskyDecomp(amrex::Real (&K)[n][n]);
  
-    template<int n> void matmul(const amrex::Real (&A)[n][n], const amrex::Real (&X)[n][n], 
-                                   amrex::Real (&B)[n][n]); 
-
-    template<int n> void matmul(const std::vector<std::vector<amrex::Real>> &A, 
-                                const std::vector<std::vector<amrex::Real>> &X, 
-                                std::vector<std::vector<amrex::Real>> &B); 
 
     template<int n> 
     void
@@ -75,42 +69,31 @@ class GP
     void
     cholesky(std::array<amrex::Real, n> &b, amrex::Real const K[n][n]);
 
-    template<int n> 
-    void 
-    Ux_solve(const amrex::Real R[n][n], std::array<amrex::Real, n> &x, const amrex::Real b[n]); 
-
-    void
-    qr_decomp(std::vector<std::vector<amrex::Real>> &R, std::vector<std::vector<amrex::Real>> &Q, const int n);
-
-    void 
-    QR(amrex::Real (&A)[25][5], amrex::Real (&Q)[25][25],amrex::Real (&R)[7][7]);
-
-    void
-    q_appl(std::vector<std::vector<amrex::Real>> &A, const std::vector<std::vector<amrex::Real>> V, const int rows, 
-           int upper=0, int mode=0);
     void
     Decomp(amrex::Real (&K)[7][7], amrex::Real (&Kt)[25][25]); 
 
 //GP functions! 
     template<class T> 
-    amrex::Real sqrexp(const T x[2],const T y[2], const amrex::Real *dx);
+    amrex::Real sqrexp(const T x[3],const T y[3]);
 
-    amrex::Real sqrexp(const std::array<amrex::Real, 2> x, const amrex::Real y[2], const amrex::Real *dx); 
+    amrex::Real sqrexp(const std::array<amrex::Real, 3> x, const amrex::Real y[3]); 
+    
+    amrex::Real sqrexp2(const amrex::Real x[3], const amrex::Real y[3]); 
+ 
+
 
     // Set up for the multi-sampled Weighted GP interpolation 
-    void InitGP(amrex::IntVect ratio, const amrex::Real *dx); 
     // Build K makes the Coviarance Kernel Matrices for each Samples 
     // And for Total Stencil
-    void GetK(amrex::Real (&K)[7][7], amrex::Real (&Ktot)[25][25], const amrex::Real *dx); 
+    void GetK(amrex::Real (&K)[7][7], amrex::Real (&Ktot)[25][25]); 
     //
     // Get Weights builds k*Kinv for each stencil
     //
-    void GetKs(const amrex::Real K[7][7], const amrex::Real *dx);
+    void GetKs(const amrex::Real K[7][7]);
     //
     //  Get Weights for the LSQ RHS
     //
-    void GetKtotks(const amrex::Real K1[13][13], std::vector<std::array<amrex::Real, 13>> &kt,
-                   const amrex::Real *dx); 
+    void GetKtotks(const amrex::Real K1[25][25], std::vector<std::array<amrex::Real, 25>> &kt); 
     //
     // Get Gamma by solving a LSQ problem only need this once. 
     //
@@ -120,8 +103,7 @@ class GP
     //  Get EigenVecs and EigenValues for smoothness indicators. 
     //  Will use the Shifted QR algorithm with deflation 
     //
-    template<int n> 
-    void GetEigen(const amrex::Real K[n][n]);
+    void GetEigen();
 };
 
 

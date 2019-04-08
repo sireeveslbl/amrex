@@ -1,5 +1,5 @@
-#ifndef AMREX_GP_H
-#define AMREX_GP_H
+#ifndef AMREX_GP_2D_H
+#define AMREX_GP_2D_H
 #include <AMReX_REAL.H>
 #include <AMReX_GpuQualifiers.H>
 #include <AMReX_IntVect.H> 

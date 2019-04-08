@@ -501,11 +501,9 @@ amrex_gpinterp(Box const& bx, FArrayBox& finefab,
 //                test = 0.0; 
 //                test = 101; 
                 if(test > 100){
-                    
                     amrex::Real sten_jm[5]  = {crse(ic,jc-2,0,n),
                           crse(ic-1,jc-1,0,n), crse(ic,jc-1,0,n), crse(ic+1,jc-1,0,n),
                                                crse(ic,jc,0,n)};
-
                     amrex::Real sten_im[5]  = {crse(ic-1,jc-1,0,n),
                             crse(ic-2,jc,0,n), crse(ic-1,jc,0,n),  crse(ic,jc,0,n), 
                                                crse(ic-1,jc+1,0,n)};
@@ -515,7 +513,6 @@ amrex_gpinterp(Box const& bx, FArrayBox& finefab,
                     amrex::Real sten_jp[5]  = {crse(ic,jc,0,n), 
                           crse(ic-1,jc+1,0,n), crse(ic,jc+1,0,n), crse(ic+1,jc+1,0,n),
                                                crse(ic,jc+2,0,n)}; 
-    
                     for(int ii = 0; ii < 5; ii++)
                     {
                         for(int jj = 0; jj < 5; jj++){
