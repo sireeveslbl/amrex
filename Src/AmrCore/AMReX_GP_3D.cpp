@@ -39,7 +39,7 @@ GP::GP (const amrex::IntVect Ratio, const amrex::Real *del)
     D_DECL(dx[0] = del[0], dx[1] = del[1], dx[2] = del[2]); 
     r = Ratio;
     l = 12*std::min(dx[0], std::min(dx[1], dx[2]));  
-    sig = 1.5*std::min(dx[0],std::min( dx[1], dx[2]));  
+    sig = 1.*std::min(dx[0], std::min(dx[1], dx[2]));  
 
     amrex::Real K[7][7] = {}; //The same for every ratio;  
     amrex::Real Ktot[25][25] = {}; // The same for every ratio; 
@@ -57,8 +57,11 @@ GP::GP (const amrex::IntVect Ratio, const amrex::Real *del)
     gam.resize(r[0]*r[1]*r[2], std::array<amrex::Real, 7>()); 
     GetKtotks(Ktot, kt); 
     for(int i = 0; i < r[0]*r[1]*r[2]; ++i){
-        GetGamma(ks[i], kt[i], gam[i]); //Gets the gamma's 
+        GetGamma(ks[i], kt[i], gam[i]); //Gets the gamma's
+//        for(int j = 0; j < 7; j++) std::cout<<gam[i][j]<< '\t';  
+//        std::cout<<std::endl; 
     }
+//    std::cin.get(); 
 }
 
 template<int n>
@@ -204,11 +207,12 @@ GP::GetKs(const amrex::Real K[7][7])
                 id = i + r[0]*(j + r[1]*k); 
                 pnt[id][0] = strt + 1.0/double(r[0])*i; 
                 pnt[id][1] = strt + 1.0/double(r[1])*j; 
-                pnt[id][2] = strt + 1.0/double(r[2])*k; 
+                pnt[id][2] = strt + 1.0/double(r[2])*k;
+                std::cout<< pnt[id][0] << '\t' << pnt[id][1] << '\t' << pnt[id][2] << std::endl;  
             }
         }
     }
-   
+    std::cin.get();  
     amrex::Real spnt[7][3] = {{ 0,  0, -1},
                               { 0, -1,  0}, 
                               {-1,  0,  0}, 
@@ -269,7 +273,7 @@ GP::GetKtotks(const amrex::Real K1[25][25], std::vector<std::array<amrex::Real, 
                 id = i + r[0]*(j + r[1]*k); 
                 pnt[id][0] = strt + 1.0/double(r[0])*i; 
                 pnt[id][1] = strt + 1.0/double(r[1])*j; 
-                pnt[id][2] = strt + 1.0/double(r[2])*k; 
+                pnt[id][2] = strt + 1.0/double(r[2])*k;
             }
         }
     }
@@ -333,7 +337,7 @@ GP::GetGamma(std::array<std::array<amrex::Real, 7>, 7> const& k,
                             0.e0   , k[1][4], 0.e0   , 0.e0   , k[4][1], 0.e0   , 0.e0   ,  //i+1 j-1 k 
                             0.e0   , 0.e0   , k[2][2], 0.e0   , 0.e0   , 0.e0   , 0.e0   ,  //i-2 j   k 
                             0.e0   , 0.e0   , k[2][3], k[3][2], 0.e0   , 0.e0   , 0.e0   ,  //i-1 j   k 
-                            k[0][7], k[1][5], k[2][4], k[3][3], k[4][2], k[5][1], k[6][0],  //i   j   k 
+                            k[0][6], k[1][5], k[2][4], k[3][3], k[4][2], k[5][1], k[6][0],  //i   j   k 
                             0.e0   , 0.e0   , 0.e0   , k[3][4], k[4][3], 0.e0   , 0.e0   ,  //i+1 j   k 
                             0.e0   , 0.e0   , 0.e0   , 0.e0   , k[4][4], 0.e0   , 0.e0   ,  //i+2 j   k 
                             0.e0   , 0.e0   , k[2][5], 0.e0   , 0.e0   , k[5][2], 0.e0   ,  //i-1 j+1 k 
@@ -367,13 +371,13 @@ void
 GP::GetEigen()
 {
     double A[49];
-    amrex::Real pnt[7][3] = {{ 0,  0, -1},
-                             { 0, -1,  0}, 
-                             {-1,  0,  0}, 
-                             { 0,  0,  0}, 
-                             { 1,  0,  0}, 
-                             { 0,  1,  0},
-                             { 0,  0,  1}}; 
+    amrex::Real pnt[7][3] = {{ 0,  0, -1}, // i   j    k-1
+                             { 0, -1,  0}, // i   j-1  k
+                             {-1,  0,  0}, // i-1 j    k
+                             { 0,  0,  0}, // i   j    k
+                             { 1,  0,  0}, // i+1 j    k
+                             { 0,  1,  0}, // i   j+1  k 
+                             { 0,  0,  1}};// i   j    k+1 
 
     for (int j = 0; j < 7; ++j){
         A[j + 7*j] = 1.e0;  

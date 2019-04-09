@@ -640,8 +640,9 @@ amrex_gpinterp(Box const& bx, FArrayBox& finefab,
                     sqrmean /= 7; 
 
                     sqrmean *= sqrmean; 
-                    test = beta[4]/sqrmean;
-//                    test = 101; 
+                    test = beta[3]/sqrmean;
+                    test = 101; 
+//                    test = 0.e0; 
                     if(test > 100){
                         
                         amrex::Real sten_km[7]  = {crse(ic  ,jc  ,kc-2,n), crse(ic  ,jc-1,kc-1,n), crse(ic-1,jc  ,kc-1,n), 
@@ -661,11 +662,11 @@ amrex_gpinterp(Box const& bx, FArrayBox& finefab,
                                                    crse(ic+1,jc  ,kc+1,n)}; 
 
                         amrex::Real sten_jp[7]  = {crse(ic  ,jc+1,kc-1,n), crse(ic  ,jc  ,kc  ,n), crse(ic-1,jc+1,kc  ,n), 
-                                                   crse(ic  ,jc+2,kc  ,n), crse(ic+1,jc+1,kc  ,n), crse(ic  ,jc+2,kc  ,n),
+                                                   crse(ic  ,jc+1,kc  ,n), crse(ic+1,jc+1,kc  ,n), crse(ic  ,jc+2,kc  ,n),
                                                    crse(ic  ,jc+1,kc+1,n)};
 
                         amrex::Real sten_kp[7]  = {crse(ic  ,jc  ,kc  ,n), crse(ic  ,jc-1,kc+1,n), crse(ic-1,jc  ,kc+1,n),  
-                                                   crse(ic  ,jc  ,kc+1,n), crse(ic-1,jc  ,kc+1,n), crse(ic  ,jc+1,kc+1,n), 
+                                                   crse(ic  ,jc  ,kc+1,n), crse(ic+1,jc  ,kc+1,n), crse(ic  ,jc+1,kc+1,n), 
                                                    crse(ic  ,jc  ,kc+2,n)}; 
         
                         for(int ii = 0; ii < 7; ii++)
@@ -705,13 +706,13 @@ amrex_gpinterp(Box const& bx, FArrayBox& finefab,
                                         ws[m] = gam[id][m]/denom; 
                                         summ += ws[m]; 
                                     } 
-                                    fine(i,j,k,n) = (ws[0]/summ)*GP::inner_prod<7>(ks[id][0], sten_km) 
-                                                  + (ws[1]/summ)*GP::inner_prod<7>(ks[id][1], sten_jm) 
-                                                  + (ws[2]/summ)*GP::inner_prod<7>(ks[id][2], sten_im) 
+                                    fine(i,j,k,n) = (ws[0]/summ)*GP::inner_prod<7>(ks[id][0], sten_km ) 
+                                                  + (ws[1]/summ)*GP::inner_prod<7>(ks[id][1], sten_jm ) 
+                                                  + (ws[2]/summ)*GP::inner_prod<7>(ks[id][2], sten_im ) 
                                                   + (ws[3]/summ)*GP::inner_prod<7>(ks[id][3], sten_cen) 
-                                                  + (ws[4]/summ)*GP::inner_prod<7>(ks[id][4], sten_ip)
-                                                  + (ws[5]/summ)*GP::inner_prod<7>(ks[id][5], sten_jp)
-                                                  + (ws[6]/summ)*GP::inner_prod<7>(ks[id][6], sten_kp);
+                                                  + (ws[4]/summ)*GP::inner_prod<7>(ks[id][4], sten_ip )
+                                                  + (ws[5]/summ)*GP::inner_prod<7>(ks[id][5], sten_jp )
+                                                  + (ws[6]/summ)*GP::inner_prod<7>(ks[id][6], sten_kp );
                                 }
                             }
                         }
@@ -723,7 +724,7 @@ amrex_gpinterp(Box const& bx, FArrayBox& finefab,
                                 const int j = jc*ratio[1] + ry; 
                                 for(int rx = 0; rx< ratio[0]; rx++){ 
                                     const int i = ic*ratio[0] + rx; 
-                                    const int id = rx + ratio[0]*(ry + ratio[1]*rz); 
+                                    const int id = rx + ratio[0]*(ry + ratio[1]*rz);
                                     fine(i,j,k,n) = GP::inner_prod<7>(ks[id][3], sten_cen);
                                 }
                             }
