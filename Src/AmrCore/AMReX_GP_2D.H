@@ -81,6 +81,81 @@ class GP
     amrex::Real sqrexp(const std::array<amrex::Real, 2> x, const amrex::Real y[2]); 
     amrex::Real sqrexp2(const amrex::Real x[2], const amrex::Real y[2]); 
 
+
+    inline
+    amrex::Real cov1(const amrex::Real xc[2], 
+                     const amrex::Real yc[2], 
+                     const amrex::Real par)
+    {
+        amrex::Real x[2] = {xc[0]*dx[0], xc[1]*dx[1]}; 
+        amrex::Real y[2] = {yc[0]*dx[0], yc[1]*dx[1]}; 
+        
+        amrex::Real rt2 = std::sqrt(2.e0); 
+        amrex::Real pi  = std::atan(1.e0)*4; 
+        amrex::Real dkh = (x[0] - y[0])/dx[0]; 
+        amrex::Real arg1 = (dkh + 1.)/(rt2*par/dx[0]); 
+        amrex::Real arg2 = (dkh)/(rt2*par/dx[0]);
+        amrex::Real arg3 = (dkh - 1.)/(rt2*par/dx[0]); 
+        amrex::Real cx = std::sqrt(pi)*(par*par/(dx[0]*dx[0]))*((arg1*std::erf(arg1) 
+                       + arg3*std::erf(arg3)) + 1.0/std::sqrt(pi)*
+                         (std::exp(-arg1*arg1) + std::exp(-arg3*arg3)) 
+                       - 2.0*(arg2*std::erf(arg2) + 1./std::sqrt(pi)*
+                         std::exp(-arg2*arg2))); 
+        
+        
+        dkh = (x[1] - y[1])/dx[1]; 
+        arg1 = (dkh + 1.)/(rt2*par/dx[1]); 
+        arg2 = (dkh)/(rt2*par/dx[1]);
+        arg3 = (dkh - 1.)/(rt2*par/dx[1]); 
+        amrex::Real cy = std::sqrt(pi)*(par*par/(dx[1]*dx[1]))*((arg1*std::erf(arg1) 
+                       + arg3*std::erf(arg3)) + 1.0/std::sqrt(pi)*
+                         (std::exp(-arg1*arg1) + std::exp(-arg3*arg3)) 
+                       - 2.0*(arg2*std::erf(arg2) + 1./std::sqrt(pi)*
+                         std::exp(-arg2*arg2))); 
+        
+        return cx*cy; 
+    }
+
+    inline
+    amrex::Real cov2(const std::array<amrex::Real, 2> xc, 
+                     const amrex::Real yc[2])
+    {
+        amrex::Real x[2] = {xc[0]*dx[0], xc[1]*dx[1]}; 
+        amrex::Real y[2] = {yc[0]*dx[0], yc[1]*dx[1]}; 
+        amrex::Real dks = (x[0] - y[0])/dx[0]; 
+        amrex::Real arg[4] = { dks + (r[0] -1.0)/(2.0*r[0]), 
+                               dks + (r[0] +1.0)/(2.0*r[0]), 
+                               dks - (r[0] -1.0)/(2.0*r[0]), 
+                               dks - (r[0] +1.0)/(2.0*r[0])};
+        amrex::Real pi = std::atan(1.0)*4.0; 
+        amrex::Real cx = 0.0; 
+        amrex::Real ii = -1.; 
+        amrex::Real iarg; 
+        for(int i = 0; i < 4; i++){
+            iarg = dx[0]/(std::sqrt(2.)*l)*arg[i]; 
+            cx += ii*(std::sqrt(0.5*pi)*l*dx[0]*arg[i]*std::erf(iarg)
+               +  l*l*std::exp(-iarg*iarg));
+            std::cout << cx << std::endl; 
+            ii*=ii; 
+        }
+    
+        dks = (x[1] - y[1])/dx[1]; 
+        arg[0] = dks +(r[1] -1.)/(2.*r[1]); 
+        arg[1] = dks +(r[1] +1.)/(2.*r[1]); 
+        arg[2] = dks -(r[1] -1.)/(2.*r[1]); 
+        arg[3] = dks -(r[1] +1.)/(2.*r[1]); 
+        amrex::Real cy = 0.e0; 
+        ii = -1.; 
+        for(int i = 0; i < 4; i++){
+            iarg = dx[1]/(std::sqrt(2.)*l)*arg[i]; 
+            cy += ii*(std::sqrt(0.5*pi)*l*dx[1]*arg[i]*std::erf(iarg)
+               +  l*l*std::exp(-iarg*iarg));
+            ii*=ii; 
+        }
+        
+        return cx*cy*(r[0]*r[1])/(dx[0]*dx[0]*dx[1]*dx[1]); 
+    }
+
     // Set up for the multi-sampled Weighted GP interpolation 
     // Build K makes the Coviarance Kernel Matrices for each Samples 
     // And for Total Stencil
