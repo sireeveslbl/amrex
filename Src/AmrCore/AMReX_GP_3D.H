@@ -80,6 +80,99 @@ class GP
     
     amrex::Real sqrexp2(const amrex::Real x[3], const amrex::Real y[3]); 
  
+    inline
+    amrex::Real cov1(const amrex::Real xc[3],
+                     const amrex::Real yc[3],
+                     const amrex::Real par)
+    {
+        amrex::Real x[3] = {xc[0]*dx[0], xc[1]*dx[1], xc[2]*dx[2]};
+        amrex::Real y[3] = {yc[0]*dx[0], yc[1]*dx[1], yc[2]*dx[2]};
+
+        amrex::Real rt2 = std::sqrt(2.e0);
+        amrex::Real pi  = std::atan(1.e0)*4;
+        amrex::Real dkh = (x[0] - y[0])/dx[0];
+        amrex::Real arg1 = (dkh + 1.)/(rt2*par/dx[0]);
+        amrex::Real arg2 = (dkh)/(rt2*par/dx[0]);
+        amrex::Real arg3 = (dkh - 1.)/(rt2*par/dx[0]);
+        amrex::Real cx = std::sqrt(pi)*(par*par/(dx[0]*dx[0]))*((arg1*std::erf(arg1)
+                       + arg3*std::erf(arg3)) + 1.0/std::sqrt(pi)*
+                         (std::exp(-arg1*arg1) + std::exp(-arg3*arg3))
+                       - 2.0*(arg2*std::erf(arg2) + 1./std::sqrt(pi)*
+                         std::exp(-arg2*arg2)));
+
+
+        dkh = (x[1] - y[1])/dx[1];
+        arg1 = (dkh + 1.)/(rt2*par/dx[1]);
+        arg2 = (dkh)/(rt2*par/dx[1]);
+        arg3 = (dkh - 1.)/(rt2*par/dx[1]);
+        amrex::Real cy = std::sqrt(pi)*(par*par/(dx[1]*dx[1]))*((arg1*std::erf(arg1)
+                       + arg3*std::erf(arg3)) + 1.0/std::sqrt(pi)*
+                         (std::exp(-arg1*arg1) + std::exp(-arg3*arg3))
+                       - 2.0*(arg2*std::erf(arg2) + 1./std::sqrt(pi)*
+                         std::exp(-arg2*arg2)));
+
+        dkh = (x[2] - y[2])/dx[2];
+        arg1 = (dkh + 1.)/(rt2*par/dx[2]);
+        arg2 = (dkh)/(rt2*par/dx[2]);
+        arg3 = (dkh - 1.)/(rt2*par/dx[2]);
+        amrex::Real cz = std::sqrt(pi)*(par*par/(dx[2]*dx[2]))*((arg1*std::erf(arg1)
+                       + arg3*std::erf(arg3)) + 1.0/std::sqrt(pi)*
+                         (std::exp(-arg1*arg1) + std::exp(-arg3*arg3))
+                       - 2.0*(arg2*std::erf(arg2) + 1./std::sqrt(pi)*
+                         std::exp(-arg2*arg2)));
+
+        return cx*cy*cz;
+    }
+
+
+    inline
+    amrex::Real cov2(const std::array<amrex::Real, 3> xc,
+                     const amrex::Real yc[3])
+    {
+        amrex::Real x[3] = {xc[0]*dx[0], xc[1]*dx[1], xc[2]*dx[2]};
+        amrex::Real y[3] = {yc[0]*dx[0], yc[1]*dx[1], yc[2]*dx[2]};
+        amrex::Real dks = (x[0] - y[0])/dx[0];
+        amrex::Real arg[4] = { dks + (r[0] -1.0)/(2.0*r[0]),
+                               dks + (r[0] +1.0)/(2.0*r[0]),
+                               dks - (r[0] -1.0)/(2.0*r[0]),
+                               dks - (r[0] +1.0)/(2.0*r[0])};
+        amrex::Real pi = std::atan(1.0)*4.0;
+        amrex::Real cx = 0.0;
+        amrex::Real iarg;
+        for(int i = 0; i < 4; i++){
+            iarg = dx[0]/(std::sqrt(2.)*l)*arg[i];
+            cx += pow(-1,i+1)*(std::sqrt(0.5*pi)*l*dx[0]*arg[i]*std::erf(iarg)
+               +  l*l*std::exp(-iarg*iarg));
+        }
+
+        dks = (x[1] - y[1])/dx[1];
+        arg[0] = dks +(r[1] -1.)/(2.*r[1]);
+        arg[1] = dks +(r[1] +1.)/(2.*r[1]);
+        arg[2] = dks -(r[1] -1.)/(2.*r[1]);
+        arg[3] = dks -(r[1] +1.)/(2.*r[1]);
+        amrex::Real cy = 0.e0;
+        for(int i = 0; i < 4; i++){
+            iarg = dx[1]/(std::sqrt(2.)*l)*arg[i];
+            cy += pow(-1,i+1)*(std::sqrt(0.5*pi)*l*dx[1]*arg[i]*std::erf(iarg)
+               +  l*l*std::exp(-iarg*iarg));
+        }
+
+        dks = (x[2] - y[2])/dx[2];
+        arg[0] = dks +(r[2] -1.)/(2.*r[2]);
+        arg[1] = dks +(r[2] +1.)/(2.*r[2]);
+        arg[2] = dks -(r[2] -1.)/(2.*r[2]);
+        arg[3] = dks -(r[2] +1.)/(2.*r[2]);
+        amrex::Real cz = 0.e0;
+        for(int i = 0; i < 4; i++){
+            iarg = dx[2]/(std::sqrt(2.)*l)*arg[i];
+            cz += pow(-1,i+1)*(std::sqrt(0.5*pi)*l*dx[2]*arg[i]*std::erf(iarg)
+               +  l*l*std::exp(-iarg*iarg));
+        }
+    
+        amrex::Real volc = dx[0]*dx[1]*dx[2]; 
+        amrex::Real volf = volc/(r[0]*r[1]*r[2]); 
+        return cx*cy*cz/(volc*volf); 
+    }
 
 
     // Set up for the multi-sampled Weighted GP interpolation 

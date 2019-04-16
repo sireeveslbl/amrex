@@ -132,14 +132,12 @@ GP::GetK(amrex::Real (&K)[7][7], amrex::Real (&Ktot)[25][25])
                              { 0,  1,  0},
                              { 0,  0,  1}}; 
 
-    for(int i = 0; i < 7; ++i) K[i][i] = 1.e0; 
 //Small K
     for(int i = 0; i < 7; ++i)
-        for(int j = i+1; j < 7; ++j){
-            K[i][j] = sqrexp(pnt[i], pnt[j]); 
+        for(int j = i; j < 7; ++j){
+            K[i][j] = cov1(pnt[i], pnt[j],l); 
             K[j][i] = K[i][j]; 
         }
-    for(int i = 0; i < 25; ++i) Ktot[i][i] = 1.e0; 
 
     //Super K positions 
     amrex::Real spnt[25][3] =  {{ 0,  0, -2}, 
@@ -169,8 +167,8 @@ GP::GetK(amrex::Real (&K)[7][7], amrex::Real (&Ktot)[25][25])
                                 { 0,  0,  2}}; 
 
     for(int i = 0; i < 25; ++i)
-        for(int j = i+1; j < 25; ++j){
-            Ktot[i][j] = sqrexp(spnt[i], spnt[j]); 
+        for(int j = i; j < 25; ++j){
+            Ktot[i][j] = cov1(spnt[i], spnt[j],l); 
             Ktot[j][i] = Ktot[i][j]; 
         }
 }
@@ -224,24 +222,24 @@ GP::GetKs(const amrex::Real K[7][7])
      for(int i = 0; i < r[0]*r[1]*r[2]; ++i){
         for(int j = 0; j < 7; ++j){
             temp[0] = spnt[j][0], temp[1] = spnt[j][1], temp[2] = spnt[j][2] - 1.0; //sten_km
-            ks[i][0][j] = sqrexp(pnt[i], temp);
+            ks[i][0][j] = cov2(pnt[i], temp);
 
             temp[0] = spnt[j][0], temp[1] = spnt[j][1] - 1.0, temp[2] = spnt[j][2]; //sten_jm
-            ks[i][1][j] = sqrexp(pnt[i], temp);
+            ks[i][1][j] = cov2(pnt[i], temp);
 
             temp[0] = spnt[j][0] - 1.0, temp[1] = spnt[j][1], temp[2] = spnt[j][2]; //sten_im
-            ks[i][2][j] = sqrexp(pnt[i], temp);
+            ks[i][2][j] = cov2(pnt[i], temp);
 
-            ks[i][3][j] = sqrexp(pnt[i], spnt[j]); //sten_cen
+            ks[i][3][j] = cov2(pnt[i], spnt[j]); //sten_cen
     
             temp[0] = spnt[j][0] + 1.0, temp[1] = spnt[j][1], temp[2] = spnt[j][2]; //sten_ip
-            ks[i][4][j] = sqrexp(pnt[i], temp);
+            ks[i][4][j] = cov2(pnt[i], temp);
 
             temp[0] = spnt[j][0], temp[1] = spnt[j][1] + 1.0, temp[2] = spnt[j][2];  //sten_jp
-            ks[i][5][j] = sqrexp(pnt[i], temp);
+            ks[i][5][j] = cov2(pnt[i], temp);
 
             temp[0] = spnt[j][0], temp[1] = spnt[j][1], temp[2] = spnt[j][2] + 1.0;  //sten_kp
-            ks[i][6][j] = sqrexp(pnt[i], temp);
+            ks[i][6][j] = cov2(pnt[i], temp);
         }
      //Backsubstitutes for k^TK^{-1} 
         for(int k = 0; k < 7; ++k)
@@ -305,7 +303,7 @@ GP::GetKtotks(const amrex::Real K1[25][25], std::vector<std::array<amrex::Real, 
 
     for(int i = 0; i < r[0]*r[1]*r[2]; i++){
        for (int j = 0; j < 25; j++){
-            kt[i][j] = sqrexp(pnt[i], spnt[j]); 
+            kt[i][j] = cov2(pnt[i], spnt[j]); 
        }
        cholesky<25>(kt[i], K1); 
     } 
@@ -378,9 +376,8 @@ GP::GetEigen()
                              { 0,  0,  1}};// i   j    k+1 
 
     for (int j = 0; j < 7; ++j){
-        A[j + 7*j] = 1.e0;  
         for(int i = j; i < 7; ++i){
-             A[i + j*7] = sqrexp2(pnt[i], pnt[j]); //this is K_sig
+             A[i + j*7] = cov1(pnt[i], pnt[j], sig); //this is K_sig
              A[j + 7*i] = A[i + j*7]; 
         }
     }
