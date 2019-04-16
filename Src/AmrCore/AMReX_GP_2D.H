@@ -129,31 +129,25 @@ class GP
                                dks - (r[0] +1.0)/(2.0*r[0])};
         amrex::Real pi = std::atan(1.0)*4.0; 
         amrex::Real cx = 0.0; 
-        amrex::Real ii = -1.; 
         amrex::Real iarg; 
         for(int i = 0; i < 4; i++){
-            iarg = dx[0]/(std::sqrt(2.)*l)*arg[i]; 
-            cx += ii*(std::sqrt(0.5*pi)*l*dx[0]*arg[i]*std::erf(iarg)
+            iarg = dx[0]/(std::sqrt(2.)*l)*arg[i];
+            cx += pow(-1,i+1)*(std::sqrt(0.5*pi)*l*dx[0]*arg[i]*std::erf(iarg)
                +  l*l*std::exp(-iarg*iarg));
-            std::cout << cx << std::endl; 
-            ii*=ii; 
         }
-    
-        dks = (x[1] - y[1])/dx[1]; 
+   
+        dks = (x[1] - y[1])/dx[1];
         arg[0] = dks +(r[1] -1.)/(2.*r[1]); 
         arg[1] = dks +(r[1] +1.)/(2.*r[1]); 
         arg[2] = dks -(r[1] -1.)/(2.*r[1]); 
         arg[3] = dks -(r[1] +1.)/(2.*r[1]); 
         amrex::Real cy = 0.e0; 
-        ii = -1.; 
         for(int i = 0; i < 4; i++){
             iarg = dx[1]/(std::sqrt(2.)*l)*arg[i]; 
-            cy += ii*(std::sqrt(0.5*pi)*l*dx[1]*arg[i]*std::erf(iarg)
+            cy += pow(-1,i+1)*(std::sqrt(0.5*pi)*l*dx[1]*arg[i]*std::erf(iarg)
                +  l*l*std::exp(-iarg*iarg));
-            ii*=ii; 
         }
-        
-        return cx*cy*(r[0]*r[1])/(dx[0]*dx[0]*dx[1]*dx[1]); 
+        return cx*cy*(double(r[0])*double(r[1]))/(dx[0]*dx[0]*dx[1]*dx[1]); 
     }
 
     // Set up for the multi-sampled Weighted GP interpolation 
