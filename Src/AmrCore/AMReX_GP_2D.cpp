@@ -128,7 +128,7 @@ GP::GetK(amrex::Real (&K)[5][5], amrex::Real (&Ktot)[13][13])
 //Small K
     for(int i = 0; i < 5; ++i)
         for(int j = i+1; j < 5; ++j){
-            K[i][j] = sqrexp(pnt[i], pnt[j]); 
+            K[i][j] = cov1(pnt[i], pnt[j], l); 
             K[j][i] = K[i][j]; 
         }
     for(int i = 0; i < 13; ++i) Ktot[i][i] = 1.e0; 
@@ -149,7 +149,7 @@ GP::GetK(amrex::Real (&K)[5][5], amrex::Real (&Ktot)[13][13])
 
     for(int i = 0; i < 13; ++i)
         for(int j = i+1; j <13; ++j){
-            Ktot[i][j] = sqrexp(spnt[i], spnt[j]); 
+            Ktot[i][j] = cov1(spnt[i], spnt[j], l); 
             Ktot[j][i] = Ktot[i][j]; 
         }
 }
@@ -211,19 +211,21 @@ GP::GetKs(const amrex::Real K[5][5])
      for(int i = 0; i < r[0]*r[1]; ++i){
         for(int j = 0; j < 5; ++j){
             temp[0] = spnt[j][0], temp[1] = spnt[j][1] - 1.0; //sten_jm
-            ks[i][0][j] = sqrexp(pnt[i], temp);
+            ks[i][0][j] = cov2(pnt[i], temp);
+            std::cout<< ks[i][0][j] << std::endl;
 
             temp[0] = spnt[j][0] - 1.0, temp[1] =   spnt[j][1]; //sten_im
-            ks[i][1][j] = sqrexp(pnt[i], temp);
+            ks[i][1][j] = cov2(pnt[i], temp);
 
-            ks[i][2][j] = sqrexp(pnt[i], spnt[j]); //sten_cen
+            ks[i][2][j] = cov2(pnt[i], spnt[j]); //sten_cen
     
             temp[0] = spnt[j][0] + 1.0, temp[1] = spnt[j][1];
-            ks[i][3][j] = sqrexp(pnt[i], temp); //sten_ip
+            ks[i][3][j] = cov2(pnt[i], temp); //sten_ip
 
             temp[0] = spnt[j][0], temp[1] = spnt[j][1] + 1.0; 
-            ks[i][4][j] = sqrexp(pnt[i], temp); //sten_jp
+            ks[i][4][j] = cov2(pnt[i], temp); //sten_jp
         }
+        std::cin.get(); 
      //Backsubstitutes for k^TK^{-1} 
         for(int k = 0; k < 5; ++k)
             cholesky<5>(ks[i][k], K); 
@@ -237,7 +239,7 @@ GP::GetKs(const amrex::Real K[5][5])
 void 
 GP::GetKtotks(const amrex::Real K1[13][13], std::vector<std::array<amrex::Real, 13>> &kt)
 {
-    //Locations of new points relative to i,j 
+   //Locations of new points relative to i,j 
     std::vector<std::array<amrex::Real,2>> pnt(r[0]*r[1], std::array<amrex::Real,2>()); 
 //    amrex::Real pnt[16][2]; 
     if(r[0] == 2 && r[1] == 2){
@@ -281,7 +283,7 @@ GP::GetKtotks(const amrex::Real K1[13][13], std::vector<std::array<amrex::Real, 
 
     for(int i = 0; i < r[0]*r[1]; i++){
        for (int j = 0; j < 13; j++){
-            kt[i][j] = sqrexp(pnt[i], spnt[j]); 
+            kt[i][j] = cov2(pnt[i], spnt[j]); 
        }
        cholesky<13>(kt[i], K1); 
     } 
@@ -342,7 +344,7 @@ GP::GetEigen()
     for (int j = 0; j < 5; ++j){
         A[j + 5*j] = 1.e0;  
         for(int i = j; i < 5; ++i){
-             A[i + j*5] = sqrexp2(pnt[i], pnt[j]); //this is K_sig
+             A[i + j*5] = cov1(pnt[i], pnt[j], sig); //this is K_sig
              A[j + 5*i] = A[i + j*5]; 
         }
     }

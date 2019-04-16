@@ -208,11 +208,9 @@ GP::GetKs(const amrex::Real K[7][7])
                 pnt[id][0] = strt + 1.0/double(r[0])*i; 
                 pnt[id][1] = strt + 1.0/double(r[1])*j; 
                 pnt[id][2] = strt + 1.0/double(r[2])*k;
-                std::cout<< pnt[id][0] << '\t' << pnt[id][1] << '\t' << pnt[id][2] << std::endl;  
             }
         }
     }
-    std::cin.get();  
     amrex::Real spnt[7][3] = {{ 0,  0, -1},
                               { 0, -1,  0}, 
                               {-1,  0,  0}, 
