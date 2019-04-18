@@ -545,31 +545,6 @@ amrex_gpinterp(Box const& bx, FArrayBox& finefab,
                                           + ws[2]*GP::inner_prod<5>(ks[id][2], sten_cen) 
                                           + ws[3]*GP::inner_prod<5>(ks[id][3], sten_ip) 
                                           + ws[4]*GP::inner_prod<5>(ks[id][4], sten_jp);
-/*                            if(fine(i,j,0,n) > 2){
-                            std::cout<< " fine = " << fine(i,j,0,n) << std::endl; 
-                            std::cout<< "terms = " << std::endl; 
-                
-                                std::cout<<(ws[0])*GP::inner_prod<5>(ks[id][0], sten_jm) << std::endl; 
-                                std::cout<<(ws[1])*GP::inner_prod<5>(ks[id][1], sten_im) << std::endl; 
-                                std::cout<<(ws[2])*GP::inner_prod<5>(ks[id][2], sten_cen)  << std::endl; 
-                                std::cout<<(ws[3])*GP::inner_prod<5>(ks[id][3], sten_ip)  << std::endl; 
-                                std::cout<<(ws[4])*GP::inner_prod<5>(ks[id][4], sten_jp) << std::endl;
-                                std::cout<< " inner products " << std::endl;
-                                std::cout<<GP::inner_prod<5>(ks[id][0], sten_jm) << std::endl; 
-                                std::cout<<GP::inner_prod<5>(ks[id][1], sten_im) << std::endl; 
-                                std::cout<<GP::inner_prod<5>(ks[id][2], sten_cen)  << std::endl; 
-                                std::cout<<GP::inner_prod<5>(ks[id][3], sten_ip)  << std::endl; 
-                                std::cout<<GP::inner_prod<5>(ks[id][4], sten_jp) << std::endl;
-                                std::cout<< " V = " << std::endl; 
-                                for(int jj = 0; jj < 5; jj++){
-                                    for(int ii = 0; ii < 5; ii++) std::cout<< V[jj][ii] << '\t'; 
-                                    std::cout<<std::endl;  
-                                }
-                                std::cout<< " lam " <<std::endl;
-                                for(int ii = 0; ii < 5; ii++) std::cout<< lam[ii] << '\t'; 
- 
-                                std::cin.get();
-                          } // */ 
 
                         }
                     }

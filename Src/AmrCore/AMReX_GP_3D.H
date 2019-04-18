@@ -140,10 +140,10 @@ class GP
         amrex::Real cx = 0.0;
         amrex::Real iarg;
         for(int i = 0; i < 4; i++){
-            iarg = dx[0]/(std::sqrt(2.)*l)*arg[i];
-            cx += pow(-1,i+1)*(std::sqrt(0.5*pi)*l*dx[0]*arg[i]*std::erf(iarg)
-               +  l*l*std::exp(-iarg*iarg));
+            iarg = arg[i]/(std::sqrt(2)*(l/dx[0]));
+            cx += pow(-1,i+1)*(iarg*std::erf(iarg) + 1./(std::sqrt(pi))*std::exp(-iarg*iarg));
         }
+        cx *= (l*l/(dx[0]*dx[0])); 
 
         dks = (x[1] - y[1])/dx[1];
         arg[0] = dks +(r[1] -1.)/(2.*r[1]);
@@ -152,10 +152,10 @@ class GP
         arg[3] = dks -(r[1] +1.)/(2.*r[1]);
         amrex::Real cy = 0.e0;
         for(int i = 0; i < 4; i++){
-            iarg = dx[1]/(std::sqrt(2.)*l)*arg[i];
-            cy += pow(-1,i+1)*(std::sqrt(0.5*pi)*l*dx[1]*arg[i]*std::erf(iarg)
-               +  l*l*std::exp(-iarg*iarg));
+            iarg = arg[i]/(std::sqrt(2)*(l/dx[1])); 
+            cy += pow(-1,i+1)*(iarg*std::erf(iarg) + 1./(std::sqrt(pi))*std::exp(-iarg*iarg));
         }
+        cy *= (l*l/(dx[1]*dx[1])); 
 
         dks = (x[2] - y[2])/dx[2];
         arg[0] = dks +(r[2] -1.)/(2.*r[2]);
@@ -164,14 +164,12 @@ class GP
         arg[3] = dks -(r[2] +1.)/(2.*r[2]);
         amrex::Real cz = 0.e0;
         for(int i = 0; i < 4; i++){
-            iarg = dx[2]/(std::sqrt(2.)*l)*arg[i];
-            cz += pow(-1,i+1)*(std::sqrt(0.5*pi)*l*dx[2]*arg[i]*std::erf(iarg)
-               +  l*l*std::exp(-iarg*iarg));
+            iarg = arg[i]/(std::sqrt(2)*(l/dx[2])); 
+            cz += pow(-1,i+1)*(iarg*std::erf(iarg) + 1./(std::sqrt(pi))*std::exp(-iarg*iarg));
         }
+        cz *= (l*l/(dx[2]*dx[2])); 
     
-        amrex::Real volc = dx[0]*dx[1]*dx[2]; 
-        amrex::Real volf = volc/(r[0]*r[1]*r[2]); 
-        return cx*cy*cz/(volc*volf); 
+        return pi*std::sqrt(pi)*cx*cy*cz*r[0]*r[1]*r[2]; 
     }
 
 

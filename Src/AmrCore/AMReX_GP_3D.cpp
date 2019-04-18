@@ -39,7 +39,7 @@ GP::GP (const amrex::IntVect Ratio, const amrex::Real *del)
     D_DECL(dx[0] = del[0], dx[1] = del[1], dx[2] = del[2]); 
     r = Ratio;
     l = 12*std::min(dx[0], std::min(dx[1], dx[2]));  
-    sig = 1.*std::min(dx[0], std::min(dx[1], dx[2]));  
+    sig = 3.*std::min(dx[0], std::min(dx[1], dx[2]));  
 
     amrex::Real K[7][7] = {}; //The same for every ratio;  
     amrex::Real Ktot[25][25] = {}; // The same for every ratio; 
