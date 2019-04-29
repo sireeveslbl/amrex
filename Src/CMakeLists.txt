@@ -128,9 +128,25 @@ if ( Python_Interpreter_FOUND AND (NOT (Python_VERSION VERSION_LESS "2.7") ) )
       OUTPUT AMReX_buildInfo.cpp
       WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
       COMMENT "Generating AMReX_buildInfo.cpp" )
-
-   target_sources( amrex PRIVATE  ${CMAKE_CURRENT_BINARY_DIR}/AMReX_buildInfo.cpp )
+  
+   target_sources( amrex
+      PRIVATE
+      ${CMAKE_CURRENT_BINARY_DIR}/AMReX_buildInfo.cpp
+      )
 endif ()
+
+# Add ${PROJECT_SOURCE_DIR}/Tools/C_scripts/ to include set
+# This is because AMReX_buildInfo.H could be used by application code
+# from within the build tree even if AMReX_buildInfo.cpp is not generated
+target_sources( amrex
+   PRIVATE
+   ${PROJECT_SOURCE_DIR}/Tools/C_scripts/AMReX_buildInfo.H
+   )
+
+target_include_directories(amrex
+   PUBLIC
+   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Tools/C_scripts>
+   )
 
 #
 # Make all headers as PUBLIC HEADERS so that they get installed
