@@ -35,7 +35,7 @@ GP::GP (const amrex::IntVect Ratio, const amrex::Real *del)
 {
     D_DECL(dx[0] = del[0], dx[1] = del[1], dx[2] = del[2]); 
     r = Ratio;
-    l = 12*std::min(dx[0], dx[1]);  //std::sqrt(dx[0]*dx[0] + dx[1]*dx[1]); 
+    l = 0.21; //12*std::min(dx[0], dx[1]);  //std::sqrt(dx[0]*dx[0] + dx[1]*dx[1]); 
     sig = 3.*std::min(dx[0],dx[1]); //std::sqrt(dx[0]*dx[0] + dx[1]*dx[1]); 
 
     amrex::Real K[5][5] = {}; //The same for every ratio;  
@@ -43,7 +43,7 @@ GP::GP (const amrex::IntVect Ratio, const amrex::Real *del)
     std::vector<std::array<amrex::Real, 13>> kt(r[0]*r[1], std::array<amrex::Real, 13>{{0}});
          // First dim is rx*ry; 
     GetK(K, Ktot); // Builds Covariance Matrices of Base Sample and Extended Samples/stencils  
-    GetEigen(); //Gets Eigenvalues and Vectors from K for use in the interpolation 
+    GetEigen(); //Gets Eigenvalues and Vectors from K for use in the interpolation
     Decomp(K, Ktot); //Decomposes K and Ktot into their Cholesky Versions
     ks.resize(r[0]*r[1], std::array<std::array<amrex::Real, 5>, 5>() ); 
     GetKs(K); 
@@ -52,9 +52,10 @@ GP::GP (const amrex::IntVect Ratio, const amrex::Real *del)
     // and gam = Rinv Q^T kt; 
     // ks, gam, lam and V are part of the class and will be used in the main interpolation routine. 
     gam.resize(r[0]*r[1], std::array<amrex::Real, 5>()); 
-    GetKtotks(Ktot, kt); 
+    GetKtotks(Ktot, kt);
+
     for(int i = 0; i < r[0]*r[1]; ++i){
-        GetGamma(ks[i], kt[i], gam[i]); //Gets the gamma's 
+        GetGamma(ks[i], kt[i], gam[i]); //Gets the gamma's
     }
 }
 
@@ -161,8 +162,29 @@ GP::GetK(amrex::Real (&K)[5][5], amrex::Real (&Ktot)[13][13])
 void
 GP::Decomp(amrex::Real (&K)[5][5], amrex::Real (&Kt)[13][13])
 {
-    CholeskyDecomp<5>(K); 
-    CholeskyDecomp<13>(Kt); 
+//    CholeskyDecomp<5>(K);
+    amrex::Real kt[25]; 
+    for(int i = 0; i < 5; i++) 
+        for(int j = 0; j < 5; j++) 
+            kt[j+i*5] = K[i][j]; 
+    int info = LAPACKE_dpotrf(LAPACK_ROW_MAJOR, 'U', 5, kt, 5); 
+     for(int i = 0; i < 5; i++)
+        for(int j = i; j < 5; j++){
+            K[i][j] = kt[j+i*5];
+            K[j][i] = K[i][j]; 
+        } 
+ 
+//    CholeskyDecomp<13>(Kt);
+    amrex::Real temp[13*13]; 
+    for(int i = 0; i < 13; i++)
+        for(int j = 0; j < 13; j++)
+            temp[j+i*13] = Kt[i][j]; 
+    info = LAPACKE_dpotrf(LAPACK_ROW_MAJOR, 'U', 13, temp, 13); 
+     for(int i = 0; i < 13; i++)
+        for(int j = i; j < 13; j++){
+            Kt[i][j] = temp[j+i*13];
+            Kt[j][i] = Kt[i][j]; 
+        } 
 }
 
 //Use a Cholesky Decomposition to solve for k*K^-1 
