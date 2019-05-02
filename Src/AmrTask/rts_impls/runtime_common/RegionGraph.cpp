@@ -602,8 +602,9 @@ void RegionGraph::graphTeardown()
     if(ParallelDescriptor::NProcs() == 1) return;
 
 
-#if 1
+#ifndef PERILLA_USE_UPCXX
 
+#if 0
     for(int f=0; f<numfabs; f++)
     {
 	if(WorkerThread::isMyRegion(tg,f))
@@ -659,6 +660,7 @@ void RegionGraph::graphTeardown()
 	    }
 	}
     }
+#endif
 #endif
 
 
