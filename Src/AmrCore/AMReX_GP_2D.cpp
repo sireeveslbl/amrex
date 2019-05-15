@@ -33,10 +33,11 @@ GP::sqrexp2(const amrex::Real x[2], const amrex::Real y[2])
 
 GP::GP (const amrex::IntVect Ratio, const amrex::Real *del)
 {
-    D_DECL(dx[0] = del[0], dx[1] = del[1], dx[2] = del[2]); 
+    D_DEC(dx[0] = del[0], dx[1] = del[1], dx[2] = del[2]); 
     r = Ratio;
-    l = 0.21; //12*std::min(dx[0], dx[1]);  //std::sqrt(dx[0]*dx[0] + dx[1]*dx[1]); 
-    sig = 3.*std::min(dx[0],dx[1]); //std::sqrt(dx[0]*dx[0] + dx[1]*dx[1]); 
+    if(dx[0] > 1./512.) l = 0.1; 
+    else l = 12.*std::min(dx[0], dx[1]);
+    sig = 3.*std::min(dx[0],dx[1]); 
 
     amrex::Real K[5][5] = {}; //The same for every ratio;  
     amrex::Real Ktot[13][13] = {}; // The same for every ratio; 

@@ -31,13 +31,13 @@ class GP
     //
 //    amrex::Real ks[16][5][5] = {}; //Needs rx*ryin the first dimension
     std::vector<std::array<std::array<amrex::Real, 5>, 5>> ks; 
-    AMREX_GPU_DEVICE_MANAGED amrex::Real (*ktd)[5][5]; 
+//  AMREX_GPU_DEVICE_MANAGED amrex::Real (*ktd)[5][5]; 
     //
     //  Gammas needed for smoothness indication
     //
 //    amrex::Real gam[16][5] = {};  //Needs rx*ry in the first dimension
     std::vector<std::array<amrex::Real, 5>> gam;
-    AMREX_GPU_DEVICE_MANAGED amrex::Real (*gamd)[5]; 
+//  AMREX_GPU_DEVICE_MANAGED amrex::Real (*gamd)[5]; 
     amrex::Real l;
     amrex::Real sig;  
 
