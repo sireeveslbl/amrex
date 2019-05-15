@@ -101,7 +101,18 @@ MLEBTensorOp::prepareForSolve ()
         "MLEBTensorOp: must call both setBulkViscosity and setEBBulkViscosity or none.");
 
     if (m_has_kappa) {
-        amrex::Abort("MLEBTensorOp::prepareForSolve: TODO m_has_kappa");
+        for (int amrlev = NAMRLevels()-1; amrlev >= 0; --amrlev) {
+            for (int mglev = 1; mglev < m_kappa[amrlev].size(); ++mglev) {
+                amrex::EB_average_down_faces(GetArrOfConstPtrs(m_kappa[amrlev][mglev-1]),
+                                             GetArrOfPtrs     (m_kappa[amrlev][mglev  ]),
+                                             IntVect(mg_coarsen_ratio), 0);
+            }
+            if (amrlev > 0) {
+                amrex::EB_average_down_faces(GetArrOfConstPtrs(m_kappa[amrlev  ].back()),
+                                             GetArrOfPtrs     (m_kappa[amrlev-1].front()),
+                                             IntVect(mg_coarsen_ratio), 0);
+            }
+        }
     } else {
         for (int amrlev = 0; amrlev < NAMRLevels(); ++amrlev) {
             for (int mglev = 0; mglev < m_kappa[amrlev].size(); ++mglev) {
@@ -113,7 +124,18 @@ MLEBTensorOp::prepareForSolve ()
     }
 
     if (m_has_eb_kappa) {
-        amrex::Abort("MLEBTensorOp::prepareForSolve: TODO m_has_eb_kappa");
+        for (int amrlev = NAMRLevels()-1; amrlev >= 0; --amrlev) {
+            for (int mglev = 1; mglev < m_eb_kappa[amrlev].size(); ++mglev) {
+                amrex::EB_average_down_boundaries(m_eb_kappa[amrlev][mglev-1],
+                                                  m_eb_kappa[amrlev][mglev  ],
+                                                  IntVect(mg_coarsen_ratio), 0);
+            }
+            if (amrlev > 0) {
+                amrex::EB_average_down_boundaries(m_eb_kappa[amrlev  ].back(),
+                                                  m_eb_kappa[amrlev-1].front(),
+                                                  IntVect(mg_coarsen_ratio), 0);
+            }
+        }
     } else {
         for (int amrlev = 0; amrlev < NAMRLevels(); ++amrlev) {
             for (int mglev = 0; mglev < m_eb_kappa[amrlev].size(); ++mglev) {
@@ -154,7 +176,6 @@ MLEBTensorOp::apply (int amrlev, int mglev, MultiFab& out, MultiFab& in, BCMode 
         : Array<const MultiCutFab*,AMREX_SPACEDIM>{AMREX_D_DECL(nullptr,nullptr,nullptr)};
     auto fcent = (factory) ? factory->getFaceCent()
         : Array<const MultiCutFab*,AMREX_SPACEDIM>{AMREX_D_DECL(nullptr,nullptr,nullptr)};
-    const MultiCutFab* barea = (factory) ? &(factory->getBndryArea()) : nullptr;
     const MultiCutFab* bcent = (factory) ? &(factory->getBndryCent()) : nullptr;
 
 //    const int is_eb_dirichlet = true;
@@ -368,7 +389,6 @@ MLEBTensorOp::apply (int amrlev, int mglev, MultiFab& out, MultiFab& in, BCMode 
             AMREX_D_TERM(Array4<Real const> const& fcx = fcent[0]->array(mfi);,
                          Array4<Real const> const& fcy = fcent[1]->array(mfi);,
                          Array4<Real const> const& fcz = fcent[2]->array(mfi););
-            Array4<Real const> const& ba = barea->array(mfi);
             Array4<Real const> const& bc = bcent->array(mfi);
             AMREX_LAUNCH_HOST_DEVICE_LAMBDA ( bx, tbx,
             {
@@ -377,7 +397,7 @@ MLEBTensorOp::apply (int amrlev, int mglev, MultiFab& out, MultiFab& in, BCMode 
                                        vfab, etab, kapb, ccm, flag, vol,
                                        AMREX_D_DECL(apx,apy,apz),
                                        AMREX_D_DECL(fcx,fcy,fcz),
-                                       ba, bc, dxinv);
+                                       bc, dxinv);
             });
         }
     }

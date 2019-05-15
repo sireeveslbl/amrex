@@ -216,7 +216,6 @@ void mlebtensor_cross_terms (Box const& box, Array4<Real> const& Ax,
                              Array4<Real const> const& fcx,
                              Array4<Real const> const& fcy,
                              Array4<Real const> const& fcz,
-                             Array4<Real const> const& ba,
                              Array4<Real const> const& bc,
 //                             int is_dirichlet, int is_inhomog,
                              GpuArray<Real,AMREX_SPACEDIM> const& dxinv) noexcept
@@ -408,9 +407,9 @@ void mlebtensor_cross_terms (Box const& box, Array4<Real> const& Ax,
                         Real gx = bc(i,j,k,0) - dg*anrmx;
                         Real gy = bc(i,j,k,1) - dg*anrmy;
                         Real gz = bc(i,j,k,2) - dg*anrmz;
-                        int isx = anrmx ? 1 : -1;
-                        int isy = anrmy ? 1 : -1;
-                        int isz = anrmz ? 1 : -1;
+                        int isx = (anrmx > 0.0) ? 1 : -1;
+                        int isy = (anrmy > 0.0) ? 1 : -1;
+                        int isz = (anrmz > 0.0) ? 1 : -1;
                         int ii = i - isx;
                         int jj = j - isy;
                         int kk = k - isz;
@@ -468,34 +467,35 @@ void mlebtensor_cross_terms (Box const& box, Array4<Real> const& Ax,
                         Real xi = kapb(i,j,k);
                         Real mu = etab(i,j,k);
                         Real tautmp = (xi-(2./3.)*mu)*divu;
-                        Real tauxx = mu*2.*dudx + tautmp;
-                        Real tauyy = mu*2.*dvdy + tautmp;
-                        Real tauzz = mu*2.*dwdz + tautmp;
-                        Real tauxy = mu*(dudy+dvdx);
-                        Real tauxz = mu*(dudz+dwdx);
-                        Real tauyz = mu*(dwdy+dvdz);
+                        // Note that mu*(grad v) has been included already in MLEBABecLap
+                        Real tauxx = mu*dudx + tautmp;
+                        Real tauyx = mu*dvdx;
+                        Real tauzx = mu*dwdx;
+                        Real tauyy = mu*dvdy + tautmp;
+                        Real tauxy = mu*dudy;
+                        Real tauzy = mu*dwdy;
+                        Real tauzz = mu*dwdz + tautmp;
+                        Real tauxz = mu*dudz;
+                        Real tauyz = mu*dvdz;
                         // assuming dxi == dyi == dzi
-                        feb_0 = dxi*(dapx*tauxx + dapy*tauxy + dapz*tauxz);
-                        feb_1 = dxi*(dapx*tauxy + dapy*tauyy + dapz*tauyz);
+                        feb_0 = dxi*(dapx*tauxx + dapy*tauyx + dapz*tauzx);
+                        feb_1 = dxi*(dapx*tauxy + dapy*tauyy + dapz*tauzy);
                         feb_2 = dxi*(dapx*tauxz + dapy*tauyz + dapz*tauzz);
-                        feb_0 *= -ba(i,j,k);
-                        feb_1 *= -ba(i,j,k);
-                        feb_2 *= -ba(i,j,k);
                     }
 
                     Real volinv = 1.0 / kappa;
-                    Ax(i,j,k,0) += volinv * (dxi*(apx(i,j,k)*fxm_0-apx(i+1,j,k)*fxp_0)
-                                            +dyi*(apy(i,j,k)*fym_0-apy(i,j+1,k)*fyp_0)
-                                            +dzi*(apz(i,j,k)*fzm_0-apz(i,j,k+1)*fzp_0)
-                                            -dxi*                               feb_0);
-                    Ax(i,j,k,1) += volinv * (dxi*(apx(i,j,k)*fxm_1-apx(i+1,j,k)*fxp_1)
-                                            +dyi*(apy(i,j,k)*fym_1-apy(i,j+1,k)*fyp_1)
-                                            +dzi*(apz(i,j,k)*fzm_1-apz(i,j,k+1)*fzp_1)
-                                            -dxi*                               feb_1);
-                    Ax(i,j,k,2) += volinv * (dxi*(apx(i,j,k)*fxm_2-apx(i+1,j,k)*fxp_2)
-                                            +dyi*(apy(i,j,k)*fym_2-apy(i,j+1,k)*fyp_2)
-                                            +dzi*(apz(i,j,k)*fzm_2-apz(i,j,k+1)*fzp_2)
-                                            -dxi*                               feb_2);
+                    Ax(i,j,k,0) += volinv * (dxi*(apx(i+1,j,k)*fxp_0-apx(i,j,k)*fxm_0)
+                                            +dyi*(apy(i,j+1,k)*fyp_0-apy(i,j,k)*fym_0)
+                                            +dzi*(apz(i,j,k+1)*fzp_0-apz(i,j,k)*fzm_0)
+                                            +dxi*                               feb_0);
+                    Ax(i,j,k,1) += volinv * (dxi*(apx(i+1,j,k)*fxp_1-apx(i,j,k)*fxm_1)
+                                            +dyi*(apy(i,j+1,k)*fyp_1-apy(i,j,k)*fym_1)
+                                            +dzi*(apz(i,j,k+1)*fzp_1-apz(i,j,k)*fzm_1)
+                                            +dxi*                               feb_1);
+                    Ax(i,j,k,2) += volinv * (dxi*(apx(i+1,j,k)*fxp_2-apx(i,j,k)*fxm_2)
+                                            +dyi*(apy(i,j+1,k)*fyp_2-apy(i,j,k)*fym_2)
+                                            +dzi*(apz(i,j,k+1)*fzp_2-apz(i,j,k)*fzm_2)
+                                            +dxi*                               feb_2);
                 }
             }
         }
