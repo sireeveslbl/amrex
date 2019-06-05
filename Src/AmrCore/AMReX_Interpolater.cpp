@@ -110,14 +110,16 @@ NodeBilinear::interp (const FArrayBox&  crse,
                       const Geometry& /*fine_geom */,
                       Vector<BCRec> const& /*bcr*/,
                       int               /*actual_comp*/,
-                      int               /*actual_state*/)
+                      int               /*actual_state*/,
+                      RunOn             runon)
 {
     BL_PROFILE("NodeBilinear::interp()");
 
     FArrayBox const* crsep = &crse;
     FArrayBox* finep = &fine;
 
-    Gpu::LaunchSafeGuard lg(Gpu::isGpuPtr(crsep) && Gpu::isGpuPtr(finep));
+    Gpu::LaunchSafeGuard lg(Gpu::isGpuPtr(crsep) && Gpu::isGpuPtr(finep)
+                            && runon == RunOn::Gpu && Gpu::inLaunchRegion());
 
     int num_slope  = ncomp*(AMREX_D_TERM(2,*2,*2)-1);
     const Box cslope_bx = amrex::enclosedCells(CoarseBox(fine_region, ratio));
@@ -179,7 +181,8 @@ CellBilinear::interp (const FArrayBox&  crse,
                       const Geometry& /*fine_geom*/,
                       Vector<BCRec> const& /*bcr*/,
                       int               actual_comp,
-                      int               actual_state)
+                      int               actual_state,
+                      RunOn             runon)
 {
     BL_PROFILE("CellBilinear::interp()");
     //
@@ -271,7 +274,8 @@ CellConservativeLinear::interp (const FArrayBox& crse,
                                 const Geometry&  fine_geom,
                                 Vector<BCRec> const& bcr,
                                 int              /*actual_comp*/,
-                                int              /*actual_state*/)
+                                int              /*actual_state*/,
+                                RunOn             runon)
 {
     BL_PROFILE("CellConservativeLinear::interp()");
     BL_ASSERT(bcr.size() >= ncomp);
@@ -281,7 +285,8 @@ CellConservativeLinear::interp (const FArrayBox& crse,
     FArrayBox const* crsep = &crse;
     FArrayBox* finep = &fine;
 
-    Gpu::LaunchSafeGuard lg(Gpu::isGpuPtr(crsep) && Gpu::isGpuPtr(finep));
+    Gpu::LaunchSafeGuard lg(Gpu::isGpuPtr(crsep) && Gpu::isGpuPtr(finep)
+                            && runon == RunOn::Gpu && Gpu::inLaunchRegion());
 
     const Box& crse_region = CoarseBox(fine_region,ratio);
     const Box& cslope_bx = amrex::grow(crse_region,-1);
@@ -383,7 +388,8 @@ CellQuadratic::interp (const FArrayBox& crse,
                        const Geometry&  fine_geom,
                        Vector<BCRec> const&  bcr,
                        int              actual_comp,
-                       int              actual_state)
+                       int              actual_state,
+                       RunOn            runon)
 {
     BL_PROFILE("CellQuadratic::interp()");
     BL_ASSERT(bcr.size() >= ncomp);
@@ -500,14 +506,16 @@ PCInterp::interp (const FArrayBox& crse,
                   const Geometry& /*fine_geom*/,
                   Vector<BCRec> const& /*bcr*/,
                   int               /*actual_comp*/,
-                  int               /*actual_state*/)
+                  int               /*actual_state*/,
+                  RunOn             runon)
 {
     BL_PROFILE("PCInterp::interp()");
 
     FArrayBox const* crsep = &crse;
     FArrayBox* finep = &fine;
 
-    Gpu::LaunchSafeGuard lg(Gpu::isGpuPtr(crsep) && Gpu::isGpuPtr(finep));
+    Gpu::LaunchSafeGuard lg(Gpu::isGpuPtr(crsep) && Gpu::isGpuPtr(finep)
+                            && runon == RunOn::Gpu && Gpu::inLaunchRegion());
 
     AMREX_LAUNCH_HOST_DEVICE_LAMBDA (fine_region, tbx,
     {
@@ -549,7 +557,8 @@ CellConservativeProtected::interp (const FArrayBox& crse,
                                    const Geometry&  fine_geom,
                                    Vector<BCRec> const&  bcr,
                                    int              actual_comp,
-                                   int              actual_state)
+                                   int              actual_state,
+                                   RunOn            runon)
 {
     BL_PROFILE("CellConservativeProtected::interp()");
     BL_ASSERT(bcr.size() >= ncomp);
@@ -559,7 +568,8 @@ CellConservativeProtected::interp (const FArrayBox& crse,
     FArrayBox const* crsep = &crse;
     FArrayBox* finep = &fine;
 
-    Gpu::LaunchSafeGuard lg(Gpu::isGpuPtr(crsep) && Gpu::isGpuPtr(finep));
+    Gpu::LaunchSafeGuard lg(Gpu::isGpuPtr(crsep) && Gpu::isGpuPtr(finep)
+                            && runon == RunOn::Gpu && Gpu::inLaunchRegion());
 
     const Box& crse_region = CoarseBox(fine_region,ratio);
     const Box& cslope_bx = amrex::grow(crse_region,-1);
@@ -608,7 +618,8 @@ CellConservativeProtected::protect (const FArrayBox& crse,
                                     const IntVect&   ratio,
                                     const Geometry&  crse_geom,
                                     const Geometry&  fine_geom,
-                                    Vector<BCRec>& bcr)
+                                    Vector<BCRec>&   bcr,
+                                    RunOn            runon)
 {
     BL_PROFILE("CellConservativeProtected::protect()");
     BL_ASSERT(bcr.size() >= ncomp);
@@ -725,7 +736,8 @@ CellConservativeQuartic::interp (const FArrayBox&  crse,
 				 const Geometry&   /* fine_geom */,
 				 Vector<BCRec> const&   bcr,
 				 int               actual_comp,
-				 int               actual_state)
+				 int               actual_state,
+                                 RunOn             runon)
 {
     BL_PROFILE("CellConservativeQuartic::interp()");
     BL_ASSERT(bcr.size() >= ncomp);
