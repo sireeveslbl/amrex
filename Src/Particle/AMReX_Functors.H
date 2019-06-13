@@ -240,43 +240,6 @@ namespace functors
             return grid_id != grid;
         }
     };
-
-    struct getPosition
-    {        
-        AMREX_GPU_HOST_DEVICE
-        getPosition() {}
-        
-        template <typename Particle>
-        AMREX_GPU_HOST_DEVICE
-        thrust::tuple<AMREX_D_DECL(Real, Real, Real)> operator()(const Particle& p) const
-        {
-            return thrust::make_tuple(AMREX_D_DECL(p.m_rdata.pos[0],
-                                                   p.m_rdata.pos[1], 
-                                                   p.m_rdata.pos[2]));
-        }
-    };
-
-    template <typename Particle>
-    struct setPosition
-    {
-        AMREX_GPU_HOST_DEVICE
-        setPosition() {}
-
-        template <typename Tuple>
-        AMREX_GPU_HOST_DEVICE
-        Particle operator()(const Tuple& pos) const
-        {
-            Particle p;
-            p.m_rdata.pos[0] = thrust::get<0>(pos);
-#if AMREX_SPACEDIM > 1
-            p.m_rdata.pos[1] = thrust::get<1>(pos);
-#endif
-#if AMREX_SPACEDIM > 2
-            p.m_rdata.pos[2] = thrust::get<2>(pos);
-#endif
-            return p;
-        }
-    };
 }
 
 }

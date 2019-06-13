@@ -100,6 +100,17 @@ public:
 
 inline PhysBCFunctBase::~PhysBCFunctBase () {}
 
+
+class PhysBCFunctNoOp
+    : public PhysBCFunctBase
+{
+public:
+    virtual void FillBoundary (MultiFab& mf, int dcomp, int ncomp, Real time, int bccomp)
+        override final {}
+    virtual ~PhysBCFunctNoOp () override final {}
+};
+
+
 template <class F>
 class PhysBCFunct
     : public PhysBCFunctBase
@@ -188,7 +199,7 @@ GpuBndryFuncFab<F>::operator() (Box const& bx, FArrayBox& dest,
 
     Box gdomain = geom.Domain();
     for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
-        if (Geometry::isPeriodic(idim)) {
+        if (geom.isPeriodic(idim)) {
             gdomain.grow(idim,len[idim]);
         }
     }

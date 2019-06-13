@@ -52,7 +52,7 @@ struct ManagedData
         cudaMalloc(&d_d, std::size_t(sizeof(T)));
     }
 
-    ManagedData (T const & h_d)
+    explicit ManagedData (T const & h_d)
     : ManagedData()
     {
         *d_d = h_d;
@@ -106,8 +106,8 @@ struct DeviceScalar
 
 #ifdef AMREX_USE_CUDA
 
-    DeviceScalar (T init_val) {
-        if (Cuda::inLaunchRegion()) {
+    explicit DeviceScalar (T init_val) {
+        if (Gpu::inLaunchRegion()) {
             dp = (T*)(The_Device_Arena()->alloc(sizeof(T)));
             cudaMemcpy(dp, &init_val, sizeof(T), cudaMemcpyHostToDevice);
         } else {
@@ -117,7 +117,7 @@ struct DeviceScalar
     }
 
     ~DeviceScalar () {
-        if (Cuda::inLaunchRegion()) {
+        if (Gpu::inLaunchRegion()) {
             The_Device_Arena()->free(dp);
         } else {
             std::free(dp);
@@ -127,7 +127,7 @@ struct DeviceScalar
     T* dataPtr () { return dp; }
     T const* dataPtr () const { return dp; }
     T dataValue () const {
-        if (Cuda::inLaunchRegion()) {
+        if (Gpu::inLaunchRegion()) {
             T r;
             cudaMemcpy(&r, dp, sizeof(T), cudaMemcpyDeviceToHost);
             return r;
