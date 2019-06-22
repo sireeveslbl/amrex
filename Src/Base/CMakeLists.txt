@@ -52,8 +52,6 @@ target_sources( amrex
    AMReX_DArena.cpp
    AMReX_EArena.H
    AMReX_EArena.cpp
-   AMReX_FabAllocator.H
-   AMReX_FabAllocator.cpp
    AMReX_BLProfiler.H
    AMReX_BLBackTrace.H
    AMReX_BLFort.H
@@ -76,6 +74,7 @@ target_sources( amrex
    AMReX_Box.cpp
    AMReX_BoxIterator.H 
    AMReX_BoxIterator.cpp
+   AMReX_Dim3.H
    AMReX_IntVect.H
    AMReX_IntVect.cpp
    AMReX_IndexType.H
@@ -103,6 +102,7 @@ target_sources( amrex
    AMReX_IArrayBox.cpp 
    AMReX_BaseFab.H
    AMReX_BaseFab.cpp
+   AMReX_Array4.H
    AMReX_MakeType.H
    AMReX_TypeTraits.H
    AMReX_FabFactory.H
@@ -173,17 +173,12 @@ target_sources( amrex
    AMReX_GpuControl.H
    AMReX_GpuControl.cpp
    AMReX_GpuLaunch.H
+   AMReX_GpuLaunch.cpp
+   AMReX_GpuLaunchMacrosG.H
+   AMReX_GpuLaunchMacrosC.H
+   AMReX_GpuLaunchFunctsG.H
+   AMReX_GpuLaunchFunctsC.H
    AMReX_GpuError.H
-   # CUDA --------------------------------------------------------------------
-   AMReX_CudaAllocators.H
-   AMReX_CudaAllocators.cpp
-   AMReX_CudaRange.H
-   AMReX_CudaMemory.H
-   AMReX_CudaAllocators.H
-   AMReX_CudaLaunch.H
-   AMReX_CudaLaunch.cpp 
-   AMReX_CudaContainers.H
-   AMReX_CudaReduce.H
    AMReX_GpuDevice.H
    AMReX_GpuDevice.cpp
    AMReX_GpuUtility.H
@@ -194,8 +189,16 @@ target_sources( amrex
    AMReX_GpuAsyncFabImpl.cpp
    AMReX_GpuAsyncArray.H
    AMReX_GpuAsyncArray.cpp
-   AMReX_CudaElixir.H
-   AMReX_CudaElixir.cpp
+   AMReX_GpuElixir.H
+   AMReX_GpuElixir.cpp
+   AMReX_GpuMemory.H
+   AMReX_GpuRange.H
+   AMReX_GpuReduce.H
+   # CUDA --------------------------------------------------------------------
+   AMReX_CudaAllocators.H
+   AMReX_CudaAllocators.cpp
+   AMReX_CudaAllocators.H
+   AMReX_CudaContainers.H
    AMReX_CudaGraph.H
    # Machine model -----------------------------------------------------------
    AMReX_Machine.H

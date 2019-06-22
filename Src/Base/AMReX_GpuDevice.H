@@ -87,11 +87,6 @@ public:
 
 #endif
 
-    static void htod_memcpy       (void* p_d, const void* p_h, const std::size_t sz);
-    static void dtoh_memcpy       (void* p_h, const void* p_d, const std::size_t sz);
-    static void htod_memcpy_async (void* p_d, const void* p_h, const std::size_t sz);
-    static void dtoh_memcpy_async (void* p_h,const  void* p_d, const std::size_t sz);
-
     static void mem_advise_set_preferred (void* p, const std::size_t sz, const int device);
     static void mem_advise_set_readonly (void* p, const std::size_t sz);
 
@@ -115,7 +110,11 @@ public:
     static std::size_t freeMemAvailable ();
 
 #ifdef AMREX_USE_GPU
-    static int warp_size;
+#ifdef AMREX_USE_CUDA
+    static constexpr int warp_size = 32;
+#else
+    static constexpr int warp_size = 64;
+#endif
 #endif
 
 private:

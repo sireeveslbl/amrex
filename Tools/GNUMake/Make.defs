@@ -130,7 +130,7 @@ ifeq ($(USE_PMI), TRUE)
 endif
 
 ifeq ($(USE_OMP_OFFLOAD), TRUE)
-  DEFINES += -DAMREX_OMP_OFFLOAD
+  DEFINES += -DAMREX_USE_OMP_OFFLOAD
 endif
 
 ifdef USE_UPCXX
@@ -237,12 +237,6 @@ ifdef GPU_ERROR_CHECK
 else
   GPU_ERROR_CHECK := TRUE
 endif 
-
-ifdef FAB_IS_PINNED
-  FAB_IS_PINNED := $(strip $(FAB_IS_PINNED))
-else
-  FAB_IS_PINNED := FALSE
-endif
 
 ifdef FIX_NVCC_PTHREAD
   FIX_NVCC_PTHREAD := $(strip $(FIX_NVCC_PTHREAD))
@@ -391,7 +385,7 @@ else
         TINY_PROFILE = FALSE
     endif
     ifeq ($(TINY_PROFILE),TRUE)
-        CPPFLAGS    += -DBL_TINY_PROFILING -DAMREX_TINY_PROFILING
+        CPPFLAGS    += -DAMREX_TINY_PROFILING
         ProfSuffix	:= .TPROF
     else
         ProfSuffix	:=
@@ -399,21 +393,21 @@ else
 endif
 
 ifeq ($(MEM_PROFILE),TRUE)
-  CPPFLAGS += -DBL_MEM_PROFILING -DAMREX_MEM_PROFILING
+  CPPFLAGS += -DAMREX_MEM_PROFILING
   MProfSuffix := .MPROF
 else
   MProfSuffix :=
 endif
 
 ifeq ($(TEST),TRUE)
-    CPPFLAGS += -DBL_TESTING -DAMREX_TESTING
+    CPPFLAGS += -DAMREX_TESTING
     ifneq ($(DEBUG),TRUE)
         DebugSuffix := .TEST
     endif
 endif
 
 ifeq ($(BACKTRACE),TRUE)
-    CPPFLAGS += -DBL_BACKTRACING -DBL_TESTING -DAMREX_BACKTRACING -DAMREX_TESTING
+    CPPFLAGS += -DAMREX_BACKTRACING -DAMREX_TESTING
     BTSuffix := .BT
 else
     BTSuffix :=
@@ -510,10 +504,6 @@ ifeq ($(USE_HIP),TRUE)
         DEFINES += -DAMREX_USE_CUDA
     endif
 
-    ifeq ($(FAB_IS_PINNED),TRUE)
-        DEFINES += -DAMREX_FAB_IS_PINNED
-    endif
-
     GPUSuffix := .HIP
 
 else ifeq ($(USE_CUDA),TRUE)
@@ -559,10 +549,6 @@ else ifeq ($(USE_CUDA),TRUE)
 
     ifeq ($(USE_GPU_PRAGMA),TRUE)
         DEFINES += -DAMREX_USE_GPU_PRAGMA
-    endif
-
-    ifeq ($(FAB_IS_PINNED),TRUE)
-        DEFINES += -DAMREX_FAB_IS_PINNED
     endif
 
     GPUSuffix := .CUDA
