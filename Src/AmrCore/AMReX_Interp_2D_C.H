@@ -430,28 +430,24 @@ nodebilin_interp (Box const& bx, Array4<Real> const& fine, const int fcomp, cons
     }
 }
 
-AMREX_GPU_DEVICE
-inline
-void 
-amrex_gpinterp(Box const& bx, FArrayBox& finefab,
-                                    const int fcomp, const int ncomp, 
-                                    FArrayBox const& crsefab, const int ccomp, 
-                                    amrex::IntVect ratio,   
-                                    std::vector<std::array<std::array<amrex::Real, 5>, 5>> ks, 
-                                    const amrex::Real V[5][5], 
-                                    const amrex::Real lam[5], 
-                                    std::vector<std::array<amrex::Real, 5>> gam){
-    const auto len  = amrex::length(bx);
+AMREX_GPU_HOST_DEVICE inline void 
+amrex_gpinterp(Box const& bx, amrex::Array4<amrex::Real> const& fine,
+               const int fcomp, const int ncomp, 
+               amrex::Array4<const amrex::Real> const& crse,
+               const int ccomp, 
+               amrex::IntVect ratio, 
+               const amrex::Real ks[], 
+               const amrex::Real lam[], 
+               const amrex::Real gam[], 
+               const amrex::Real V[])
+{
     const auto lo   = amrex::lbound(bx);
-    const auto crse = crsefab.view(lo, ccomp); 
-    
-    const auto flo = amrex::refine(lo, ratio); 
-    const auto fine = finefab.view(flo,fcomp);
+    const auto hi   = amrex::ubound(bx); 
     amrex::Real beta[5], ws[5];
     for(int n = 0; n < ncomp; ++n) { 
-        for (int jc = 0; jc < len.y; ++jc){ 
+        for (int jc = lo.y; jc <= hi.y; ++jc){ 
             AMREX_PRAGMA_SIMD
-            for(int ic = 0; ic < len.x; ++ic){
+            for(int ic = lo.x; ic <= hi.x; ++ic){
                 amrex::Real sten_cen[5] = {crse(ic,jc-1,0,n), 
                                            crse(ic-1,jc,0,n), crse(ic,jc,0,n),
                                            crse(ic+1,jc,0,n), crse(ic,jc+1,0,n)};
@@ -465,7 +461,7 @@ amrex_gpinterp(Box const& bx, FArrayBox& finefab,
                 for(int ii = 0; ii < 5; ii++)
                 {
                     for(int jj = 0; jj < 5; jj++){
-                         vtemp[jj] = V[jj][ii];
+                         vtemp[jj] = V[jj*5 + ii];
                     }
                     inn = GP::inner_prod<5>(vtemp, sten_cen); 
                     beta[2] += 1.0/lam[ii]*(inn*inn);
@@ -491,7 +487,7 @@ amrex_gpinterp(Box const& bx, FArrayBox& finefab,
                     for(int ii = 0; ii < 5; ii++)
                     {
                         for(int jj = 0; jj < 5; jj++){
-                         vtemp[jj] = V[jj][ii];                       
+                         vtemp[jj] = V[jj*5 + ii];                       
                         }
                         inn = GP::inner_prod<5>(vtemp, sten_jm);
                         beta[0] += 1.0/lam[ii]*(inn*inn); 
@@ -512,17 +508,34 @@ amrex_gpinterp(Box const& bx, FArrayBox& finefab,
                             for(int m = 0; m < 5; ++m){
                                 ws[m] = 0.e0; 
                                 amrex::Real denom = (1.e-32 + beta[m]);
-                                ws[m] = gam[id][m]/(denom*denom);
+                                ws[m] = gam[id*5 + m]/(denom*denom);
                                 summ += ws[m];
                             }
                             for(int m = 0; m < 5; ++m) ws[m] /= summ; 
 
-                            fine(i,j,0,n) = ws[0]*GP::inner_prod<5>(ks[id][0], sten_jm) 
-                                          + ws[1]*GP::inner_prod<5>(ks[id][1], sten_im) 
-                                          + ws[2]*GP::inner_prod<5>(ks[id][2], sten_cen) 
-                                          + ws[3]*GP::inner_prod<5>(ks[id][3], sten_ip) 
-                                          + ws[4]*GP::inner_prod<5>(ks[id][4], sten_jp);
-
+                            amrex::Real in = 0.; 
+                            amrex::Real ftemp = 0.; 
+                            for(int m = 0; m < 5; ++m) 
+                                in += ks[(id*5 + 0)*5 + m]*sten_jm[m]; 
+                            ftemp += ws[0]*in; 
+                            in = 0; 
+                            for(int m = 0; m < 5; ++m) 
+                               in += ks[(id*5 + 1)*5 + m]*sten_im[m];
+                            ftemp += ws[1]*in;  
+                            in = 0; 
+                            for(int m = 0; m < 5; ++m) 
+                               in += ks[(id*5 + 2)*5 + m]*sten_cen[m];                   
+                            ftemp += ws[2]*in; 
+                            in = 0; 
+                            for(int m = 0; m < 5; ++m) 
+                               in += ks[(id*5 + 3)*5 + m]*sten_ip[m]; 
+                            ftemp += ws[3]*in; 
+                            in = 0; 
+                            for(int m = 0; m < 5; ++m) 
+                               in += ks[(id*5 + 4)*5 + m]*sten_jp[m]; 
+                            ftemp += ws[4]*in; 
+                            
+                            fine(i,j,0,n) = ftemp;
                         }
                     }
                 }
@@ -531,8 +544,11 @@ amrex_gpinterp(Box const& bx, FArrayBox& finefab,
                         const int j = jc*ratio[1] + ry; 
                         for(int rx = 0; rx< ratio[0]; rx++){ 
                             const int i = ic*ratio[0] + rx; 
-                            const int id = rx + ry*ratio[0]; 
-                            fine(i,j,0,n) = GP::inner_prod<5>(ks[id][2], sten_cen);
+                            const int id = rx + ry*ratio[0];
+                            amrex::Real ftemp = 0; 
+                            for(int m = 0; m < 5; ++m) 
+                               ftemp += ks[(id*5 + 2)*5 + m]*sten_cen[m];                                               
+                            fine(i,j,0,n) = ftemp;
                         }
                     }
                 }

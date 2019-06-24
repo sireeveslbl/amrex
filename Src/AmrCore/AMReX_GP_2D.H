@@ -2,6 +2,7 @@
 #define AMREX_GP_2D_H
 #include <AMReX_REAL.H>
 #include <AMReX_GpuQualifiers.H>
+#include <AMReX_Array.H>
 #include <AMReX_IntVect.H> 
 #include <vector>
 #include <array> 
@@ -13,7 +14,20 @@ class GP
 {
     public: 
     GP(const amrex::IntVect Ratio, const amrex::Real *del); 
-    ~GP(){};      
+    ~GP()
+    {
+#ifdef AMREX_USE_CUDA     
+/*    cudaFree(gamd);
+    cudaFree(ksd);
+    cudaFree(lamd); 
+    cudaFree(Vd);  */ 
+#else
+    delete gamd;
+    delete ksd; 
+    delete lamd; 
+    delete Vd; 
+#endif 
+    };      
     
     // Member data
     amrex::IntVect r; 
@@ -26,23 +40,47 @@ class GP
     //  Eigen Vectors of Covariance Matrix
     //
     amrex::Real V[5][5] = {};
+    amrex::Real *lamd; 
+    amrex::Real *Vd; 
+    amrex::Real *ksd; 
+    amrex::Real *gamd; 
     //
     //  Weights to be applied for interpolation
     //
 //    amrex::Real ks[16][5][5] = {}; //Needs rx*ryin the first dimension
     std::vector<std::array<std::array<amrex::Real, 5>, 5>> ks; 
-//  AMREX_GPU_DEVICE_MANAGED amrex::Real (*ktd)[5][5]; 
     //
     //  Gammas needed for smoothness indication
     //
 //    amrex::Real gam[16][5] = {};  //Needs rx*ry in the first dimension
     std::vector<std::array<amrex::Real, 5>> gam;
-//  AMREX_GPU_DEVICE_MANAGED amrex::Real (*gamd)[5]; 
     amrex::Real l;
     amrex::Real sig;  
 
+
+
+//Fill Managed Arrays  
+    void h2mfill()
+    {
+        for(int i = 0; i < gam.size(); ++i) 
+            for(int j = 0; j < 5; ++j){
+                gamd[i*5 + j] = gam[i][j]; 
+                for(int k = 0; k < 5; ++k)
+                    ksd[(i*5 + j)*5 + k] = ks[i][j][k]; 
+            }
+        for(int i = 0; i < 5; ++i){
+            lamd[i] = lam[i]; 
+            for(int j = 0; j < 5; ++j){
+                Vd[i*5 + j] = V[i][j];                
+            }
+        }
+
+    }
+
+
 // Linear Algebra Functions
     template<int n>
+    AMREX_GPU_HOST_DEVICE
     inline
     static amrex::Real inner_prod(const amrex::Real x[n], const amrex::Real y[n])
     {
@@ -50,6 +88,7 @@ class GP
         for(int i = 0; i < n; ++i) result += x[i]*y[i];
         return result;  
     }
+
 
     template<int n>
     inline

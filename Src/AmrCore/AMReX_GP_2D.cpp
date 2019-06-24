@@ -1,4 +1,5 @@
 #include <AMReX_GP_2D.H>
+#include <AMReX_Gpu.H>
 #include <iostream> 
 #include <fstream> 
 #include <iomanip>
@@ -33,12 +34,23 @@ GP::sqrexp2(const amrex::Real x[2], const amrex::Real y[2])
 
 GP::GP (const amrex::IntVect Ratio, const amrex::Real *del)
 {
-    D_DEC(dx[0] = del[0], dx[1] = del[1], dx[2] = del[2]); 
+    D_DECL(dx[0] = del[0], dx[1] = del[1], dx[2] = del[2]); 
     r = Ratio;
     if(dx[0] > 1./512.) l = 0.1; 
     else l = 12.*std::min(dx[0], dx[1]);
-    sig = 3.*std::min(dx[0],dx[1]); 
-
+    sig = 3.*std::min(dx[0],dx[1]);
+    const int expfactor = D_TERM(r[0],*r[1],*r[2]);  
+#ifdef AMREX_USE_CUDA     
+    cudaMallocManaged(&gamd, expfactor*5*sizeof(amrex::Real));
+    cudaMallocManaged(&ksd, expfactor*25*sizeof(amrex::Real));
+    cudaMallocManaged(&lamd, 5*sizeof(amrex::Real)); 
+    cudaMallocManaged(&Vd, 25*sizeof(amrex::Real)); 
+#else
+    gamd = new amrex::Real[expfactor*5];
+    ksd = new amrex::Real[expfactor*25]; 
+    Vd = new amrex::Real[25]; 
+    lamd = new amrex::Real[5]; 
+#endif
     amrex::Real K[5][5] = {}; //The same for every ratio;  
     amrex::Real Ktot[13][13] = {}; // The same for every ratio; 
     std::vector<std::array<amrex::Real, 13>> kt(r[0]*r[1], std::array<amrex::Real, 13>{{0}});
@@ -58,6 +70,21 @@ GP::GP (const amrex::IntVect Ratio, const amrex::Real *del)
     for(int i = 0; i < r[0]*r[1]; ++i){
         GetGamma(ks[i], kt[i], gam[i]); //Gets the gamma's
     }
+    h2mfill(); 
+#ifdef AMREX_USE_CUDA 
+    AMREX_CUDA_SAFE_CALL(cudaMemPrefetchAsync(lamd, 5*sizeof(amrex::Real),
+                                              amrex::Gpu::Device::deviceId(),
+                                              amrex::Gpu::gpuStream()));
+    AMREX_CUDA_SAFE_CALL(cudaMemPrefetchAsync(Vd, 25*sizeof(amrex::Real),
+                                              amrex::Gpu::Device::deviceId(),
+                                              amrex::Gpu::gpuStream()));
+    AMREX_CUDA_SAFE_CALL(cudaMemPrefetchAsync(ksd, r[0]*r[1]*25,
+                                              amrex::Gpu::Device::deviceId(),
+                                              amrex::Gpu::gpuStream()));
+    AMREX_CUDA_SAFE_CALL(cudaMemPrefetchAsync(gamd, r[0]*r[1]*5,
+                                              amrex::Gpu::Device::deviceId(),
+                                              amrex::Gpu::gpuStream()));
+#endif     
 }
 
 template<int n>

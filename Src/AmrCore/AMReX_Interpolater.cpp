@@ -861,7 +861,8 @@ CellGaussianProcess::interp (const FArrayBox& crse,
                              const Geometry&  fine_geom,
                              Vector<BCRec> const&    bcr,
                              int              actual_comp,
-                             int              actual_state)
+                             int              actual_state, 
+                             RunOn            runon)
 {
     BL_PROFILE("CellGaussianProcess::interp()");
     BL_ASSERT(bcr.size() >= ncomp);
@@ -869,25 +870,29 @@ CellGaussianProcess::interp (const FArrayBox& crse,
     // Make box which is intersection of fine_region and domain of fine.
     //
     Box target_fine_region = fine_region & fine.box();
-    FArrayBox const* crsep = &crse; 
+    auto const& crsearr = crse.array(); 
     auto finearr = fine.array();  
-//    Gpu::LaunchSafeGuard lg(Gpu::isGpuPtr(crsep) && Gpu::isGpuPtr(fine.fabPtr())); 
-    
+    Gpu::LaunchSafeGuard lg(runon == RunOn::Gpu && Gpu::inLaunchRegion());
+   
     const Box& crse_region = CoarseBox(fine_region,ratio);
     Box cb = crse.box(); 
     const Box& cb1 = amrex::grow(crse_region,-2);
     const Box& fb  = cb.refine(ratio); 
     FArrayBox ftemp(fb, ncomp); 
     auto fparr = ftemp.array(); 
-    FArrayBox *fp = &ftemp; 
-
     const amrex::Real *dx = crse_geom.CellSize();
+    std::cout << "get_GP start" << std::endl; 
     GP mygp = get_GP(ratio, dx); 
-    Vector<int> bc = GetBCArray(bcr); //Assess if we need this. 
-
+    std::cout << "GP got" << std::endl; 
+    auto ks = mygp.ksd; 
+    auto lam = mygp.lam; 
+    auto gam = mygp.gamd; 
+    auto V   = mygp.Vd; 
+    Vector<int> bc = GetBCArray(bcr); //TODO Assess if we need this. 
+    std::cout<< "Launch Time" << std::endl; 
     AMREX_LAUNCH_HOST_DEVICE_LAMBDA (cb1, tbx,{
-        amrex_gpinterp(tbx, *fp, fine_comp, ncomp, *crsep, crse_comp,
-                      ratio, mygp.ks, mygp.V, mygp.lam, mygp.gam);
+        amrex_gpinterp(tbx, fparr, fine_comp, ncomp, crsearr, crse_comp,
+                      ratio, mygp.ksd, mygp.lamd, mygp.gamd, mygp.Vd); 
     });
 
     AMREX_PARALLEL_FOR_4D (target_fine_region, ncomp, i, j, k, n, {
