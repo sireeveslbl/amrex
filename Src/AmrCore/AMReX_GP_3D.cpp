@@ -1,4 +1,5 @@
 #include <AMReX_GP_3D.H>
+#include <AMReX_Gpu.H>
 #include <iostream> 
 #include <fstream> 
 #include <iomanip>
@@ -36,10 +37,25 @@ GP::sqrexp2(const amrex::Real x[3], const amrex::Real y[3])
 
 GP::GP (const amrex::IntVect Ratio, const amrex::Real *del)
 {
+    BL_PROFILE_VAR("GP::GP()", gp_ctor); 
     D_DECL(dx[0] = del[0], dx[1] = del[1], dx[2] = del[2]); 
     r = Ratio;
-    l = 12*std::min(dx[0], std::min(dx[1], dx[2]));  
-    sig = 3.*std::min(dx[0], std::min(dx[1], dx[2]));  
+//    if(dx[0] > 1./512.) l = 0.1; 
+//    else 
+    l = 12*std::min(dx[0], std::min(dx[1], dx[2]));      
+    sig = 3.*std::min(dx[0], std::min(dx[1], dx[2])); 
+    const int expfactor = D_TERM(r[0],*r[1],*r[2]);  
+#ifdef AMREX_USE_CUDA     
+    cudaMallocManaged(&gamd, expfactor*7*sizeof(amrex::Real));
+    cudaMallocManaged(&ksd, expfactor*49*sizeof(amrex::Real));
+    cudaMallocManaged(&lamd, 7*sizeof(amrex::Real)); 
+    cudaMallocManaged(&Vd, 49*sizeof(amrex::Real)); 
+#else
+    gamd = new amrex::Real[expfactor*7];
+    ksd = new amrex::Real[expfactor*49]; 
+    Vd = new amrex::Real[49]; 
+    lamd = new amrex::Real[7]; 
+#endif
 
     amrex::Real K[7][7] = {}; //The same for every ratio;  
     amrex::Real Ktot[25][25] = {}; // The same for every ratio; 
@@ -58,10 +74,23 @@ GP::GP (const amrex::IntVect Ratio, const amrex::Real *del)
     GetKtotks(Ktot, kt); 
     for(int i = 0; i < r[0]*r[1]*r[2]; ++i){
         GetGamma(ks[i], kt[i], gam[i]); //Gets the gamma's
-//        for(int j = 0; j < 7; j++) std::cout<<gam[i][j]<< '\t';  
-//        std::cout<<std::endl; 
     }
-//    std::cin.get(); 
+    h2mfill(); 
+#ifdef AMREX_USE_CUDA 
+    AMREX_CUDA_SAFE_CALL(cudaMemPrefetchAsync(lamd, 7*sizeof(amrex::Real),
+                                              amrex::Gpu::Device::deviceId(),
+                                              amrex::Gpu::gpuStream()));
+    AMREX_CUDA_SAFE_CALL(cudaMemPrefetchAsync(Vd, 49*sizeof(amrex::Real),
+                                              amrex::Gpu::Device::deviceId(),
+                                              amrex::Gpu::gpuStream()));
+    AMREX_CUDA_SAFE_CALL(cudaMemPrefetchAsync(ksd, expfactor*49*sizeof(amrex::Real),
+                                              amrex::Gpu::Device::deviceId(),
+                                              amrex::Gpu::gpuStream()));
+    AMREX_CUDA_SAFE_CALL(cudaMemPrefetchAsync(gamd, expfactor*7*sizeof(amrex::Real),
+                                              amrex::Gpu::Device::deviceId(),
+                                              amrex::Gpu::gpuStream()));
+#endif     
+    BL_PROFILE_VAR_STOP(gp_ctor); 
 }
 
 template<int n>

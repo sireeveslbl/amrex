@@ -568,30 +568,30 @@ nodebilin_interp (Box const& bx, Array4<Real> const& fine, const int fcomp, cons
     }
 }
 
-AMREX_GPU_DEVICE
+AMREX_GPU_HOST_DEVICE
 inline
 void 
-amrex_gpinterp(Box const& bx, FArrayBox& finefab,
-                                    const int fcomp, const int ncomp, 
-                                    FArrayBox const& crsefab, const int ccomp, 
-                                    amrex::IntVect ratio,   
-                                    std::vector<std::array<std::array<amrex::Real, 7>, 7>> ks, 
-                                    const amrex::Real V[7][7], 
-                                    const amrex::Real lam[7], 
-                                    std::vector<std::array<amrex::Real, 7>> gam){
+amrex_gpinterp(Box const& bx, const amrex::Array4<amrex::Real> &fine,
+               const int fcomp, const int ncomp, 
+               const amrex::Array4<const amrex::Real> &crse,
+               const int ccomp, 
+               amrex::IntVect ratio,   
+               const amrex::Real ks[], 
+               const amrex::Real lam[], 
+               const amrex::Real gam[], 
+               const amrex::Real V[])
+{
 
-    const auto len  = amrex::length(bx);
     const auto lo   = amrex::lbound(bx);
-    const auto crse = crsefab.view(lo, ccomp); 
-    
-    const auto flo = amrex::refine(lo, ratio); 
-    const auto fine = finefab.view(flo,fcomp);
+    const auto hi   = amrex::ubound(bx); 
+
+
     amrex::Real beta[7], ws[7];
     for(int n = 0; n < ncomp; ++n) { 
-            for (int kc = 0; kc < len.z; ++kc){
-                for (int jc = 0; jc < len.y; ++jc){ 
+            for (int kc = lo.z; kc <= hi.z; ++kc){
+                for (int jc = lo.y; jc <= hi.y; ++jc){ 
                 AMREX_PRAGMA_SIMD
-                for(int ic = 0; ic < len.x; ++ic){
+                for(int ic = lo.x; ic <= hi.x; ++ic){
 
                     amrex::Real sten_cen[7] = {crse(ic  ,jc  ,kc-1, n), crse(ic  ,jc-1,kc  ,n), 
                                                crse(ic-1,jc  ,kc  , n), crse(ic  ,jc  ,kc  ,n),
@@ -607,7 +607,7 @@ amrex_gpinterp(Box const& bx, FArrayBox& finefab,
                     for(int ii = 0; ii < 7; ii++)
                     {
                         for(int jj = 0; jj < 7; jj++){
-                             vtemp[jj] = V[jj][ii];
+                             vtemp[jj] = V[jj*7 + ii];
                         }
                         
                         inn = GP::inner_prod<7>(vtemp, sten_cen);
@@ -647,7 +647,7 @@ amrex_gpinterp(Box const& bx, FArrayBox& finefab,
                         for(int ii = 0; ii < 7; ii++)
                         {
                             for(int jj = 0; jj < 7; jj++){
-                             vtemp[jj] = V[jj][ii];                       
+                             vtemp[jj] = V[jj*7 + ii];                       
                             } 
                             inn = GP::inner_prod<7>(vtemp, sten_km);
                             beta[0] += 1.e0/lam[ii]*(inn*inn); 
@@ -678,16 +678,42 @@ amrex_gpinterp(Box const& bx, FArrayBox& finefab,
                                     summ = 0.e0;
                                     for(int m = 0; m < 7; ++m){
                                         amrex::Real denom = (1.e-36 + beta[m])*(1.e-36 + beta[m]); 
-                                        ws[m] = gam[id][m]/denom; 
+                                        ws[m] = gam[id*7 + m]/denom; 
                                         summ += ws[m]; 
                                     } 
-                                    fine(i,j,k,n) = (ws[0]/summ)*GP::inner_prod<7>(ks[id][0], sten_km ) 
-                                                  + (ws[1]/summ)*GP::inner_prod<7>(ks[id][1], sten_jm ) 
-                                                  + (ws[2]/summ)*GP::inner_prod<7>(ks[id][2], sten_im ) 
-                                                  + (ws[3]/summ)*GP::inner_prod<7>(ks[id][3], sten_cen) 
-                                                  + (ws[4]/summ)*GP::inner_prod<7>(ks[id][4], sten_ip )
-                                                  + (ws[5]/summ)*GP::inner_prod<7>(ks[id][5], sten_jp )
-                                                  + (ws[6]/summ)*GP::inner_prod<7>(ks[id][6], sten_kp );
+                                    for(int m = 0; m < 7; ++m) ws[m] /= summ; 
+   
+                                    amrex::Real in = 0.; 
+                                    amrex::Real ftemp = 0.; 
+                                    for(int m = 0; m < 7; ++m) 
+                                        in += ks[(id*7 + 0)*7 + m]*sten_km[m]; 
+                                    ftemp += ws[0]*in; 
+                                    in = 0; 
+                                    for(int m = 0; m < 7; ++m) 
+                                       in += ks[(id*7 + 1)*7 + m]*sten_jm[m];
+                                    ftemp += ws[1]*in;  
+                                    in = 0; 
+                                    for(int m = 0; m < 7; ++m) 
+                                       in += ks[(id*7 + 2)*7 + m]*sten_im[m];                   
+                                    ftemp += ws[2]*in; 
+                                    in = 0; 
+                                    for(int m = 0; m < 7; ++m) 
+                                       in += ks[(id*7 + 3)*7 + m]*sten_cen[m]; 
+                                    ftemp += ws[3]*in; 
+                                    in = 0; 
+                                    for(int m = 0; m < 7; ++m) 
+                                       in += ks[(id*7 + 4)*7 + m]*sten_ip[m]; 
+                                    ftemp += ws[4]*in;
+                                    in = 0;  
+                                    for(int m = 0; m < 7; ++m) 
+                                       in += ks[(id*7 + 5)*7 + m]*sten_jp[m]; 
+                                    ftemp += ws[5]*in; 
+                                    in = 0; 
+                                    for(int m = 0; m < 7; ++m) 
+                                       in += ks[(id*7 + 6)*7 + m]*sten_kp[m]; 
+                                    ftemp += ws[6]*in; 
+
+                                    fine(i,j,k,n) = ftemp; 
                                 }
                             }
                         }
@@ -700,7 +726,9 @@ amrex_gpinterp(Box const& bx, FArrayBox& finefab,
                                 for(int rx = 0; rx< ratio[0]; rx++){ 
                                     const int i = ic*ratio[0] + rx; 
                                     const int id = rx + ratio[0]*(ry + ratio[1]*rz);
-                                    fine(i,j,k,n) = GP::inner_prod<7>(ks[id][3], sten_cen);
+                                    amrex::Real ftemp = 0; 
+                                    for(int m = 0; m < 7; ++m) ftemp += ks[(id*7 + 3)*7 + m]*sten_cen[m];
+                                    fine(i,j,k,n) = ftemp; 
                                 }
                             }
                         }

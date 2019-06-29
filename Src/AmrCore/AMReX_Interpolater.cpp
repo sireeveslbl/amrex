@@ -834,16 +834,9 @@ GP CellGaussianProcess::get_GP(const amrex::IntVect ratio, const amrex::Real *dx
         amrex::Abort("GP not implemented for refinement ratios other than 2 or 4!"); 
     }
     for(auto& it:gp){
-#if AMREX_SPACEDIM==2
-        if(it.dx[0] == dx[0] && it.dx[1] == dx[1]){
+        if(it.dx[0] == dx[0]){
             return it; 
         }
-#endif 
-#if AMREX_SPACDEIM==3 
-        if(it.dx[0] == dx[0] && it.dx[1] == dx[1] && it.dx[2] == dx[2]){
-            return it; 
-        }
-#endif
     }
     GP Gaus(ratio, dx);
     gp.push_back(Gaus);

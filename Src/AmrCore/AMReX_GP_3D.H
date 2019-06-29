@@ -29,17 +29,58 @@ class GP
     //
     //  Weights to be applied for interpolation
     //
-    std::vector<std::array<std::array<amrex::Real, 7>, 7>> ks; 
-    AMREX_GPU_DEVICE_MANAGED amrex::Real (*ktd)[7][7]; 
+    std::vector<std::array<std::array<amrex::Real, 7>, 7>> ks;
     //
     //  Gammas needed for smoothness indication
     //
     std::vector<std::array<amrex::Real, 7>> gam;
-    AMREX_GPU_DEVICE_MANAGED amrex::Real (*gamd)[7]; 
+
+    //Pointers for device functions
+    amrex::Real *lamd; 
+    amrex::Real *Vd; 
+    amrex::Real *ksd; 
+    amrex::Real *gamd; 
     amrex::Real l;
     amrex::Real sig;  
+
+//Fill Managed Arrays  
+    void h2mfill()
+    {
+        for(int i = 0; i < gam.size(); ++i){
+            for(int j = 0; j < 7; ++j){
+                gamd[i*7 + j] = gam[i][j];
+                for(int k = 0; k < 7; ++k){
+                    ksd[(i*7 + j)*7 + k] = ks[i][j][k]; 
+                }
+            }
+        }
+        for(int i = 0; i < 7; ++i){
+            lamd[i] = lam[i]; 
+            for(int j = 0; j < 7; ++j){
+                Vd[i*7 + j] = V[i][j];                
+            }
+        }
+    }
+
+//Free Temporary Mem
+    void GP_finalize(){
+#ifdef AMREX_USE_CUDA     
+        cudaFree(gamd);
+        cudaFree(ksd);
+        cudaFree(lamd); 
+        cudaFree(Vd);    
+#else
+        delete gamd;
+        delete ksd; 
+        delete lamd; 
+        delete Vd;   
+#endif 
+    } 
+
+
 // Linear Algebra Functions
     template<int n>
+    AMREX_GPU_HOST_DEVICE
     inline
     static amrex::Real inner_prod(const amrex::Real x[n], const amrex::Real y[n])
     {
