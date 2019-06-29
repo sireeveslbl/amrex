@@ -14,21 +14,7 @@ class GP
 {
     public: 
     GP(const amrex::IntVect Ratio, const amrex::Real *del);
-    GP(const GP &gp_old);  
-    ~GP()
-    {
-#ifdef AMREX_USE_CUDA     
-        cudaFree(gamd);
-        cudaFree(ksd);
-        cudaFree(lamd); 
-        cudaFree(Vd);   
-#else
-        delete gamd;
-        delete ksd; 
-        delete lamd; 
-        delete Vd; 
-#endif 
-    };      
+    ~GP(){};      
     
     // Member data
     amrex::IntVect r; 
@@ -48,12 +34,10 @@ class GP
     //
     //  Weights to be applied for interpolation
     //
-//    amrex::Real ks[16][5][5] = {}; //Needs rx*ryin the first dimension
     std::vector<std::array<std::array<amrex::Real, 5>, 5>> ks; 
     //
     //  Gammas needed for smoothness indication
     //
-//    amrex::Real gam[16][5] = {};  //Needs rx*ry in the first dimension
     std::vector<std::array<amrex::Real, 5>> gam;
     amrex::Real l;
     amrex::Real sig;  
@@ -75,9 +59,22 @@ class GP
                 Vd[i*5 + j] = V[i][j];                
             }
         }
-
     }
 
+//Free Temporary Mem
+    void GP_finalize(){
+#ifdef AMREX_USE_CUDA     
+        cudaFree(gamd);
+        cudaFree(ksd);
+        cudaFree(lamd); 
+        cudaFree(Vd);    
+#else
+        delete gamd;
+        delete ksd; 
+        delete lamd; 
+        delete Vd;   
+#endif 
+    } 
 
 // Linear Algebra Functions
     template<int n>
@@ -90,19 +87,6 @@ class GP
         return result;  
     }
 
-
-    template<int n>
-    inline
-    static amrex::Real inner_prod(std::array<amrex::Real, n> &x, const amrex::Real y[n])
-    {
-        amrex::Real result = 0.e0; 
-        for(int i = 0; i < n; ++i) result += x[i]*y[i];
-        return result;  
-    }
-
-
-    template<int n> void CholeskyDecomp(amrex::Real (&K)[n][n]);
- 
     template<int n> 
     void
     cholesky(amrex::Real (&b)[n], amrex::Real const K[n][n]); 
@@ -115,13 +99,6 @@ class GP
     Decomp(amrex::Real (&K)[5][5], amrex::Real (&Kt)[13][13]); 
 
 //GP functions! 
-    template<class T> 
-    amrex::Real sqrexp(const T x[2],const T y[2]);
-
-    amrex::Real sqrexp(const std::array<amrex::Real, 2> x, const amrex::Real y[2]); 
-    amrex::Real sqrexp2(const amrex::Real x[2], const amrex::Real y[2]); 
-
-
     inline
     amrex::Real cov1(const amrex::Real xc[2], 
                      const amrex::Real yc[2], 

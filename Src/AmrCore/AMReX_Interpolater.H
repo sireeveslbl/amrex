@@ -648,6 +648,8 @@ class CellGaussianProcess
     public Interpolater
 {
 public:
+    //GP Class inside a vector  
+    std::vector<GP> gp; 
     //
     // The destructor.
     //
@@ -683,13 +685,24 @@ public:
     //
     
     GP get_GP(const IntVect ratio, const amrex::Real *dx); 
-    //GP Class inside and unordered_set  
-    std::vector<GP> gp;  
 
 };
 //
 // CONSTRUCT A GLOBAL OBJECT OF EACH VERSION.
 //
+/*#if AMREX_SPACEDIM==2 
+    AMREX_GPU_DEVICE_MANAGED amrex::Real lam[5]; 
+    AMREX_GPU_DEVICE_MANAGED amrex::Real V[25];
+    AMREX_GPU_DEVICE_MANAGED amrex::Real ks2[100]; 
+    AMREX_GPU_DEVICE_MANAGED amrex::Real gam2[20]; 
+    AMREX_GPU_DEVICE_MANAGED amrex::Real ks4[400]; 
+    AMREX_GPU_DEVICE_MANAGED amrex::Real gam4[80]; 
+#elif AMREX_SPACEDIM==3
+    AMREX_GPU_DEVICE_MANAGED amrex::Real lam[7]; 
+    AMREX_GPU_DEVICE_MANAGED amrex::Real V[49]; 
+    AMREX_GPU_DEVICE_MANAGED amrex::Real ks2[392]; 
+    AMREX_GPU_DEVICE_MANAGED amrex::Real gam2[56]; 
+#endif*/
 
 
 //! CONSTRUCT A GLOBAL OBJECT OF EACH VERSION.

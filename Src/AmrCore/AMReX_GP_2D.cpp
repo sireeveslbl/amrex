@@ -9,6 +9,7 @@
 //Constructor 
 GP::GP (const amrex::IntVect Ratio, const amrex::Real *del)
 {
+    BL_PROFILE_VAR("GP::GP()", gp_ctor); 
     D_DECL(dx[0] = del[0], dx[1] = del[1], dx[2] = del[2]); 
     r = Ratio;
     if(dx[0] > 1./512.) l = 0.1; 
@@ -53,77 +54,14 @@ GP::GP (const amrex::IntVect Ratio, const amrex::Real *del)
     AMREX_CUDA_SAFE_CALL(cudaMemPrefetchAsync(Vd, 25*sizeof(amrex::Real),
                                               amrex::Gpu::Device::deviceId(),
                                               amrex::Gpu::gpuStream()));
-    AMREX_CUDA_SAFE_CALL(cudaMemPrefetchAsync(ksd, r[0]*r[1]*25,
+    AMREX_CUDA_SAFE_CALL(cudaMemPrefetchAsync(ksd, r[0]*r[1]*25*sizeof(amrex::Real),
                                               amrex::Gpu::Device::deviceId(),
                                               amrex::Gpu::gpuStream()));
-    AMREX_CUDA_SAFE_CALL(cudaMemPrefetchAsync(gamd, r[0]*r[1]*5,
+    AMREX_CUDA_SAFE_CALL(cudaMemPrefetchAsync(gamd, r[0]*r[1]*5*sizeof(amrex::Real),
                                               amrex::Gpu::Device::deviceId(),
                                               amrex::Gpu::gpuStream()));
 #endif     
-}
-
-//Copy Constructor for launch lambda 
-AMREX_GPU_DEVICE
-GP::GP(const GP &gp_old){
-    const int expfactor = D_TERM(r[0],*r[1],*r[2]);  
-#ifdef AMREX_USE_CUDA     
-    cudaMalloc(&gamd, expfactor*5*sizeof(amrex::Real));
-    cudaMalloc(&ksd, expfactor*25*sizeof(amrex::Real));
-    cudaMalloc(&lamd, 5*sizeof(amrex::Real)); 
-    cudaMalloc(&Vd, 25*sizeof(amrex::Real)); 
-    cudaMemcpy(gamd, gp_old.gamd, expfactor*5*sizeof(amrex::Real), cudaMemcpyDeviceToDevice); 
-    cudaMemcpy(ksd, gp_old.ksd, expfactor*25*sizeof(amrex::Real), cudaMemcpyDeviceToDevice); 
-    cudaMemcpy(lamd, gp_old.lamd, 5*sizeof(amrex::Real), cudaMemcpyDeviceToDevice); 
-    cudaMemcpy(Vd, gp_old.Vd, 25*sizeof(amrex::Real), cudaMemcpyDeviceToDevice); 
-#else
-    gamd = gp_old.gamd;
-    ksd = gp_old.ksd; 
-    Vd = gp_old.Vd; 
-    lamd = gp_old.lamd; 
-#endif
-}
-
-template<class T>
-amrex::Real
-GP::sqrexp(const T x[2],const T y[2])
-{
-    amrex::Real result = std::exp(-0.5*((x[0] - y[0])*(x[0] - y[0])*dx[0]*dx[0] + 
-                                        (x[1] - y[1])*(x[1] - y[1])*dx[1]*dx[1])/(l*l));
-    return result;    
-}
- 
-amrex::Real
-GP::sqrexp(const std::array<amrex::Real, 2> x, const amrex::Real y[2])
-{
-    amrex::Real result = std::exp(-0.5*((x[0] - y[0])*(x[0] - y[0])*dx[0]*dx[0] + 
-                                        (x[1] - y[1])*(x[1] - y[1])*dx[1]*dx[1])/(l*l));
-    return result;    
-} 
-
-amrex::Real
-GP::sqrexp2(const amrex::Real x[2], const amrex::Real y[2])
-{
-    amrex::Real result = std::exp(-0.5*((x[0] - y[0])*(x[0] - y[0])*dx[0]*dx[0] + 
-                                        (x[1] - y[1])*(x[1] - y[1])*dx[1]*dx[1])/(sig*sig));
-    return result;    
-} 
-
-template<int n>
-void
-GP::CholeskyDecomp(amrex::Real (&K)[n][n])
-{
-     for(int j = 0; j < n; ++j){
-        for( int k = 0; k < j; ++k){
-            K[j][j] -= (K[j][k]*K[j][k]);
-        }
-        K[j][j] = std::sqrt(K[j][j]);
-        for(int i = j+1; i < n; ++i){
-            for(int k = 0; k < j; ++k){
-                K[i][j] -= K[i][k]*K[j][k];
-            }
-            K[i][j] /= K[j][j];
-        }
-    }
+    BL_PROFILE_VAR_STOP(gp_ctor); 
 }
 
 //Performs Cholesky Backsubstitution
@@ -174,7 +112,6 @@ GP::GetK(amrex::Real (&K)[5][5], amrex::Real (&Ktot)[13][13])
                              { 1,  0}, 
                              { 0,  1}}; 
 
-//    for(int i = 0; i < 5; ++i) K[i][i] = 1.e0; 
 //Small K
     for(int i = 0; i < 5; ++i){
         for(int j = i; j < 5; ++j){
@@ -182,7 +119,6 @@ GP::GetK(amrex::Real (&K)[5][5], amrex::Real (&Ktot)[13][13])
             K[j][i] = K[i][j]; 
         }
     }
-//    for(int i = 0; i < 13; ++i) Ktot[i][i] = 1.e0; 
 
     amrex::Real spnt[13][2] =  {{ 0, -2}, 
                                 {-1, -1}, 
@@ -211,7 +147,6 @@ GP::GetK(amrex::Real (&K)[5][5], amrex::Real (&Ktot)[13][13])
 void
 GP::Decomp(amrex::Real (&K)[5][5], amrex::Real (&Kt)[13][13])
 {
-//    CholeskyDecomp<5>(K);
     amrex::Real kt[25]; 
     for(int i = 0; i < 5; i++) 
         for(int j = 0; j < 5; j++) 
@@ -223,7 +158,6 @@ GP::Decomp(amrex::Real (&K)[5][5], amrex::Real (&Kt)[13][13])
             K[j][i] = K[i][j]; 
         } 
  
-//    CholeskyDecomp<13>(Kt);
     amrex::Real temp[13*13]; 
     for(int i = 0; i < 13; i++)
         for(int j = 0; j < 13; j++)

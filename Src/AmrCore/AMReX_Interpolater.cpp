@@ -805,7 +805,10 @@ CellConservativeQuartic::interp (const FArrayBox&  crse,
 }
 
 //Cell GP interp SR Dissertation Work 
-CellGaussianProcess::~CellGaussianProcess () {}
+CellGaussianProcess::~CellGaussianProcess () {
+       for(auto& it:gp) //Deallocate all CUDA mem in GP
+            it.GP_finalize();
+    }
 
 Box
 CellGaussianProcess::CoarseBox (const Box&     fine,
@@ -827,7 +830,7 @@ CellGaussianProcess::CoarseBox (const Box& fine,
 
 GP CellGaussianProcess::get_GP(const amrex::IntVect ratio, const amrex::Real *dx)
 {
-    if(ratio[0]!=2 && ratio[0]!=4){
+    if(ratio[0] > 4){
         amrex::Abort("GP not implemented for refinement ratios other than 2 or 4!"); 
     }
     for(auto& it:gp){
@@ -842,7 +845,7 @@ GP CellGaussianProcess::get_GP(const amrex::IntVect ratio, const amrex::Real *dx
         }
 #endif
     }
-    GP Gaus(ratio, dx); 
+    GP Gaus(ratio, dx);
     gp.push_back(Gaus);
     return Gaus; 
 }
@@ -882,21 +885,23 @@ CellGaussianProcess::interp (const FArrayBox& crse,
     Elixir feli = ftemp.elixir();  
     auto fparr = ftemp.array(); 
     const amrex::Real *dx = crse_geom.CellSize();
-    GP mygp = get_GP(ratio, dx); 
-    auto ks = mygp.ksd; 
-    auto lam = mygp.lam; 
-    auto gam = mygp.gamd; 
-    auto V   = mygp.Vd; 
+    GP mygp = get_GP(ratio, dx);
+
+    const int expfactor = D_TERM(ratio[0], *ratio[1], *ratio[2]);
+    amrex::Real *ks, *lam, *gam, *V;
+    ks = mygp.ksd; 
+    lam = mygp.lamd; 
+    gam = mygp.gamd; 
+    V = mygp.Vd;  
     Vector<int> bc = GetBCArray(bcr); //TODO Assess if we need this. 
     AMREX_LAUNCH_HOST_DEVICE_LAMBDA (cb1, tbx,{
         amrex_gpinterp(tbx, fparr, fine_comp, ncomp, crsearr, crse_comp,
-//                      ratio, mygp.ksd, mygp.lamd, mygp.gamd, mygp.Vd); 
                        ratio, ks, lam, gam, V); 
     });
 
     AMREX_PARALLEL_FOR_4D (target_fine_region, ncomp, i, j, k, n, {
         finearr(i,j,k,n) = fparr(i,j,k,n); 
-    }); 
+    });
 }
 
 }
