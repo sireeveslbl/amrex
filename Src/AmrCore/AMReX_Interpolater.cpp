@@ -878,21 +878,20 @@ CellGaussianProcess::interp (const FArrayBox& crse,
     Box cb = crse.box(); 
     const Box& cb1 = amrex::grow(crse_region,-2);
     const Box& fb  = cb.refine(ratio); 
-    FArrayBox ftemp(fb, ncomp); 
+    FArrayBox ftemp(fb, ncomp);
+    Elixir feli = ftemp.elixir();  
     auto fparr = ftemp.array(); 
     const amrex::Real *dx = crse_geom.CellSize();
-    std::cout << "get_GP start" << std::endl; 
     GP mygp = get_GP(ratio, dx); 
-    std::cout << "GP got" << std::endl; 
     auto ks = mygp.ksd; 
     auto lam = mygp.lam; 
     auto gam = mygp.gamd; 
     auto V   = mygp.Vd; 
     Vector<int> bc = GetBCArray(bcr); //TODO Assess if we need this. 
-    std::cout<< "Launch Time" << std::endl; 
     AMREX_LAUNCH_HOST_DEVICE_LAMBDA (cb1, tbx,{
         amrex_gpinterp(tbx, fparr, fine_comp, ncomp, crsearr, crse_comp,
-                      ratio, mygp.ksd, mygp.lamd, mygp.gamd, mygp.Vd); 
+//                      ratio, mygp.ksd, mygp.lamd, mygp.gamd, mygp.Vd); 
+                       ratio, ks, lam, gam, V); 
     });
 
     AMREX_PARALLEL_FOR_4D (target_fine_region, ncomp, i, j, k, n, {

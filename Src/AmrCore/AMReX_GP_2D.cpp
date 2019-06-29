@@ -5,33 +5,8 @@
 #include <iomanip>
 #include <lapacke.h> 
 
-template<class T>
-amrex::Real
-GP::sqrexp(const T x[2],const T y[2])
-{
-    amrex::Real result = std::exp(-0.5*((x[0] - y[0])*(x[0] - y[0])*dx[0]*dx[0] + 
-                                        (x[1] - y[1])*(x[1] - y[1])*dx[1]*dx[1])/(l*l));
-    return result;    
-}
- 
-amrex::Real
-GP::sqrexp(const std::array<amrex::Real, 2> x, const amrex::Real y[2])
-{
-    amrex::Real result = std::exp(-0.5*((x[0] - y[0])*(x[0] - y[0])*dx[0]*dx[0] + 
-                                        (x[1] - y[1])*(x[1] - y[1])*dx[1]*dx[1])/(l*l));
-    return result;    
-} 
 
-amrex::Real
-GP::sqrexp2(const amrex::Real x[2], const amrex::Real y[2])
-{
-    amrex::Real result = std::exp(-0.5*((x[0] - y[0])*(x[0] - y[0])*dx[0]*dx[0] + 
-                                        (x[1] - y[1])*(x[1] - y[1])*dx[1]*dx[1])/(sig*sig));
-    return result;    
-} 
-
-    //Perfroms Cholesky Decomposition on covariance matrix K
-
+//Constructor 
 GP::GP (const amrex::IntVect Ratio, const amrex::Real *del)
 {
     D_DECL(dx[0] = del[0], dx[1] = del[1], dx[2] = del[2]); 
@@ -86,6 +61,52 @@ GP::GP (const amrex::IntVect Ratio, const amrex::Real *del)
                                               amrex::Gpu::gpuStream()));
 #endif     
 }
+
+//Copy Constructor for launch lambda 
+AMREX_GPU_DEVICE
+GP::GP(const GP &gp_old){
+    const int expfactor = D_TERM(r[0],*r[1],*r[2]);  
+#ifdef AMREX_USE_CUDA     
+    cudaMalloc(&gamd, expfactor*5*sizeof(amrex::Real));
+    cudaMalloc(&ksd, expfactor*25*sizeof(amrex::Real));
+    cudaMalloc(&lamd, 5*sizeof(amrex::Real)); 
+    cudaMalloc(&Vd, 25*sizeof(amrex::Real)); 
+    cudaMemcpy(gamd, gp_old.gamd, expfactor*5*sizeof(amrex::Real), cudaMemcpyDeviceToDevice); 
+    cudaMemcpy(ksd, gp_old.ksd, expfactor*25*sizeof(amrex::Real), cudaMemcpyDeviceToDevice); 
+    cudaMemcpy(lamd, gp_old.lamd, 5*sizeof(amrex::Real), cudaMemcpyDeviceToDevice); 
+    cudaMemcpy(Vd, gp_old.Vd, 25*sizeof(amrex::Real), cudaMemcpyDeviceToDevice); 
+#else
+    gamd = gp_old.gamd;
+    ksd = gp_old.ksd; 
+    Vd = gp_old.Vd; 
+    lamd = gp_old.lamd; 
+#endif
+}
+
+template<class T>
+amrex::Real
+GP::sqrexp(const T x[2],const T y[2])
+{
+    amrex::Real result = std::exp(-0.5*((x[0] - y[0])*(x[0] - y[0])*dx[0]*dx[0] + 
+                                        (x[1] - y[1])*(x[1] - y[1])*dx[1]*dx[1])/(l*l));
+    return result;    
+}
+ 
+amrex::Real
+GP::sqrexp(const std::array<amrex::Real, 2> x, const amrex::Real y[2])
+{
+    amrex::Real result = std::exp(-0.5*((x[0] - y[0])*(x[0] - y[0])*dx[0]*dx[0] + 
+                                        (x[1] - y[1])*(x[1] - y[1])*dx[1]*dx[1])/(l*l));
+    return result;    
+} 
+
+amrex::Real
+GP::sqrexp2(const amrex::Real x[2], const amrex::Real y[2])
+{
+    amrex::Real result = std::exp(-0.5*((x[0] - y[0])*(x[0] - y[0])*dx[0]*dx[0] + 
+                                        (x[1] - y[1])*(x[1] - y[1])*dx[1]*dx[1])/(sig*sig));
+    return result;    
+} 
 
 template<int n>
 void

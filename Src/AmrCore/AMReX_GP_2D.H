@@ -13,19 +13,20 @@
 class GP
 {
     public: 
-    GP(const amrex::IntVect Ratio, const amrex::Real *del); 
+    GP(const amrex::IntVect Ratio, const amrex::Real *del);
+    GP(const GP &gp_old);  
     ~GP()
     {
 #ifdef AMREX_USE_CUDA     
-/*    cudaFree(gamd);
-    cudaFree(ksd);
-    cudaFree(lamd); 
-    cudaFree(Vd);  */ 
+        cudaFree(gamd);
+        cudaFree(ksd);
+        cudaFree(lamd); 
+        cudaFree(Vd);   
 #else
-    delete gamd;
-    delete ksd; 
-    delete lamd; 
-    delete Vd; 
+        delete gamd;
+        delete ksd; 
+        delete lamd; 
+        delete Vd; 
 #endif 
     };      
     
