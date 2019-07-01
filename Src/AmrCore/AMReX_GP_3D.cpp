@@ -40,9 +40,9 @@ GP::GP (const amrex::IntVect Ratio, const amrex::Real *del)
     BL_PROFILE_VAR("GP::GP()", gp_ctor); 
     D_DECL(dx[0] = del[0], dx[1] = del[1], dx[2] = del[2]); 
     r = Ratio;
-//    if(dx[0] > 1./512.) l = 0.1; 
+//    if(dx[0] > 1./128.) l = 0.1; 
 //    else 
-    l = 12*std::min(dx[0], std::min(dx[1], dx[2]));      
+    l = 12.*std::min(dx[0], std::min(dx[1], dx[2]));      
     sig = 3.*std::min(dx[0], std::min(dx[1], dx[2])); 
     const int expfactor = D_TERM(r[0],*r[1],*r[2]);  
 #ifdef AMREX_USE_CUDA     

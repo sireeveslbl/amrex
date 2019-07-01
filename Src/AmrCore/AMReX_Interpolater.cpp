@@ -880,12 +880,12 @@ CellGaussianProcess::interp (const FArrayBox& crse,
     const amrex::Real *dx = crse_geom.CellSize();
     GP mygp = get_GP(ratio, dx);
 
-    const int expfactor = D_TERM(ratio[0], *ratio[1], *ratio[2]);
     amrex::Real *ks, *lam, *gam, *V;
     ks = mygp.ksd; 
     lam = mygp.lamd; 
     gam = mygp.gamd; 
     V = mygp.Vd;  
+
     Vector<int> bc = GetBCArray(bcr); //TODO Assess if we need this. 
     AMREX_LAUNCH_HOST_DEVICE_LAMBDA (cb1, tbx,{
         amrex_gpinterp(tbx, fparr, fine_comp, ncomp, crsearr, crse_comp,

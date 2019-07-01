@@ -612,12 +612,12 @@ amrex_gpinterp(Box const& bx, const amrex::Array4<amrex::Real> &fine,
                         
                         inn = GP::inner_prod<7>(vtemp, sten_cen);
                         beta[3] += 1.e0/lam[ii]*(inn*inn);  
-                        sqrmean += sten_cen[ii]; 
+                        sqrmean += sten_cen[ii];
                     } 
                     sqrmean /= 7; 
-
-                    sqrmean *= sqrmean; 
-                    test = beta[3]/sqrmean;
+                    sqrmean *= sqrmean;
+                    test = (sqrmean> 0)? beta[3]/sqrmean : beta[3];
+//                    test = 0; 
                     if(test > 100){
                         
                         amrex::Real sten_km[7]  = {crse(ic  ,jc  ,kc-2,n), crse(ic  ,jc-1,kc-1,n), crse(ic-1,jc  ,kc-1,n), 
