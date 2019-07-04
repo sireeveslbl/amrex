@@ -95,6 +95,16 @@ else
   BACKTRACE := FALSE
 endif
 
+ifdef EXPORT_DYNAMIC
+  EXPORT_DYNAMIC := $(strip $(EXPORT_DYNAMIC))
+else
+  ifeq ($(shell uname),Darwin)
+    EXPORT_DYNAMIC := TRUE
+  else
+    EXPORT_DYNAMIC := FALSE
+  endif
+endif
+
 ifdef LAZY
   LAZY := $(strip $(LAZY))
 else

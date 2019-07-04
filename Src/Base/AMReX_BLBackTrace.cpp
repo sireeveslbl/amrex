@@ -9,6 +9,18 @@
 #include <AMReX_Print.H>
 #include <AMReX.H>
 
+#ifdef AMREX_TINY_PROFILING
+#include <AMReX_TinyProfiler.H>
+#endif
+
+#if defined(AMREX_EXPORT_DYNAMIC) && defined(__APPLE__)
+#include <cxxabi.h>
+#include <dlfcn.h>
+#define AMREX_BACKTRACE_SUPPORTED 1
+#elif defined(__linux__)
+#define AMREX_BACKTRACE_SUPPORTED 1
+#endif
+
 namespace amrex {
 
 #ifdef AMREX_BACKTRACING
@@ -38,7 +50,7 @@ BLBackTrace::handler(int s)
 	break;
     }
 
-#if defined(__linux__) && !defined(__NEC__)
+#if defined(AMREX_BACKTRACE_SUPPORTED) || defined(AMREX_TINY_PROFILING)
 
     std::string errfilename;
     {
@@ -51,7 +63,9 @@ BLBackTrace::handler(int s)
     }
 
     if (FILE* p = fopen(errfilename.c_str(), "w")) {
+#if defined(AMREX_BACKTRACE_SUPPORTED)
 	BLBackTrace::print_backtrace_info(p);
+#endif
 	fclose(p);
     }
     
@@ -73,15 +87,27 @@ BLBackTrace::handler(int s)
     }
 #endif
 
-    if (ParallelDescriptor::NProcs() > 1)
-	sleep(3);
+#ifdef AMREX_TINY_PROFILING
+    {
+        std::ofstream errfile;
+        errfile.open(errfilename.c_str(), std::ofstream::out | std::ofstream::app);
+        if (errfile.is_open()) {
+            errfile << std::endl;
+            TinyProfiler::PrintCallStack(errfile);
+            errfile << std::endl;
+	}
+    }
+#endif
 
-#endif // __linux__
+    if (ParallelDescriptor::NProcs() > 1) {
+	sleep(3);
+    }
+
+#endif
 
     ParallelDescriptor::Abort(s, false);
 }
 
-#if defined(__linux__) && !defined(__NEC__)
 void
 BLBackTrace::print_backtrace_info (const std::string& filename)
 {
@@ -101,11 +127,16 @@ BLBackTrace::print_backtrace_info (const std::string& filename)
 void
 BLBackTrace::print_backtrace_info (FILE* f)
 {
+#ifdef AMREX_BACKTRACE_SUPPORTED
+
     const int nbuf = 32;
-    char **strings = NULL;
     void *buffer[nbuf];
-    int nptrs = backtrace(buffer, nbuf);
-    strings = backtrace_symbols(buffer, nptrs);
+    int nentries = backtrace(buffer, nbuf);
+
+#ifdef __linux__
+
+    char **strings = NULL;
+    strings = backtrace_symbols(buffer, nentries);
     if (strings != NULL) {
 	int have_addr2line = 0;
 	std::string cmd = "/usr/bin/addr2line";
@@ -125,7 +156,7 @@ BLBackTrace::print_backtrace_info (FILE* f)
 	fprintf(f, "            readelf -wl my_exefile | grep my_line_address'\n");
 	fprintf(f, "    to find out the offset for that line.\n\n");
 
-	for (int i = 0; i < nptrs; ++i) {
+	for (int i = 0; i < nentries; ++i) {
 	    std::string line = strings[i];
 	    line += "\n";
 #if !defined(_OPENMP) || !defined(__INTEL_COMPILER)
@@ -170,8 +201,57 @@ BLBackTrace::print_backtrace_info (FILE* f)
 	}
         std::free(strings);
     }
-}
+
+#elif defined(AMREX_BACKTRACE_SUPPORTED) && defined(__APPLE__)
+
+    int have_atos = 0;
+    std::string cmd = "/usr/bin/atos";
+    if (FILE *fp = fopen(cmd.c_str(), "r")) {
+        fclose(fp);
+        have_atos = 1;
+    }
+
+    static const pid_t pid = getpid();
+    cmd += " -p " + std::to_string(pid);
+
+    for (int i = 0; i < nentries; ++i) {
+        Dl_info info;
+        if (dladdr(buffer[i], &info))
+        {
+            std::string line;
+            bool atos_success = false;
+            if (amrex::system::call_addr2line && have_atos) {
+                char buff[512];
+                std::snprintf(buff,sizeof(buff),"%p",buffer[i]);
+                std::string full_cmd = cmd + " " + buff;
+                if (FILE * ps = popen(full_cmd.c_str(), "r")) {
+                    buff[0] = '\n';
+                    while (fgets(buff, sizeof(buff), ps)) {
+                        line += buff;
+                    }
+                    pclose(ps);
+                    atos_success = true;
+                }
+            }
+            if (!atos_success) {
+                int status;
+                char * demangled_name = abi::__cxa_demangle(info.dli_sname, nullptr, 0, &status);
+                if (status == 0) {
+                    line += demangled_name;
+                } else {
+                    line += info.dli_fname;
+                }
+                line += '\n';
+                std::free(demangled_name);
+            }
+            fprintf(f, "%2d: %s\n", i, line.c_str());
+        }
+    }
+
 #endif
+
+#endif
+}
 
 #ifdef AMREX_BACKTRACING
 
