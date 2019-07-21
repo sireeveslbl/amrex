@@ -461,7 +461,7 @@ amrex_gpinterp(Box const& bx, amrex::Array4<amrex::Real> const& fine,
                 for(int ii = 0; ii < 5; ii++)
                 {
                     for(int jj = 0; jj < 5; jj++){
-                         vtemp[jj] = V[jj*5 + ii];
+                         vtemp[jj] = V[ii*5 + jj];
                     }
                     inn = GP::inner_prod<5>(vtemp, sten_cen); 
                     beta[2] += 1.0/lam[ii]*(inn*inn);
@@ -487,7 +487,7 @@ amrex_gpinterp(Box const& bx, amrex::Array4<amrex::Real> const& fine,
                     for(int ii = 0; ii < 5; ii++)
                     {
                         for(int jj = 0; jj < 5; jj++){
-                         vtemp[jj] = V[jj*5 + ii];                       
+                         vtemp[jj] = V[ii*5 + jj];                       
                         }
                         inn = GP::inner_prod<5>(vtemp, sten_jm);
                         beta[0] += 1.0/lam[ii]*(inn*inn); 

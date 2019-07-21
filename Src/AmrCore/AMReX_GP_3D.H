@@ -54,10 +54,10 @@ class GP
                 }
             }
         }
-        for(int i = 0; i < 7; ++i){
+       for(int i = 0; i < 7; ++i){
             lamd[i] = lam[i]; 
             for(int j = 0; j < 7; ++j){
-                Vd[i*7 + j] = V[i][j];                
+                Vd[i*7 + j] = V[j][i]; //Transpose so we load with fast index in the interpolater                
             }
         }
     }

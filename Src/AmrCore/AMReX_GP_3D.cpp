@@ -43,7 +43,7 @@ GP::GP (const amrex::IntVect Ratio, const amrex::Real *del)
 //    if(dx[0] > 1./128.) l = 0.1; 
 //    else 
     l = 12.*std::min(dx[0], std::min(dx[1], dx[2]));      
-    sig = 3.*std::min(dx[0], std::min(dx[1], dx[2])); 
+    sig = 3*std::min(dx[0], std::min(dx[1], dx[2])); 
     const int expfactor = D_TERM(r[0],*r[1],*r[2]);  
 #ifdef AMREX_USE_CUDA     
     cudaMallocManaged(&gamd, expfactor*7*sizeof(amrex::Real));

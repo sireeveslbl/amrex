@@ -56,7 +56,7 @@ class GP
         for(int i = 0; i < 5; ++i){
             lamd[i] = lam[i]; 
             for(int j = 0; j < 5; ++j){
-                Vd[i*5 + j] = V[i][j];                
+                Vd[i*5 + j] = V[j][i];                
             }
         }
     }
