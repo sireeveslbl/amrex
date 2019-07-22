@@ -430,7 +430,8 @@ nodebilin_interp (Box const& bx, Array4<Real> const& fine, const int fcomp, cons
     }
 }
 
-AMREX_GPU_HOST_DEVICE inline void 
+AMREX_GPU_HOST_DEVICE
+inline void 
 amrex_gpinterp(Box const& bx, amrex::Array4<amrex::Real> const& fine,
                const int fcomp, const int ncomp, 
                amrex::Array4<const amrex::Real> const& crse,
@@ -468,10 +469,9 @@ amrex_gpinterp(Box const& bx, amrex::Array4<amrex::Real> const& fine,
                     sqrmean += sten_cen[ii]; 
                 }             
                 sqrmean /= 5; 
-
                 sqrmean *= sqrmean; 
-                test =beta[2]/sqrmean;
-                if(test > 100){
+                test =beta[2]/(sqrmean + 1e-32); //Protect against dividing by 0
+                if(test > 25){
                     amrex::Real sten_jm[5]  = {crse(ic,jc-2,0,n),
                           crse(ic-1,jc-1,0,n), crse(ic,jc-1,0,n), crse(ic+1,jc-1,0,n),
                                                crse(ic,jc,0,n)};
