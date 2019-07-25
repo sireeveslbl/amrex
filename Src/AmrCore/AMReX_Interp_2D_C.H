@@ -471,7 +471,7 @@ amrex_gpinterp(Box const& bx, amrex::Array4<amrex::Real> const& fine,
                 sqrmean /= 5; 
                 sqrmean *= sqrmean; 
                 test =beta[2]/(sqrmean + 1e-32); //Protect against dividing by 0
-                if(test > 25){
+                if(test > 100){
                     amrex::Real sten_jm[5]  = {crse(ic,jc-2,0,n),
                           crse(ic-1,jc-1,0,n), crse(ic,jc-1,0,n), crse(ic+1,jc-1,0,n),
                                                crse(ic,jc,0,n)};

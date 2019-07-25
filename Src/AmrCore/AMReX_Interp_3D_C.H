@@ -627,6 +627,7 @@ amrex_gpinterp(Box const& bx, const amrex::Array4<amrex::Real> &fine,
                     sqrmean /= 7; 
                     sqrmean *= sqrmean;
                     test = beta[3]/(sqrmean+1e-32);
+                    test = 101; 
                     if(test > 50){
 
 /*      TOO MANY GLOBAL MEM READS; Use already read values.                         
