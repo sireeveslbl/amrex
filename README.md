@@ -46,3 +46,16 @@ To cite AMReX, please use [![Citing](http://joss.theoj.org/papers/10.21105/joss.
   journal = {Journal of Open Source Software}
 }
 ```
+
+If you use the Gaussian Process Based AMR prolongation algorithm within AMReX, please cite the corresponding paper by Reeves, et al. 
+
+```
+    @ARTICLE{reeves2020application,
+        title={An Application of Gaussian Process Modeling for High-order Accurate Adaptive Mesh Refinement Prolongation},
+        author={Steven I. Reeves and Dongwook Lee and Adam Reyes and Carlo Graziani and Petros Tzeferacos},
+        year={2020},
+        eprint={2003.08508},
+        archivePrefix={arXiv},
+        primaryClass={math.NA}
+    }
+```
