@@ -10,6 +10,8 @@ using namespace amrex;
 int      AmrLevelAdv::verbose         = 0;
 Real     AmrLevelAdv::cfl             = 0.9;
 int      AmrLevelAdv::do_reflux       = 1;
+int      AmrLevelAdv::amr_interp      = 2;
+
 
 int      AmrLevelAdv::NUM_STATE       = 1;  // One variable in the state
 int      AmrLevelAdv::NUM_GROW        = 3;  // number of ghost cells
@@ -110,10 +112,26 @@ AmrLevelAdv::variableSetUp ()
     // Get options, set phys_bc
     read_params();
 
-    desc_lst.addDescriptor(Phi_Type,IndexType::TheCellType(),
+#if AMREX_SPACEDIM >=2 
+#ifdef AMREX_USE_LAPACKE
+    if(amr_interp > 2){
+        desc_lst.addDescriptor(Phi_Type,IndexType::TheCellType(),
                            StateDescriptor::Point,0,NUM_STATE,
-			   &cell_cons_interp);
-
+                           &gp_interp);
+    }
+    else{
+#endif
+        desc_lst.addDescriptor(Phi_Type,IndexType::TheCellType(),
+                           StateDescriptor::Point,0,NUM_STATE,
+                           &cell_cons_interp);
+#ifdef AMREX_USE_LAPACKE
+    }
+#endif
+#else 
+        desc_lst.addDescriptor(Phi_Type,IndexType::TheCellType(),
+                           StateDescriptor::Point,0,NUM_STATE,
+                           &cell_cons_interp);
+#endif
     int lo_bc[BL_SPACEDIM];
     int hi_bc[BL_SPACEDIM];
     for (int i = 0; i < BL_SPACEDIM; ++i) {
@@ -676,7 +694,7 @@ AmrLevelAdv::read_params ()
     pp.query("v",verbose);
     pp.query("cfl",cfl);
     pp.query("do_reflux",do_reflux);
-
+    pp.query("amr_interp", amr_interp); 
     Geometry const* gg = AMReX::top()->getDefaultGeometry();
 
     // This tutorial code only supports Cartesian coordinates.

@@ -25,6 +25,14 @@ target_sources(amrex
    AMReX_Interp_${DIM}D_C.H
    )
 
+if (${DIM} GREATER 1)
+   target_sources(amrex
+      PRIVATE
+      AMReX_GP_${DIM}D.H
+      AMReX_GP_${DIM}D.cpp
+      )
+endif ()
+
 if (ENABLE_FORTRAN)
    target_sources(amrex
       PRIVATE
