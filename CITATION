@@ -16,3 +16,14 @@ You should also cite the zenodo DOI for the code release.  A bibtex
 entry for the latest release can be found here:
 
   https://doi.org/10.5281/zenodo.2555438
+
+If you use the Gaussian Process Based AMR prolongation algorithm within AMReX, please cite the corresponding paper by Reeves, et al. 
+
+    @ARTICLE{reeves2020application,
+        title={An Application of Gaussian Process Modeling for High-order Accurate Adaptive Mesh Refinement Prolongation},
+        author={Steven I. Reeves and Dongwook Lee and Adam Reyes and Carlo Graziani and Petros Tzeferacos},
+        year={2020},
+        eprint={2003.08508},
+        archivePrefix={arXiv},
+        primaryClass={math.NA}
+    }
