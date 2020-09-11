@@ -161,7 +161,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Dependencies
-      run: .github/workflows/cmake/dependencies_dpcpp.sh
+      run: .github/workflows/dependencies/dependencies_dpcpp.sh
     - name: Build & Install
       run: |
         set +e
@@ -218,5 +218,19 @@ jobs:
     - name: Build & Install
       run: |
         ./configure --dim 3 --enable-eb yes --enable-xsdk-defaults yes
+        make -j2 WARN_ALL=TRUE WARN_ERROR=TRUE
+        make install
+
+  # Build 3D libamrex debug omp build with configure
+  configure-3d-omp-debug:
+    name: GNU@7.5 OMP Debug [configure 3D]
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Dependencies
+      run: .github/workflows/dependencies/dependencies.sh
+    - name: Build & Install
+      run: |
+        ./configure --dim 3 --enable-eb yes --enable-xsdk-defaults yes --with-omp yes --debug yes
         make -j2 WARN_ALL=TRUE WARN_ERROR=TRUE
         make install
