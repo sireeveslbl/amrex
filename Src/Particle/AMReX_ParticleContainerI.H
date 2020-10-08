@@ -471,10 +471,21 @@ ParticleContainer<NStructReal, NStructInt, NArrayReal, NArrayInt>::NumberOfParti
         for (const auto& kv : GetParticles(lev)) {
             const auto& ptile = kv.second;
             if (only_valid) {
+#if defined(AMREX_USE_DPCPP) || defined(AMREX_USE_HIP)
+                auto const& ptaos = ptile.GetArrayOfStructs();
+                ParticleType const* pp = ptaos().data();
+                int np = amrex::Reduce::Sum<int>(ptaos.numParticles(), pp, 0,
+                         [=] AMREX_GPU_DEVICE (int s, ParticleType const& p) noexcept
+                         {
+                             return (p.id() > 0) ? s+1 : s;
+                         });
+                nparticles += np;
+#else
                 for (int k = 0; k < ptile.GetArrayOfStructs().numParticles(); ++k) {
                     const ParticleType& p = ptile.GetArrayOfStructs()[k];
                     if (p.id() > 0) ++nparticles;
                 }
+#endif
             } else {
                 nparticles += ptile.numParticles();
             }
@@ -955,7 +966,7 @@ void
 ParticleContainer<NStructReal, NStructInt, NArrayReal, NArrayInt>::
 addParticles (const ParticleContainerType& other, bool local)
 {
-    using PData = ConstParticleTileData<NStructReal, NStructInt, NArrayReal, NArrayInt>; 
+    using PData = ConstParticleTileData<NStructReal, NStructInt, NArrayReal, NArrayInt>;
     addParticles(other, [=] AMREX_GPU_HOST_DEVICE (const PData& /*data*/, int /*i*/) { return 1; }, local);
 }
 
@@ -989,7 +1000,7 @@ addParticles (const ParticleContainerType& other, F&& f, bool local)
             auto index = std::make_pair(mfi.index(), mfi.LocalTileIndex());
             if(plevel_other.find(index) == plevel_other.end()) continue;
 
-            auto& ptile = plevel[index];
+            auto& ptile = DefineAndReturnParticleTile(lev, mfi.index(), mfi.LocalTileIndex());
             const auto& ptile_other = plevel_other.at(index);
             auto np = ptile_other.numParticles();
             if (np == 0) continue;

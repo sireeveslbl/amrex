@@ -322,9 +322,9 @@ amrex_calc_slopes_extdir_eb (int i, int j, int k, int n,
     constexpr int dim_a = 27;
 #endif
 
-    AMREX_D_TERM(amrex::Real xslope;,
-                 amrex::Real yslope;,
-                 amrex::Real zslope;);
+    AMREX_D_TERM(amrex::Real xslope = 0.0;,
+                 amrex::Real yslope = 0.0;,
+                 amrex::Real zslope = 0.0;);
 
     // First get EB-aware slope that doesn't know about extdir
     bool needs_bdry_stencil = (edlo_x and i <= domlo_x) or (edhi_x and i >= domhi_x) or
@@ -354,7 +354,7 @@ amrex_calc_slopes_extdir_eb (int i, int j, int k, int n,
     //    1) Here if any of the cells are not regular we use the face and cell centroids
     //
 
-    if ( (edlo_x and i == domlo_x) or (edlo_x and i == domhi_x) )
+    if ( (edlo_x and i == domlo_x) or (edhi_x and i == domhi_x) )
     {
         int lc=0;
 #if (AMREX_SPACEDIM == 3)
@@ -410,7 +410,7 @@ amrex_calc_slopes_extdir_eb (int i, int j, int k, int n,
                      zslope = slopes[2];);
     }
 
-    if ( (edlo_y and j == domlo_y) or (edlo_y and j == domhi_y) )
+    if ( (edlo_y and j == domlo_y) or (edhi_y and j == domhi_y) )
     {
         int lc=0;
 #if (AMREX_SPACEDIM == 3)
